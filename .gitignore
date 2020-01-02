@@ -1,6 +1,6 @@
 # Distribution / packaging
 .Python
-.egg
+**/*.egg
 env/
 **/__pycache__
 

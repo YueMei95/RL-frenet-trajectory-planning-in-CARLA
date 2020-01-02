@@ -1,2 +1,10 @@
+# Distribution / packaging
+.Python
+.egg
 env/
 **/__pycache__
+
+# C extensions
+*.so
+
+

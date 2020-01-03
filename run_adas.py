@@ -830,13 +830,14 @@ class ModuleWorld:
         self.hero_surface = None
         self.actors_surface = None
         self.initSettings = None
+        self.frame = None
 
     def config(self, synchronous=True, no_rendering=True, time_step=None):
         self.initSettings = self.world.get_settings()  # backup the initial setting
         settings = self.world.get_settings()
-        # settings.synchronous_mode = synchronous
+        settings.synchronous_mode = synchronous
         settings.no_rendering_mode = no_rendering
-        # settings.fixed_delta_seconds = time_step  # None: default; variable time-step
+        settings.fixed_delta_seconds = time_step  # None: default; variable time-step
         self.world.apply_settings(settings)
 
     def recoverConfig(self):
@@ -862,7 +863,9 @@ class ModuleWorld:
     def start(self):
         self.world, self.town_map = self._get_data_from_carla()
 
-        self.config(no_rendering=True)
+        self.config(synchronous=True, no_rendering=True, time_step=0.05)
+        settings = self.world.get_settings()
+        print(settings)
 
         # Create Surfaces
         self.map_image = MapImage(
@@ -956,6 +959,12 @@ class ModuleWorld:
         if self.hero_actor is not None:
             self.hero_transform = self.hero_actor.get_transform()
         self.update_hud_info(clock)
+        self.world.tick()
+        ts = self.world.wait_for_tick()
+        if self.frame is not None:
+            if ts.frame_count != self.frame + 1:
+                logging.warning('--------------- frame skip! -----------------')
+        self.frame = ts.frame_count
 
     def update_hud_info(self, clock):
         hero_mode_text = []

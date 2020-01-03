@@ -456,7 +456,17 @@ class MapImage:
         width_in_pixels = int(self._pixels_per_meter * self.width)
 
         self.big_map_surface = pygame.Surface((width_in_pixels, width_in_pixels)).convert()
-        self.draw_road_map(self.big_map_surface, carla_world, carla_map, self.world_to_pixel, self.world_to_pixel_width)
+
+        map_file_name = 'road_maps/road_map_' + carla_map.name.lower() + '.png'
+        if os.path.exists(map_file_name):
+            self.big_map_surface = pygame.image.load(os.path.join(map_file_name))
+        else:
+            print('Town map does not exist in road_maps/')
+            print('creating town map ...')
+            self.draw_road_map(self.big_map_surface, carla_world, carla_map, self.world_to_pixel,
+                               self.world_to_pixel_width)
+            print('saving town map to: ' + map_file_name)
+            pygame.image.save(self.big_map_surface, map_file_name)
         self.surface = self.big_map_surface
 
     def draw_road_map(self, map_surface, carla_world, carla_map, world_to_pixel, world_to_pixel_width):

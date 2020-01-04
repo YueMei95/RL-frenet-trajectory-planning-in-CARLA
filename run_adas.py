@@ -1450,7 +1450,7 @@ class ModuleControl:
         pass
 
     def tick(self, clock):
-        wp = self.world.hero_actor.get_world().get_map().get_waypoint(self.world.hero_actor.get_location(),
+        wp = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
                                                                       project_to_road=True).next(10)[0]
         control = self.vehicleController.run_step(100, wp)
         self.world.hero_actor.apply_control(control)

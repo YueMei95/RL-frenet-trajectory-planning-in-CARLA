@@ -12,6 +12,7 @@ from collections import deque
 import math
 
 import numpy as np
+import pandas as pd
 
 import carla
 from agents.tools.misc import get_speed
@@ -142,6 +143,12 @@ class PIDLateralController:
         self._dt = dt
         self._e_buffer = deque(maxlen=10)
 
+        self.prev_prop = np.nan
+        self.prev_prev_prop = np.nan
+        self.curr_prop = np.nan
+        self.deriv_list = []
+        self.deriv_len = 5
+
     def run_step(self, waypoint):
         """
         Execute one step of lateral control to steer the vehicle towards a certain waypoin.
@@ -175,7 +182,6 @@ class PIDLateralController:
         _cross = np.cross(v_vec, w_vec)
         if _cross[2] < 0:
             _dot *= -1.0
-
         self._e_buffer.append(_dot)
         if len(self._e_buffer) >= 2:
             _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self._dt

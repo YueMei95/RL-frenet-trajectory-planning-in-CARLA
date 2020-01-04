@@ -60,6 +60,7 @@ import weakref
 import math
 import random
 
+from operator import itemgetter
 from agents.strl.controller import VehiclePIDController
 
 try:
@@ -854,7 +855,7 @@ class ModuleWorld:
                 world = self.client.load_world(self.args.map)
 
             town_map = world.get_map()
-            return (world, town_map)
+            return world, town_map
 
         except RuntimeError as ex:
             logging.error(ex)
@@ -970,6 +971,7 @@ class ModuleWorld:
         hero_mode_text = []
         if self.hero_actor is not None:
             hero_speed = self.hero_actor.get_velocity()
+            hero_location = self.hero_actor.get_location()
             hero_speed_text = 3.6 * math.sqrt(hero_speed.x ** 2 + hero_speed.y ** 2 + hero_speed.z ** 2)
 
             affected_traffic_light_text = 'None'
@@ -989,6 +991,7 @@ class ModuleWorld:
                 'Hero ID:              %7d' % self.hero_actor.id,
                 'Hero Vehicle:  %14s' % get_actor_display_name(self.hero_actor, truncate=14),
                 'Hero Speed:          %3d km/h' % hero_speed_text,
+                'Hero location: %3.3f %3.3f' % (hero_location.x, hero_location.y),
                 'Hero Affected by:',
                 '  Traffic Light: %12s' % affected_traffic_light_text,
                 '  Speed Limit:       %3d km/h' % affected_speed_limit_text
@@ -1420,6 +1423,7 @@ class ModuleInput(object):
 
 class ModuleControl:
     def __init__(self, name):
+        self.name = name
         self.dt = 1.0 / 20.0
         self.args_lateral_dict = {
             'K_P': 1.95,
@@ -1447,10 +1451,8 @@ class ModuleControl:
 
     def tick(self, clock):
         wp = self.world.hero_actor.get_world().get_map().get_waypoint(self.world.hero_actor.get_location(),
-                                                                      project_to_road=True)
-        wp.transform.location.y -= 3
-        control = self.vehicleController.run_step(30, wp)
-        control.steer = 0
+                                                                      project_to_road=True).next(10)[0]
+        control = self.vehicleController.run_step(100, wp)
         self.world.hero_actor.apply_control(control)
 
 

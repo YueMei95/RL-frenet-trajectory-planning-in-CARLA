@@ -1291,6 +1291,7 @@ class ModuleWorld:
         if self.world is not None:
             self.recoverConfig()
 
+
 # ==============================================================================
 # -- Input -----------------------------------------------------------
 # ==============================================================================
@@ -1417,6 +1418,7 @@ class ModuleInput(object):
     def _is_quit_shortcut(key):
         return (key == K_ESCAPE) or (key == K_q and pygame.key.get_mods() & KMOD_CTRL)
 
+
 # ==============================================================================
 # -- Control -----------------------------------------------------------
 # ==============================================================================
@@ -1450,9 +1452,10 @@ class ModuleControl:
         pass
 
     def tick(self, clock):
-        wp = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-                                                                      project_to_road=True).next(10)[0]
-        control = self.vehicleController.run_step(100, wp)
+        targetWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
+                                                    project_to_road=True).next(distance=10)[0]
+        targetSpeed = 100
+        control = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)
 
 

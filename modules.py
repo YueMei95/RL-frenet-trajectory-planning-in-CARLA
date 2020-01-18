@@ -222,6 +222,11 @@ class ModuleManager:
         for module in self.modules:
             module.start()
 
+    def exit_game(self):
+        self.clear_modules()
+        pygame.quit()
+        sys.exit()
+
 
 # ==============================================================================
 # -- FadingText ----------------------------------------------------------------
@@ -287,7 +292,8 @@ class HelpText:
 
 class ModuleHUD:
 
-    def __init__(self, name, width, height):
+    def __init__(self, name, width, height, module_manager):
+        self.module_manager = module_manager
         self.name = name
         self.dim = (width, height)
         self._init_hud_params()
@@ -456,14 +462,16 @@ class MapImage:
         self._world_offset = (min_x, min_y)
 
         width_in_pixels = int(self._pixels_per_meter * self.width)
-
+        import inspect
         self.big_map_surface = pygame.Surface((width_in_pixels, width_in_pixels)).convert()
 
-        map_file_name = 'road_maps/road_map_' + carla_map.name.lower() + '.png'
+        # realpath = os.path.realpath(__file__)[0:-10] # remove modules.py from real path
+        realpath = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+        map_file_name = realpath + '/road_maps/road_map_' + carla_map.name.lower() + '.png'
         if os.path.exists(map_file_name):
             self.big_map_surface = pygame.image.load(os.path.join(map_file_name))
         else:
-            print('Town map does not exist in road_maps/')
+            print('Town map does not exist in ' + map_file_name)
             print('creating town map ...')
             self.draw_road_map(self.big_map_surface, carla_world, carla_map, self.world_to_pixel,
                                self.world_to_pixel_width)
@@ -792,7 +800,8 @@ class MapImage:
 
 
 class ModuleWorld:
-    def __init__(self, name, args, timeout):
+    def __init__(self, name, args, timeout, module_manager):
+        self.module_manager = module_manager
         # Init Pygame
         pygame.init()
         self.display = pygame.display.set_mode(
@@ -862,20 +871,15 @@ class ModuleWorld:
 
     def _get_data_from_carla(self):
         try:
-            self.client = carla.Client(self.args.host, self.args.port)
+            self.client = carla.Client(self.args.carla_host, self.args.carla_port)
             self.client.set_timeout(self.timeout)
-
-            if self.args.map is None:
-                world = self.client.get_world()
-            else:
-                world = self.client.load_world(self.args.map)
-
+            world = self.client.get_world()
             town_map = world.get_map()
             return world, town_map
 
         except RuntimeError as ex:
             logging.error(ex)
-            exit_game()
+            self.module_manager.exit_game()
 
     def start(self):
         self.world, self.town_map = self._get_data_from_carla()
@@ -889,13 +893,13 @@ class ModuleWorld:
             carla_world=self.world,
             carla_map=self.town_map,
             pixels_per_meter=PIXELS_PER_METER,
-            show_triggers=self.args.show_triggers,
-            show_connections=self.args.show_connections,
-            show_spawn_points=self.args.show_spawn_points)
+            show_triggers=False,
+            show_connections=False,
+            show_spawn_points=False)
 
         # Store necessary modules
-        self.module_hud = module_manager.get_module(MODULE_HUD)
-        self.module_input = module_manager.get_module(MODULE_INPUT)
+        self.module_hud = self.module_manager.get_module(MODULE_HUD)
+        self.module_input = self.module_manager.get_module(MODULE_INPUT)
 
         self.original_surface_size = min(self.module_hud.dim[0], self.module_hud.dim[1])
         self.surface_size = self.map_image.big_map_surface.get_width()
@@ -1026,7 +1030,7 @@ class ModuleWorld:
         ]
 
         module_info_text = module_info_text
-        module_hud = module_manager.get_module(MODULE_HUD)
+        module_hud = self.module_manager.get_module(MODULE_HUD)
         module_hud.add_info(self.name, module_info_text)
         module_hud.add_info('HERO', hero_mode_text)
 
@@ -1070,7 +1074,7 @@ class ModuleWorld:
                     break
                 vehicle_type = get_actor_display_name(vehicle, truncate=22)
                 info_text.append('% 5d %s' % (vehicle.id, vehicle_type))
-        module_manager.get_module(MODULE_HUD).add_info(
+        self.module_manager.get_module(MODULE_HUD).add_info(
             'NEARBY VEHICLES',
             info_text)
 
@@ -1082,11 +1086,6 @@ class ModuleWorld:
         for tl in list_tl:
             world_pos = tl.get_location()
             pos = world_to_pixel(world_pos)
-
-            if self.args.show_triggers:
-                corners = Util.get_bounding_box(tl)
-                corners = [world_to_pixel(p) for p in corners]
-                pygame.draw.lines(surface, COLOR_BUTTER_1, True, corners, 2)
 
             if self.hero_actor is not None:
                 corners = Util.get_bounding_box(tl)
@@ -1124,11 +1123,6 @@ class ModuleWorld:
 
             limit = sl.type_id.split('.')[2]
             font_surface = font.render(limit, True, COLOR_ALUMINIUM_5)
-
-            if self.args.show_triggers:
-                corners = Util.get_bounding_box(sl)
-                corners = [world_to_pixel(p) for p in corners]
-                pygame.draw.lines(surface, COLOR_PLUM_2, True, corners, 2)
 
             # Blit
             if self.hero_actor is not None:
@@ -1314,8 +1308,10 @@ class ModuleWorld:
 
     def destroy(self):
         if self.spawned_hero is not None:
+            print('destroying actors ...')
             self.spawned_hero.destroy()
         if self.world is not None:
+            print('recovering world initial configuration ...')
             self.recoverConfig()
 
 
@@ -1325,7 +1321,8 @@ class ModuleWorld:
 
 
 class ModuleInput(object):
-    def __init__(self, name):
+    def __init__(self, name, module_manager):
+        self.module_manager = module_manager
         self.name = name
         self.mouse_pos = (0, 0)
         self.mouse_offset = [0.0, 0.0]
@@ -1336,7 +1333,7 @@ class ModuleInput(object):
         self._autopilot_enabled = False
 
     def start(self):
-        hud = module_manager.get_module(MODULE_HUD)
+        hud = self.module_manager.get_module(MODULE_HUD)
         hud.notification("Press 'H' or '?' for help.", seconds=4.0)
 
     def render(self, display):
@@ -1349,16 +1346,16 @@ class ModuleInput(object):
         self.mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                exit_game()
+                self.module_manager.exit_game()
             elif event.type == pygame.KEYUP:
                 if self._is_quit_shortcut(event.key):
-                    exit_game()
+                    self.module_manager.exit_game()
                 elif event.key == K_h or (event.key == K_SLASH and pygame.key.get_mods() & KMOD_SHIFT):
-                    module_hud = module_manager.get_module(MODULE_HUD)
+                    module_hud = self.module_manager.get_module(MODULE_HUD)
                     module_hud.help.toggle()
                 elif event.key == K_TAB:
-                    module_world = module_manager.get_module(MODULE_WORLD)
-                    module_hud = module_manager.get_module(MODULE_HUD)
+                    module_world = self.module_manager.get_module(MODULE_WORLD)
+                    module_hud = self.module_manager.get_module(MODULE_HUD)
                     if module_world.hero_actor is None:
                         module_world.select_hero_actor()
                         self.wheel_offset = HERO_DEFAULT_SCALE
@@ -1372,19 +1369,19 @@ class ModuleInput(object):
                         module_world.hero_actor = None
                         module_hud.notification('Map Mode')
                 elif event.key == K_F1:
-                    module_hud = module_manager.get_module(MODULE_HUD)
+                    module_hud = self.module_manager.get_module(MODULE_HUD)
                     module_hud.show_info = not module_hud.show_info
                 elif event.key == K_i:
-                    module_hud = module_manager.get_module(MODULE_HUD)
+                    module_hud = self.module_manager.get_module(MODULE_HUD)
                     module_hud.show_actor_ids = not module_hud.show_actor_ids
                 elif isinstance(self.control, carla.VehicleControl):
                     if event.key == K_q:
                         self.control.gear = 1 if self.control.reverse else -1
                     elif event.key == K_m:
                         self.control.manual_gear_shift = not self.control.manual_gear_shift
-                        world = module_manager.get_module(MODULE_WORLD)
+                        world = self.module_manager.get_module(MODULE_WORLD)
                         self.control.gear = world.hero_actor.get_control().gear
-                        module_hud = module_manager.get_module(MODULE_HUD)
+                        module_hud = self.module_manager.get_module(MODULE_HUD)
                         module_hud.notification('%s Transmission' % (
                             'Manual' if self.control.manual_gear_shift else 'Automatic'))
                     elif self.control.manual_gear_shift and event.key == K_COMMA:
@@ -1392,11 +1389,11 @@ class ModuleInput(object):
                     elif self.control.manual_gear_shift and event.key == K_PERIOD:
                         self.control.gear = self.control.gear + 1
                     elif event.key == K_p:
-                        world = module_manager.get_module(MODULE_WORLD)
+                        world = self.module_manager.get_module(MODULE_WORLD)
                         if world.hero_actor is not None:
                             self._autopilot_enabled = not self._autopilot_enabled
                             world.hero_actor.set_autopilot(self._autopilot_enabled)
-                            module_hud = module_manager.get_module(MODULE_HUD)
+                            module_hud = self.module_manager.get_module(MODULE_HUD)
                             module_hud.notification('Autopilot %s' % ('On' if self._autopilot_enabled else 'Off'))
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 4:
@@ -1437,7 +1434,7 @@ class ModuleInput(object):
             if isinstance(self.control, carla.VehicleControl):
                 self._parse_keys(clock.get_time())
                 self.control.reverse = self.control.gear < 0
-            world = module_manager.get_module(MODULE_WORLD)
+            world = self.module_manager.get_module(MODULE_WORLD)
             if (world.hero_actor is not None):
                 world.hero_actor.apply_control(self.control)
 
@@ -1451,7 +1448,8 @@ class ModuleInput(object):
 # ==============================================================================
 
 class ModuleControl:
-    def __init__(self, name):
+    def __init__(self, name, module_manager):
+        self.module_manager = module_manager
         self.name = name
         self.dt = 1.0 / 20.0
         self.args_lateral_dict = {
@@ -1468,9 +1466,9 @@ class ModuleControl:
         self.vehicleController = None
 
     def start(self):
-        hud = module_manager.get_module(MODULE_HUD)
+        hud = self.module_manager.get_module(MODULE_HUD)
         hud.notification("Press 'H' or '?' for help.", seconds=4.0)
-        self.world = module_manager.get_module(MODULE_WORLD)
+        self.world = self.module_manager.get_module(MODULE_WORLD)
         self.vehicleController = VehiclePIDController(self.world.hero_actor,
                                                       args_lateral=self.args_lateral_dict,
                                                       args_longitudinal=self.args_longitudinal_dict)
@@ -1491,125 +1489,3 @@ class ModuleControl:
         targetSpeed = 100
         control = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)
-
-
-# ==============================================================================
-# -- Global Objects ------------------------------------------------------------
-# ==============================================================================
-
-module_manager = ModuleManager()
-
-
-# ==============================================================================
-# -- Game Loop ---------------------------------------------------------------
-# ==============================================================================
-
-
-def game_loop(args):
-    try:
-        # Init modules
-        world_module = ModuleWorld(MODULE_WORLD, args, timeout=2.0)
-        hud_module = ModuleHUD(MODULE_HUD, args.width, args.height)
-        input_module = ModuleInput(MODULE_INPUT)
-        control_module = ModuleControl(MODULE_CONTROL)
-
-        # Register Modules
-        module_manager.register_module(world_module)
-        module_manager.register_module(hud_module)
-        module_manager.register_module(input_module)
-        module_manager.register_module(control_module)
-
-        module_manager.start_modules()
-
-        while True:
-            world_module.clock.tick_busy_loop()
-
-            module_manager.tick(world_module.clock)
-            module_manager.render(world_module.display)
-
-    except KeyboardInterrupt:
-        print('\nCancelled by user. Bye!')
-
-    finally:
-        if world_module is not None:
-            world_module.destroy()
-
-
-def exit_game():
-    module_manager.clear_modules()
-    pygame.quit()
-    sys.exit()
-
-
-# ==============================================================================
-# -- Main --------------------------------------------------------------------
-# ==============================================================================
-
-
-def main():
-    # Parse arguments
-    argparser = argparse.ArgumentParser(
-        description='CARLA No Rendering Mode Visualizer')
-    argparser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        dest='debug',
-        help='print debug information')
-    argparser.add_argument(
-        '--host',
-        metavar='H',
-        default='127.0.0.1',
-        help='IP of the host server (default: 127.0.0.1)')
-    argparser.add_argument(
-        '-p', '--port',
-        metavar='P',
-        default=2000,
-        type=int,
-        help='TCP port to listen to (default: 2000)')
-    argparser.add_argument(
-        '--res',
-        metavar='WIDTHxHEIGHT',
-        default='1280x720',
-        help='window resolution (default: 1280x720)')
-    argparser.add_argument(
-        '--filter',
-        metavar='PATTERN',
-        default='vehicle.*',
-        help='actor filter (default: "vehicle.*")')
-    argparser.add_argument(
-        '--map',
-        metavar='TOWN',
-        default=None,
-        help='start a new episode at the given TOWN')
-    argparser.add_argument(
-        '--no-rendering',
-        action='store_true',
-        help='switch off server rendering')
-    argparser.add_argument(
-        '--show-triggers',
-        action='store_true',
-        help='show trigger boxes of traffic signs')
-    argparser.add_argument(
-        '--show-connections',
-        action='store_true',
-        help='show waypoint connections')
-    argparser.add_argument(
-        '--show-spawn-points',
-        action='store_true',
-        help='show recommended spawn points')
-
-    args = argparser.parse_args()
-    args.description = argparser.description
-    args.width, args.height = [int(x) for x in args.res.split('x')]
-
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
-
-    logging.info('listening to server %s:%s', args.host, args.port)
-    print(__doc__)
-
-    game_loop(args)
-
-
-if __name__ == '__main__':
-    main()

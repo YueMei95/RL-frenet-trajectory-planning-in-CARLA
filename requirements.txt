@@ -1,3 +1,4 @@
+tensorflow
 future
 numpy
 pygame

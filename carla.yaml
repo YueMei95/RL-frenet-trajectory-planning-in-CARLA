@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sim
+spec:
+  containers:
+  - name: carla-sim
+    image: docker.io/carlasim/carla:0.9.5
+    command: ["/bin/bash"]
+    args: ["./CarlaUE4.sh", "/Game/Carla/Maps/Town01", "-benchmark", "-carla-server", "-fps=20", "-world-port=2000", "-windowed", "-ResX=100", "-ResY=100", "-carla-no-hud"]
+    resources:
+      limits:
+        memory: 4Gi
+        nvidia.com/gpu: 1
+

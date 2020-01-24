@@ -62,9 +62,10 @@ def train(args, extra_args):
     alg_kwargs = get_learn_function_defaults(args.alg, env_type)
     alg_kwargs.update(extra_args)
 
-    from carla_gym_env import CarlaEnv
-    print(args)
-    env = CarlaEnv(args)
+    import carla_gym
+    envVec = build_env(args)
+    for env in envVec.envs:
+        env.begin_modules(args)
 
 
     if args.network:
@@ -74,14 +75,14 @@ def train(args, extra_args):
             alg_kwargs['network'] = get_default_network(env_type)
 
     model = learn(
-        env=env,
+        env=envVec,
         seed=seed,
         total_timesteps=total_timesteps,
         render=args.play,
         **alg_kwargs
     )
 
-    return model, env
+    return model, envVec
 
 
 def build_env(args):
@@ -91,7 +92,8 @@ def build_env(args):
     alg = args.alg
     seed = args.seed
 
-    env_type, env_id = get_env_type(args)
+    # env_type, env_id = get_env_type(args)
+    env_type, env_id = None, 'CarlaEnv-v0'
 
     if env_type in {'atari', 'retro'}:
         if alg == 'deepq':

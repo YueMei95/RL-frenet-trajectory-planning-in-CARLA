@@ -166,7 +166,7 @@ def common_arg_parser():
     Create an argparse.ArgumentParser for run_mujoco.py.
     """
     parser = arg_parser()
-    parser.add_argument('--env', help='environment ID', type=str, default='Reacher-v2')
+    parser.add_argument('--env', help='environment ID', type=str, default='Carla-v9.5.0')
     parser.add_argument('--env_type',
                         help='type of environment, used when the environment type cannot be automatically determined',
                         type=str)

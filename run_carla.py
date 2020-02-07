@@ -18,6 +18,8 @@ from baselines.common.tf_util import get_session
 from baselines import logger
 from importlib import import_module
 
+import carla_gym
+
 try:
     from mpi4py import MPI
 except ImportError:
@@ -55,32 +57,31 @@ _game_envs['retro'] = {
 
 
 def train(args, extra_args):
-
     total_timesteps = int(args.num_timesteps)
     seed = args.seed
     learn = get_learn_function(args.alg)
     alg_kwargs = get_learn_function_defaults(args.alg, env_type)
     alg_kwargs.update(extra_args)
 
-    import carla_gym
     envVec = build_env(args)
     for env in envVec.envs:
         env.begin_modules(args)
-
 
     if args.network:
         alg_kwargs['network'] = args.network
     else:
         if alg_kwargs.get('network') is None:
             alg_kwargs['network'] = get_default_network(env_type)
-
-    model = learn(
-        env=envVec,
-        seed=seed,
-        total_timesteps=total_timesteps,
-        render=args.play,
-        **alg_kwargs
-    )
+    try:
+        model = learn(
+            env=envVec,
+            seed=seed,
+            total_timesteps=total_timesteps,
+            render=args.play,
+            **alg_kwargs)
+    finally:
+        for env in envVec.envs:
+            env.destroy()
 
     return model, envVec
 
@@ -92,8 +93,7 @@ def build_env(args):
     alg = args.alg
     seed = args.seed
 
-    # env_type, env_id = get_env_type(args)
-    env_type, env_id = None, 'CarlaEnv-v0'
+    env_type, env_id = get_env_type(args)
 
     if env_type in {'atari', 'retro'}:
         if alg == 'deepq':

@@ -730,9 +730,9 @@ def game_loop(args):
         client = carla.Client(args.host, args.port)
         client.set_timeout(4.0)
 
-        display = pygame.display.set_mode(
-            (args.width, args.height),
-            pygame.HWSURFACE | pygame.DOUBLEBUF)
+        #display = pygame.display.set_mode(
+        #    (args.width, args.height),
+        #    pygame.HWSURFACE | pygame.DOUBLEBUF)
 
         hud = HUD(args.width, args.height)
         world = World(client.get_world(), hud, args.filter)
@@ -757,8 +757,8 @@ def game_loop(args):
                 continue
 
             world.tick(clock)
-            world.render(display)
-            pygame.display.flip()
+            #world.render(display)
+            #pygame.display.flip()
             control = agent.run_step()
             control.manual_gear_shift = False
             world.player.apply_control(control)

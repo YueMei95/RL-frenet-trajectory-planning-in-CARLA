@@ -14,7 +14,7 @@ from modules import *
 import gym
 
 
-class CarlaEnv(gym.Env):
+class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
         self.__version__ = "9.5.0"
@@ -66,8 +66,8 @@ class CarlaEnv(gym.Env):
 
     def render(self, mode='human'):
         self.module_manager.render(self.world_module.display)
-        pass
 
-    def close(self):
+    def destroy(self):
+        print('Destroying environment...')
         if self.world_module is not None:
             self.world_module.destroy()

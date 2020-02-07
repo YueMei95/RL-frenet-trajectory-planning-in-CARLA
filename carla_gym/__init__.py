@@ -1,6 +1,5 @@
 from gym.envs.registration import register
 
 register(
-    id='CarlaEnv-v0',
-    entry_point='carla_gym.envs:CarlaEnv',
-)
+    id='CarlaGymEnv-v95',
+    entry_point='carla_gym.envs:CarlaGymEnv')

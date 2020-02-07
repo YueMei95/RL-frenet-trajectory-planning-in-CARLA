@@ -1487,10 +1487,11 @@ class ModuleControl:
         We cannot modify targetWP. Find out why?
         targetWP.transform.location.x = 10
         '''
-        print(targetWP)
+        # print(targetWP)
         self.world.waypoints = [targetWP]
         targetSpeed = 100
         control = self.vehicleController.run_step(targetSpeed, targetWP)
+        print(control)
         self.world.hero_actor.apply_control(control)
 
 

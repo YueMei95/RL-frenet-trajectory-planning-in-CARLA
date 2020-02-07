@@ -4,9 +4,6 @@
 env/
 **/__pycache__
 
-# C extensions
-*.so
-
 # baselines gitignore:
 *.swp
 *.pyc

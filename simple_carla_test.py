@@ -19,7 +19,6 @@ control.brake = 0.0
 control.hand_brake = False
 control.manual_gear_shift = False
 
-
 while True:
     hero_actor.apply_control(control)
     print(hero_actor.get_transform())

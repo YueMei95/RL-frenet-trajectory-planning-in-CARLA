@@ -38,14 +38,3 @@ spec:
 
   
 
-
-  
-  #affinity:
-    #nodeAffinity:
-      #requiredDuringSchedulingIgnoredDuringExecution:
-       # nodeSelectorTerms:
-        #- matchExpressions:
-         # - key: gpu-type
-          #  operator: In
-           # values:
-            #- 2080Ti

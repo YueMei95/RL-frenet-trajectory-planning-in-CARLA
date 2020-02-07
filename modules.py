@@ -802,19 +802,21 @@ class MapImage:
 class ModuleWorld:
     def __init__(self, name, args, timeout, module_manager):
         self.module_manager = module_manager
-        # Init Pygame
-        pygame.init()
-        self.display = pygame.display.set_mode(
-            (1280, 720),
-            pygame.HWSURFACE | pygame.DOUBLEBUF)
-        pygame.display.set_caption('CARLA No Rendering Mode Visualizer')
+        if args.play:
+            # Init Pygame
+            pygame.init()
+            self.display = pygame.display.set_mode(
+                (1280, 720),
+                pygame.HWSURFACE | pygame.DOUBLEBUF)
+            pygame.display.set_caption('CARLA No Rendering Mode Visualizer')
 
-        font = pygame.font.Font(pygame.font.get_default_font(), 20)
-        text_surface = font.render('Rendering map...', True, COLOR_WHITE)
-        self.display.blit(text_surface, text_surface.get_rect(center=(1280 / 2, 720 / 2)))
-        pygame.display.flip()
+            font = pygame.font.Font(pygame.font.get_default_font(), 20)
+            text_surface = font.render('Rendering map...', True, COLOR_WHITE)
+            self.display.blit(text_surface, text_surface.get_rect(center=(1280 / 2, 720 / 2)))
+            pygame.display.flip()
+            self.traffic_light_surfaces = TrafficLightSurfaces()
+
         self.clock = pygame.time.Clock()
-
         self.client = None
         self.name = name
         self.args = args
@@ -844,7 +846,6 @@ class ModuleWorld:
         self.vehicle_id_surface = None
         self.result_surface = None
 
-        self.traffic_light_surfaces = TrafficLightSurfaces()
         self.affected_traffic_light = None
 
         # Map info
@@ -888,51 +889,57 @@ class ModuleWorld:
         settings = self.world.get_settings()
         print(settings)
 
-        # Create Surfaces
-        self.map_image = MapImage(
-            carla_world=self.world,
-            carla_map=self.town_map,
-            pixels_per_meter=PIXELS_PER_METER,
-            show_triggers=False,
-            show_connections=False,
-            show_spawn_points=False)
+        if self.args.play:
+            # Create Surfaces
+            self.map_image = MapImage(
+                carla_world=self.world,
+                carla_map=self.town_map,
+                pixels_per_meter=PIXELS_PER_METER,
+                show_triggers=False,
+                show_connections=False,
+                show_spawn_points=False)
 
-        # Store necessary modules
-        self.module_hud = self.module_manager.get_module(MODULE_HUD)
-        self.module_input = self.module_manager.get_module(MODULE_INPUT)
+            # Store necessary modules
+            self.module_hud = self.module_manager.get_module(MODULE_HUD)
+            self.module_input = self.module_manager.get_module(MODULE_INPUT)
 
-        self.original_surface_size = min(self.module_hud.dim[0], self.module_hud.dim[1])
-        self.surface_size = self.map_image.big_map_surface.get_width()
+            self.original_surface_size = min(self.module_hud.dim[0], self.module_hud.dim[1])
+            self.surface_size = self.map_image.big_map_surface.get_width()
 
-        self.scaled_size = int(self.surface_size)
-        self.prev_scaled_size = int(self.surface_size)
+            self.scaled_size = int(self.surface_size)
+            self.prev_scaled_size = int(self.surface_size)
 
-        # Render Actors
-        self.actors_surface = pygame.Surface((self.map_image.surface.get_width(), self.map_image.surface.get_height()))
-        self.actors_surface.set_colorkey(COLOR_BLACK)
+            # Render Actors
+            self.actors_surface = pygame.Surface(
+                (self.map_image.surface.get_width(), self.map_image.surface.get_height()))
+            self.actors_surface.set_colorkey(COLOR_BLACK)
 
-        self.vehicle_id_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
-        self.vehicle_id_surface.set_colorkey(COLOR_BLACK)
+            self.vehicle_id_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
+            self.vehicle_id_surface.set_colorkey(COLOR_BLACK)
 
-        self.border_round_surface = pygame.Surface(self.module_hud.dim, pygame.SRCALPHA).convert()
-        self.border_round_surface.set_colorkey(COLOR_WHITE)
-        self.border_round_surface.fill(COLOR_BLACK)
+            self.border_round_surface = pygame.Surface(self.module_hud.dim, pygame.SRCALPHA).convert()
+            self.border_round_surface.set_colorkey(COLOR_WHITE)
+            self.border_round_surface.fill(COLOR_BLACK)
 
-        center_offset = (int(self.module_hud.dim[0] / 2), int(self.module_hud.dim[1] / 2))
-        pygame.draw.circle(self.border_round_surface, COLOR_ALUMINIUM_1, center_offset, int(self.module_hud.dim[1] / 2))
-        pygame.draw.circle(self.border_round_surface, COLOR_WHITE, center_offset, int((self.module_hud.dim[1] - 8) / 2))
+            center_offset = (int(self.module_hud.dim[0] / 2), int(self.module_hud.dim[1] / 2))
+            pygame.draw.circle(self.border_round_surface, COLOR_ALUMINIUM_1, center_offset,
+                               int(self.module_hud.dim[1] / 2))
+            pygame.draw.circle(self.border_round_surface, COLOR_WHITE, center_offset,
+                               int((self.module_hud.dim[1] - 8) / 2))
 
-        scaled_original_size = self.original_surface_size * (1.0 / 0.9)
-        self.hero_surface = pygame.Surface((scaled_original_size, scaled_original_size)).convert()
+            scaled_original_size = self.original_surface_size * (1.0 / 0.9)
+            self.hero_surface = pygame.Surface((scaled_original_size, scaled_original_size)).convert()
 
-        self.result_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
-        self.result_surface.set_colorkey(COLOR_BLACK)
+            self.result_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
+            self.result_surface.set_colorkey(COLOR_BLACK)
 
         # Start hero mode by default
         self.select_hero_actor()
         self.hero_actor.set_autopilot(False)
-        self.module_input.wheel_offset = HERO_DEFAULT_SCALE
-        self.module_input.control = carla.VehicleControl()
+
+        if self.args.play:
+            self.module_input.wheel_offset = HERO_DEFAULT_SCALE
+            self.module_input.control = carla.VehicleControl()
 
         weak_self = weakref.ref(self)
         self.world.on_tick(lambda timestamp: ModuleWorld.on_world_tick(weak_self, timestamp))
@@ -979,7 +986,8 @@ class ModuleWorld:
         self.actors_with_transforms = [(actor, actor.get_transform()) for actor in actors]
         if self.hero_actor is not None:
             self.hero_transform = self.hero_actor.get_transform()
-        self.update_hud_info(clock)
+        if self.args.play:
+            self.update_hud_info(clock)
         self.world.tick()
         ts = self.world.wait_for_tick()
         if self.frame is not None:
@@ -1466,8 +1474,8 @@ class ModuleControl:
         self.vehicleController = None
 
     def start(self):
-        hud = self.module_manager.get_module(MODULE_HUD)
-        hud.notification("Press 'H' or '?' for help.", seconds=4.0)
+        # hud = self.module_manager.get_module(MODULE_HUD)
+        # hud.notification("Press 'H' or '?' for help.", seconds=4.0)
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.vehicleController = VehiclePIDController(self.world.hero_actor,
                                                       args_lateral=self.args_lateral_dict,
@@ -1477,10 +1485,11 @@ class ModuleControl:
         pass
 
     def tick(self, clock):
-        import copy
+        x, y = self.world.hero_actor.get_location().x, self.world.hero_actor.get_location().y
+        print('x= {0:0.6f},  y= {1:0.6f}'.format(x, y))
         targetWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
                                                     project_to_road=True).next(distance=10)[0]
-
+        
         '''
         We cannot modify targetWP. Find out why?
         targetWP.transform.location.x = 10

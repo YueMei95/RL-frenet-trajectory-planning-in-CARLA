@@ -51,15 +51,17 @@ class CarlaGymEnv(gym.Env):
     def begin_modules(self, args):
         self.module_manager = ModuleManager()
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=2.0, module_manager=self.module_manager)
-        width, height = [int(x) for x in args.carla_res.split('x')]
-        self.hud_module = ModuleHUD(MODULE_HUD, width, height, module_manager=self.module_manager)
-        self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
+        if args.play:
+            width, height = [int(x) for x in args.carla_res.split('x')]
+            self.hud_module = ModuleHUD(MODULE_HUD, width, height, module_manager=self.module_manager)
+            self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
         self.control_module = ModuleControl(MODULE_CONTROL, module_manager=self.module_manager)
 
         # Register Modules
         self.module_manager.register_module(self.world_module)
-        self.module_manager.register_module(self.hud_module)
-        self.module_manager.register_module(self.input_module)
+        if args.play:
+            self.module_manager.register_module(self.hud_module)
+            self.module_manager.register_module(self.input_module)
         self.module_manager.register_module(self.control_module)
 
         self.module_manager.start_modules()

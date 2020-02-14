@@ -27,13 +27,18 @@ class CarlaGymEnv(gym.Env):
                                                 dtype=np.float32)
         self.action_space = gym.spaces.Box(low=-1, high=1,
                                            shape=(1,), dtype=np.float32)
+        self.state = np.array([0, 0])
+        self.module_manager = None
+        self.world_module = None
+        self.hud_module = None
+        self.input_module = None
+        self.control_module = None
 
     def seed(self, seed=None):
         pass
 
     def step(self, action=0):
-        self.world_module.clock.tick_busy_loop()
-        self.module_manager.tick(self.world_module.clock)
+        self.module_manager.tick()
         reward = np.array([0.0])
         done = np.array([False])
         # self.state = np.array([0, 0], ndmin=2)
@@ -51,19 +56,17 @@ class CarlaGymEnv(gym.Env):
     def begin_modules(self, args):
         self.module_manager = ModuleManager()
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=2.0, module_manager=self.module_manager)
+        self.module_manager.register_module(self.world_module)
         if args.play:
             width, height = [int(x) for x in args.carla_res.split('x')]
             self.hud_module = ModuleHUD(MODULE_HUD, width, height, module_manager=self.module_manager)
-            self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
-        self.control_module = ModuleControl(MODULE_CONTROL, module_manager=self.module_manager)
-
-        # Register Modules
-        self.module_manager.register_module(self.world_module)
-        if args.play:
             self.module_manager.register_module(self.hud_module)
+            self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
+        self.control_module = ModuleControl(MODULE_CONTROL, module_manager=self.module_manager)
         self.module_manager.register_module(self.control_module)
 
+        # Start Modules
         self.module_manager.start_modules()
 
     def render(self, mode='human'):

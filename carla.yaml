@@ -3,33 +3,13 @@ kind: Pod
 metadata:
   name: sim-carla
 spec:
-  containers:
-  - name: carla-client
-    image: gitlab-registry.nautilus.optiputer.net/prp/jupyterlab:tf1
-    command: ["/bin/bash", "-c"]
-    args: 
-       - git clone https://tekinengin:33143043e.T@github.com/MajidMoghadam2006/carla-decison-making.git;
-         pip install gym;
-         sleep infinity;
-    volumeMounts:
-    - mountPath: /home/jovyan/carla/rl
-      name: carla
-    resources:
-      limits:
-        memory: 2Gi
-        nvidia.com/gpu: 1
-
-  volumes:
-    - name: carla
-      persistentVolumeClaim:
-        claimName: carla
 
   - name: carla-server
     image: docker.io/carlasim/carla:0.9.5
     command: ["/bin/bash", "-c"]
-    #args: ["./CarlaUE4.sh", "/Game/Carla/Maps/Town01", "-benchmark", "-carla-server", "-fps=20", "-world-port=2000", "-windowed", "-ResX=1024", "-ResY=1024", "-carla-no-hud"]
+    #args: ["./CarlaUE4.sh", "Town04", "-benchmark", "-carla-server", "-fps=20", "-world-port=2000", "-windowed", "-ResX=1024", "-ResY=1024", "-carla-no-hud"]
     args:
-      - ./CarlaUE4.sh /Game/Carla/Maps/Town01 -benchmark -carla-server -fps=20 -world-port=2000 -windowed -ResX=1024 -ResY=1024 -carla-no-hud;
+      - ./CarlaUE4.sh /Game/Carla/Maps/Town04 -benchmark -carla-server -fps=20 -world-port=2000 -windowed -ResX=1024 -ResY=1024 -carla-no-hud;
     resources:
       limits:
         memory: 6Gi

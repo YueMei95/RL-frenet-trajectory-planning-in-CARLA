@@ -202,10 +202,10 @@ class ModuleManager:
     def clear_modules(self):
         del self.modules[:]
 
-    def tick(self, clock):
+    def tick(self):
         # Update all the modules
         for module in self.modules:
-            module.tick(clock)
+            module.tick()
 
     def render(self, display):
         display.fill(COLOR_ALUMINIUM_4)
@@ -234,12 +234,13 @@ class ModuleManager:
 
 
 class FadingText:
-    def __init__(self, font, dim, pos):
+    def __init__(self, font, dim, pos, world):
         self.font = font
         self.dim = dim
         self.pos = pos
         self.seconds_left = 0
         self.surface = pygame.Surface(self.dim)
+        self.world = world
 
     def set_text(self, text, color=COLOR_WHITE, seconds=2.0):
         text_texture = self.font.render(text, True, color)
@@ -248,8 +249,8 @@ class FadingText:
         self.surface.fill(COLOR_BLACK)
         self.surface.blit(text_texture, (10, 11))
 
-    def tick(self, clock):
-        delta_seconds = 1e-3 * clock.get_time()
+    def tick(self):
+        delta_seconds = 1e-3 * self.world.clock.get_time()
         self.seconds_left = max(0.0, self.seconds_left - delta_seconds)
         self.surface.set_alpha(500.0 * self.seconds_left)
 
@@ -296,6 +297,7 @@ class ModuleHUD:
         self.module_manager = module_manager
         self.name = name
         self.dim = (width, height)
+        self.world = self.module_manager.get_module(MODULE_WORLD)
         self._init_hud_params()
         self._init_data_params()
 
@@ -312,7 +314,8 @@ class ModuleHUD:
         self.help = HelpText(pygame.font.Font(mono, 24), *self.dim)
         self._notifications = FadingText(
             pygame.font.Font(pygame.font.get_default_font(), 20),
-            (self.dim[0], 40), (0, self.dim[1] - 40))
+            (self.dim[0], 40), (0, self.dim[1] - 40),
+            self.world)
 
     def _init_data_params(self):
         self.show_info = True
@@ -322,8 +325,8 @@ class ModuleHUD:
     def notification(self, text, seconds=2.0):
         self._notifications.set_text(text, seconds=seconds)
 
-    def tick(self, clock):
-        self._notifications.tick(clock)
+    def tick(self):
+        self._notifications.tick()
 
     def add_info(self, module_name, info):
         self._info_text[module_name] = info
@@ -815,15 +818,15 @@ class ModuleWorld:
             self.display.blit(text_surface, text_surface.get_rect(center=(1280 / 2, 720 / 2)))
             pygame.display.flip()
             self.traffic_light_surfaces = TrafficLightSurfaces()
+            self.clock = pygame.time.Clock()
+            self.server_clock = pygame.time.Clock()
 
-        self.clock = pygame.time.Clock()
         self.client = None
         self.name = name
         self.args = args
         self.timeout = timeout
         self.server_fps = 0.0
         self.simulation_time = 0
-        self.server_clock = pygame.time.Clock()
 
         # World data
         self.world = None
@@ -942,7 +945,8 @@ class ModuleWorld:
             self.module_input.control = carla.VehicleControl()
 
         weak_self = weakref.ref(self)
-        self.world.on_tick(lambda timestamp: ModuleWorld.on_world_tick(weak_self, timestamp))
+        if self.args.play:
+            self.world.on_tick(lambda timestamp: ModuleWorld.on_world_tick(weak_self, timestamp))
 
     def select_hero_actor(self):
         hero_vehicles = [actor for actor in self.world.get_actors(
@@ -981,13 +985,13 @@ class ModuleWorld:
         # Save it in order to destroy it when closing program
         self.spawned_hero = self.hero_actor
 
-    def tick(self, clock):
+    def tick(self):
         actors = self.world.get_actors()
         self.actors_with_transforms = [(actor, actor.get_transform()) for actor in actors]
         if self.hero_actor is not None:
             self.hero_transform = self.hero_actor.get_transform()
         if self.args.play:
-            self.update_hud_info(clock)
+            self.update_hud_info(self.clock)
         self.world.tick()
         ts = self.world.wait_for_tick()
         if self.frame is not None:
@@ -1347,8 +1351,9 @@ class ModuleInput(object):
     def render(self, display):
         pass
 
-    def tick(self, clock):
-        self.parse_input(clock)
+    def tick(self):
+        world = self.module_manager.get_module(MODULE_WORLD)
+        self.parse_input(world.clock)
 
     def _parse_events(self):
         self.mouse_pos = pygame.mouse.get_pos()
@@ -1484,7 +1489,7 @@ class ModuleControl:
     def render(self, display):
         pass
 
-    def tick(self, clock):
+    def tick(self):
         x, y = self.world.hero_actor.get_location().x, self.world.hero_actor.get_location().y
         print('x= {0:0.6f},  y= {1:0.6f}'.format(x, y))
         targetWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),

@@ -25,8 +25,9 @@ class CarlaGymEnv(gym.Env):
         self.high_state = np.array([self.max_position, self.max_speed])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        self.action_space = gym.spaces.Box(low=-1, high=1,
-                                           shape=(1,), dtype=np.float32)
+        action_low = np.array([-200, -50, -50])       # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
+        action_high = np.array([200, 50, 50])
+        self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         self.state = np.array([0, 0])
         self.module_manager = None
         self.world_module = None
@@ -37,9 +38,10 @@ class CarlaGymEnv(gym.Env):
     def seed(self, seed=None):
         pass
 
-    def step(self, action=0):
+    def step(self, action=None):
+        action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        self.control_module.tick()
+        self.control_module.tick(action)
         reward = np.array([0.0])
         done = np.array([False])
         self.state = np.array([0, 0])

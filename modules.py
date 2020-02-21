@@ -1507,23 +1507,24 @@ class ModuleControl:
     def render(self, display):
         pass
 
-    def tick(self, WPb=None):
+    def tick(self, action=None):
         # Receives waypoint in body frame and follows it using controller
+        # action = [x, y, speed]
 
         # Follow hardcoded waypoints in town map:
         # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
         #                                           project_to_road=True).next(distance=10)[0]
         # targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
 
-        # Default WP is 10 meters ahead
-        if WPb is None:
-            WPb = [10, 0]
-        psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-        targetWP = self.world.body_to_inertial_frame(WPb[0], WPb[1], psi)
-        self.world.points_to_draw['testWP'] = carla.Location(x=targetWP[0], y=targetWP[1])
+        if action is None:
+            action = [100, -40, 0]       # Default action
 
-        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0],
-                                                                     y=targetWP[1])
-        targetSpeed = 100
+        action[1] += 50     # only move forward
+
+        psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
+        targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
+        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+
+        targetSpeed = action[0]
         control = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)

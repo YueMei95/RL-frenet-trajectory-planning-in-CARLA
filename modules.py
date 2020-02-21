@@ -90,6 +90,8 @@ try:
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
+import numpy as np
+
 # ==============================================================================
 # -- Constants -----------------------------------------------------------------
 # ==============================================================================
@@ -860,7 +862,25 @@ class ModuleWorld:
         self.initSettings = None
         self.frame = None
 
-        self.waypoints = None
+        self.points_to_draw = {}  # add waypoints to this dictionary to visualize them in Pygame
+
+    def inertial_to_body_frame(self, xi, yi, psi):
+        Xi = np.array([xi, yi])  # inertial frame
+        R_psi_T = np.array([[np.cos(psi), np.sin(psi)],  # Rotation matrix transpose
+                            [-np.sin(psi), np.cos(psi)]])
+        Xt = np.array([self.hero_actor.get_transform().location.x,  # Translation from inertial to body frame
+                       self.hero_actor.get_transform().location.y])
+        Xb = np.matmul(R_psi_T, Xi - Xt)
+        return Xb
+
+    def body_to_inertial_frame(self, xb, yb, psi):
+        Xb = np.array([xb, yb])  # inertial frame
+        R_psi = np.array([[np.cos(psi), -np.sin(psi)],  # Rotation matrix
+                          [np.sin(psi), np.cos(psi)]])
+        Xt = np.array([self.hero_actor.get_transform().location.x,  # Translation from inertial to body frame
+                       self.hero_actor.get_transform().location.y])
+        Xi = np.matmul(R_psi, Xb) + Xt
+        return Xi
 
     def config(self, synchronous=True, no_rendering=True, time_step=None):
         self.initSettings = self.world.get_settings()  # backup the initial setting
@@ -916,6 +936,7 @@ class ModuleWorld:
             self.actors_surface = pygame.Surface(
                 (self.map_image.surface.get_width(), self.map_image.surface.get_height()))
             self.actors_surface.set_colorkey(COLOR_BLACK)
+            self.actors_surface.fill(COLOR_BLACK)
 
             self.vehicle_id_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
             self.vehicle_id_surface.set_colorkey(COLOR_BLACK)
@@ -1194,9 +1215,10 @@ class ModuleWorld:
         self._render_vehicles(surface, vehicles, self.map_image.world_to_pixel)
         self._render_walkers(surface, walkers, self.map_image.world_to_pixel)
 
-    def render_waypoint(self, surface, waypoint, radius=7):
-        center = self.map_image.world_to_pixel(waypoint.transform.location)
-        pygame.draw.circle(surface, COLOR_ORANGE_0, center, radius)
+    def render_points_to_draw(self, radius=7):
+        for name, location in self.points_to_draw.items():
+            center = self.map_image.world_to_pixel(location)
+            pygame.draw.circle(self.actors_surface, COLOR_ORANGE_0, center, radius)
 
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)
@@ -1236,7 +1258,6 @@ class ModuleWorld:
             self._compute_scale(scale_factor)
 
         # Render Actors
-
         self.actors_surface.fill(COLOR_BLACK)
         self.render_actors(
             self.actors_surface,
@@ -1245,11 +1266,8 @@ class ModuleWorld:
             speed_limits,
             walkers)
 
-        # Render waypoints
-
-        if self.waypoints is not None:
-            for waypoint in self.waypoints:
-                self.render_waypoint(self.actors_surface, waypoint, radius=7)
+        # Render points_to_draw
+        self.render_points_to_draw(radius=7)
 
         # Render Ids
         self.module_hud.render_vehicles_ids(self.vehicle_id_surface, vehicles,
@@ -1490,16 +1508,17 @@ class ModuleControl:
         pass
 
     def tick(self):
-        x, y = self.world.hero_actor.get_location().x, self.world.hero_actor.get_location().y
-        print('x= {0:0.6f},  y= {1:0.6f}'.format(x, y))
         targetWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
                                                     project_to_road=True).next(distance=10)[0]
-        
+
         '''
         We cannot modify targetWP. Find out why?
         targetWP.transform.location.x = 10
         '''
-        self.world.waypoints = [targetWP]
+        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP.transform.location.x,
+                                                                     y=targetWP.transform.location.y)
+        # print(self.world.inertial_to_body_frame(targetWP.transform.location.x, targetWP.transform.location.y,
+        #                                         self.world.hero_actor.get_transform().rotation.yaw * (np.pi / 180)))
         targetSpeed = 100
         control = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)

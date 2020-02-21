@@ -2,7 +2,7 @@
 
 # Copyright (c) 2019 Computer Vision Center (CVC) at the Universitat Autonoma de
 # Barcelona (UAB).
-#
+# Improved by Majid Moghadam - UCSC - ASL
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
@@ -1507,18 +1507,23 @@ class ModuleControl:
     def render(self, display):
         pass
 
-    def tick(self):
-        targetWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-                                                    project_to_road=True).next(distance=10)[0]
+    def tick(self, WPb=None):
+        # Receives waypoint in body frame and follows it using controller
 
-        '''
-        We cannot modify targetWP. Find out why?
-        targetWP.transform.location.x = 10
-        '''
-        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP.transform.location.x,
-                                                                     y=targetWP.transform.location.y)
-        # print(self.world.inertial_to_body_frame(targetWP.transform.location.x, targetWP.transform.location.y,
-        #                                         self.world.hero_actor.get_transform().rotation.yaw * (np.pi / 180)))
+        # Follow hardcoded waypoints in town map:
+        # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
+        #                                           project_to_road=True).next(distance=10)[0]
+        # targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+
+        # Default WP is 10 meters ahead
+        if WPb is None:
+            WPb = [10, 0]
+        psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
+        targetWP = self.world.body_to_inertial_frame(WPb[0], WPb[1], psi)
+        self.world.points_to_draw['testWP'] = carla.Location(x=targetWP[0], y=targetWP[1])
+
+        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0],
+                                                                     y=targetWP[1])
         targetSpeed = 100
         control = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)

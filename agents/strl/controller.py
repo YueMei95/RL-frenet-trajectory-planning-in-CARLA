@@ -164,7 +164,7 @@ class PIDLateralController:
         """
         Estimate the steering angle of the vehicle based on the PID equations
 
-        :param waypoint: target waypoint
+        :param waypoint: target waypoint [x, y]
         :param vehicle_transform: current transform of the vehicle
         :return: steering control in the range [-1, 1]
         """
@@ -173,8 +173,8 @@ class PIDLateralController:
                                          y=math.sin(math.radians(vehicle_transform.rotation.yaw)))
 
         v_vec = np.array([v_end.x - v_begin.x, v_end.y - v_begin.y, 0.0])
-        w_vec = np.array([waypoint.transform.location.x -
-                          v_begin.x, waypoint.transform.location.y -
+        w_vec = np.array([waypoint[0] -
+                          v_begin.x, waypoint[1] -
                           v_begin.y, 0.0])
         _dot = math.acos(np.clip(np.dot(w_vec, v_vec) /
                                  (np.linalg.norm(w_vec) * np.linalg.norm(v_vec)), -1.0, 1.0))

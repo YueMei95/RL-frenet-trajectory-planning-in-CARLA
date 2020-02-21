@@ -41,13 +41,13 @@ class CarlaGymEnv(gym.Env):
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         reward = np.array([0.0])
         done = np.array([False])
-        ego_transform = self.world_module.hero_actor.get_transform()
-        x, y = ego_transform.location.x, ego_transform.location.y
-        psi = ego_transform.rotation.yaw * (np.pi / 180)
+        # ego_transform = self.world_module.hero_actor.get_transform()
 
-        xwp, ywp = 5, 5
-        wpi = self.world_module.body_to_inertial_frame(xwp, ywp, psi)
-        self.world_module.points_to_draw['testWP'] = carla.Location(x=wpi[0], y=wpi[1])
+        # psi = math.radians(ego_transform.rotation.yaw)
+
+        # xwp, ywp = 5, 5
+        # wpi = self.world_module.body_to_inertial_frame(xwp, ywp, psi)
+        # self.world_module.points_to_draw['testWP'] = carla.Location(x=wpi[0], y=wpi[1])
         # print('x= {0:0.6f},  y= {1:0.6f}'.format(x, y))
 
         self.state = np.array([0, 0])

@@ -993,12 +993,9 @@ class ModuleWorld:
         #    spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
         #    self.hero_actor = self.world.try_spawn_actor(blueprint, spawn_point)
 
-        y = -97.558
-        transform = carla.Transform(carla.Location(x=402.242, y=-20.558, z=1.20001),
-                                    carla.Rotation(pitch=0, yaw=-89.4014, roll=0))
-
-        # if transform is infeasible, i.e. collision with other actors, generates error
-        self.hero_actor = self.world.spawn_actor(blueprint, transform)
+        nextWP = self.town_map.get_waypoint(carla.Location(x=402.242, y=-20.558, z=1.20001),
+                                            project_to_road=True).next(distance=10)[0]
+        self.hero_actor = self.world.spawn_actor(blueprint, nextWP.transform)
         # use try_spawn_actor in while to find feasible location
 
         self.hero_transform = self.hero_actor.get_transform()
@@ -1511,20 +1508,21 @@ class ModuleControl:
         # Receives waypoint in body frame and follows it using controller
         # action = [x, y, speed]
 
-        # Follow hardcoded waypoints in town map:
-        # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-        #                                           project_to_road=True).next(distance=10)[0]
-        # targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-
         if action is None:
-            action = [100, -40, 0]       # Default action
+            action = [100, -40, 0]  # Default action
 
-        action[1] += 50     # only move forward
+        action[1] += 50  # only move forward
 
+        targetSpeed = action[0]
         psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
         targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
         self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
-        targetSpeed = action[0]
+        # Follow the hardcoded waypoints in town map:
+        # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
+        #                                           project_to_road=True).next(distance=10)[0]
+        # targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+        # targetSpeed = 100
+
         control = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)

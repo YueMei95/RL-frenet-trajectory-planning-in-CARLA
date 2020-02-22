@@ -3,6 +3,7 @@ import re
 import multiprocessing
 import os.path as osp
 import gym
+import carla_gym
 from collections import defaultdict
 import tensorflow as tf
 import numpy as np
@@ -17,8 +18,6 @@ from baselines.common.cmd_util import common_arg_parser, parse_unknown_args, mak
 from baselines.common.tf_util import get_session
 from baselines import logger
 from importlib import import_module
-
-import carla_gym
 
 try:
     from mpi4py import MPI

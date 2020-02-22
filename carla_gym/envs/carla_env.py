@@ -18,6 +18,7 @@ class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
         self.__version__ = "9.5.0"
+        self.n_step = 0
         self.min_position = -1.2
         self.max_position = 0.6
         self.max_speed = 0.07
@@ -35,16 +36,27 @@ class CarlaGymEnv(gym.Env):
         self.input_module = None
         self.control_module = None
 
+        self.point_clouds = []
+
     def seed(self, seed=None):
         pass
 
     def step(self, action=None):
+        self.n_step += 1
+
+        # Apply action
         action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        self.control_module.tick(action)
-        reward = np.array([0.0])
-        done = np.array([False])
+        self.control_module.tick(action)    # apply control
+
+        # Calculate observation
         self.state = np.array([0, 0])
+
+        # Reward function
+        reward = np.array([0.0])
+
+        # Episode
+        done = np.array([False])
         return self.state, reward, done, {}
 
     def reset(self):
@@ -72,6 +84,19 @@ class CarlaGymEnv(gym.Env):
         # Start Modules
         self.module_manager.start_modules()
         self.control_module.start()
+
+        self.module_manager.tick()  # Update carla world and lat/lon controllers
+        self.control_module.tick()  # apply control
+
+        distance = 0
+        for i in range(1520):
+            distance += 2
+            wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
+                                                         project_to_road=True).next(distance=distance)[0]
+            self.point_clouds.extend([wp.transform.location.x, wp.transform.location.y])
+
+            # To visualize point clouds
+            # self.world_module.points_to_draw['wp {}'.format(wp.id)] = wp.transform.location
 
     def render(self, mode='human'):
         self.module_manager.render(self.world_module.display)

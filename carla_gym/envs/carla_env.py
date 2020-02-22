@@ -14,6 +14,10 @@ from modules import *
 import gym
 
 
+def euclidean_distance(v1, v2):
+    return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
+
+
 class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
@@ -36,10 +40,34 @@ class CarlaGymEnv(gym.Env):
         self.input_module = None
         self.control_module = None
 
-        self.point_clouds = []
+        self.point_cloud = []       # race waypoints (center lane)
+        self.LOS = 20       # line of sight, i.e. number of cloud points to interpolate road curvature
 
     def seed(self, seed=None):
         pass
+
+    def closest_point_cloud_index(self, ego_pos):
+        # find closest point in point cloud
+        min_dist = None
+        min_idx = 0
+        for idx, point in enumerate(self.point_cloud):
+            dist = euclidean_distance([ego_pos.x, ego_pos.y, ego_pos.z], [point.x, point.y, point.z])
+            if min_dist is None:
+                min_dist = dist
+            else:
+                if dist < min_dist:
+                    min_dist = dist
+                    min_idx = idx
+        return min_idx
+
+    def interpolate_road_curvature(self, ego_transform):
+        min_could_idx = self.closest_point_cloud_index(ego_transform.location)
+        # transfer could points to body frame
+        psi = math.radians(ego_transform.rotation.yaw)
+        center_lane = []
+        for i in range(min_could_idx, min_could_idx + self.LOS):
+            point = self.world_module.inertial_to_body_frame(self.point_cloud[i].x, self.point_cloud[i].y, psi)
+            center_lane.append(point)
 
     def step(self, action=None):
         self.n_step += 1
@@ -50,6 +78,8 @@ class CarlaGymEnv(gym.Env):
         self.control_module.tick(action)    # apply control
 
         # Calculate observation
+        ego_transform = self.world_module.hero_actor.get_transform()
+
         self.state = np.array([0, 0])
 
         # Reward function
@@ -93,7 +123,7 @@ class CarlaGymEnv(gym.Env):
             distance += 2
             wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
                                                          project_to_road=True).next(distance=distance)[0]
-            self.point_clouds.extend([wp.transform.location.x, wp.transform.location.y])
+            self.point_cloud.append(wp.transform.location)
 
             # To visualize point clouds
             # self.world_module.points_to_draw['wp {}'.format(wp.id)] = wp.transform.location

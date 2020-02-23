@@ -23,26 +23,26 @@ class CarlaGymEnv(gym.Env):
     def __init__(self):
         self.__version__ = "9.5.0"
         self.n_step = 0
-        self.min_position = -1.2
-        self.max_position = 0.6
-        self.max_speed = 0.07
-        self.low_state = np.array([self.min_position, -self.max_speed])
-        self.high_state = np.array([self.max_position, self.max_speed])
+        self.point_cloud = []  # race waypoints (center lane)
+        self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
+        self.poly_deg = 3  # polynomial degree to fit the road curvature points
+        self.targetSpeed = 80  # km/h
+        self.maxSpeed = 300
+
+        self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1, -1])
+        self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-200, -50, -50])  # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
         action_high = np.array([200, 50, 50])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
-        self.state = np.array([0, 0])
+        # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
+        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
         self.module_manager = None
         self.world_module = None
         self.hud_module = None
         self.input_module = None
         self.control_module = None
-
-        self.point_cloud = []  # race waypoints (center lane)
-        self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
-        self.poly_deg = 3  # polynomial degree to fit the road curvature points
 
     def seed(self, seed=None):
         pass
@@ -59,6 +59,7 @@ class CarlaGymEnv(gym.Env):
                 if dist < min_dist:
                     min_dist = dist
                     min_idx = idx
+
         return min_idx
 
     # This function needs to be optimized in terms of time complexity
@@ -74,6 +75,7 @@ class CarlaGymEnv(gym.Env):
             for i, point in enumerate(curvature_points):
                 pi = self.world_module.body_to_inertial_frame(point[0], point[1], psi)
                 self.world_module.points_to_draw['curvature cloud {}'.format(i)] = carla.Location(x=pi[0], y=pi[1])
+
         return curvature_points
 
     def interpolate_road_curvature(self, ego_transform, draw_poly=False):
@@ -107,28 +109,33 @@ class CarlaGymEnv(gym.Env):
         # Apply action
         action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        self.control_module.tick(action)  # apply control
+        speed = self.control_module.tick(action)  # apply control
 
-        # Calculate observation
+        # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
         c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
-        self.state = np.array([0, 0])
+        yaw_norm = ego_transform.rotation.yaw/180
+        speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
+        self.state = np.append(c, [yaw_norm, speed_e])
 
         # Reward function
+        # speed_e = abs(self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
+        # reward = np.array([1 - 2 * speed_e])  # -1<= reward <= 1
         reward = np.array([0.0])
 
         # Episode
-        done = np.array([False])
+        # done = np.array([False])
+        done = False
         # if track_finished:
         #     print('Finished the race')
-            # reward = np.array([10.0])
-            # done = np.array([True])
+        # reward = np.array([10.0])
+        # done = np.array([True])
 
         return self.state, reward, done, {}
 
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)
-        self.state = np.array([0, 0])
+        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
         return np.array(self.state)
 
     #    def get_state(self):

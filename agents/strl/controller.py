@@ -56,7 +56,7 @@ class VehiclePIDController:
         :param waypoint: target location encoded as a waypoint
         :return: distance (in meters) to the waypoint
         """
-        throttle = self._lon_controller.run_step(target_speed)
+        throttle, speed = self._lon_controller.run_step(target_speed)
         steering = self._lat_controller.run_step(waypoint)
         control = carla.VehicleControl()
         control.steer = steering
@@ -65,7 +65,7 @@ class VehiclePIDController:
         control.hand_brake = False
         control.manual_gear_shift = False
 
-        return control
+        return control, speed
 
 
 class PIDLongitudinalController:
@@ -100,7 +100,7 @@ class PIDLongitudinalController:
         if debug:
             print('Current speed = {}'.format(current_speed))
 
-        return self._pid_control(target_speed, current_speed)
+        return self._pid_control(target_speed, current_speed), current_speed
 
     def _pid_control(self, target_speed, current_speed):
         """

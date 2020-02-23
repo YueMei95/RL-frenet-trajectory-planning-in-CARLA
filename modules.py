@@ -1509,7 +1509,7 @@ class ModuleControl:
         # action = [x, y, speed]
 
         if action is None:
-            action = [100, -40, 0]  # Default action
+            action = [80, -40, 0]  # Default action
 
         action[1] += 50  # only move forward
 
@@ -1520,9 +1520,10 @@ class ModuleControl:
 
         # Follow the hardcoded waypoints in town map:
         # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-        #                                           project_to_road=True).next(distance=10)[0]
+        #                                          project_to_road=True).next(distance=10)[0]
         # targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
         # targetSpeed = 100
 
-        control = self.vehicleController.run_step(targetSpeed, targetWP)
+        control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)
+        return speed

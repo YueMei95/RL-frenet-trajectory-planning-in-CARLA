@@ -1516,7 +1516,7 @@ class ModuleControl:
         targetSpeed = action[0]
         psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
         targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
-        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+        # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
         # Follow the hardcoded waypoints in town map:
         # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),

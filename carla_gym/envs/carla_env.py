@@ -30,7 +30,7 @@ class CarlaGymEnv(gym.Env):
         self.high_state = np.array([self.max_position, self.max_speed])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-200, -50, -50])       # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
+        action_low = np.array([-200, -50, -50])  # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
         action_high = np.array([200, 50, 50])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         self.state = np.array([0, 0])
@@ -40,8 +40,9 @@ class CarlaGymEnv(gym.Env):
         self.input_module = None
         self.control_module = None
 
-        self.point_cloud = []       # race waypoints (center lane)
-        self.LOS = 20       # line of sight, i.e. number of cloud points to interpolate road curvature
+        self.point_cloud = []  # race waypoints (center lane)
+        self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
+        self.poly_deg = 3  # polynomial degree to fit the road curvature points
 
     def seed(self, seed=None):
         pass
@@ -60,14 +61,45 @@ class CarlaGymEnv(gym.Env):
                     min_idx = idx
         return min_idx
 
-    def interpolate_road_curvature(self, ego_transform):
-        min_could_idx = self.closest_point_cloud_index(ego_transform.location)
+    # This function needs to be optimized in terms of time complexity
+    # remove closest point add new one to end instead of calculation LOS points at every iteration
+    def update_curvature_points(self, ego_transform, close_could_idx, draw_points=False):
         # transfer could points to body frame
         psi = math.radians(ego_transform.rotation.yaw)
-        center_lane = []
-        for i in range(min_could_idx, min_could_idx + self.LOS):
-            point = self.world_module.inertial_to_body_frame(self.point_cloud[i].x, self.point_cloud[i].y, psi)
-            center_lane.append(point)
+        curvature_points = [
+            self.world_module.inertial_to_body_frame(self.point_cloud[i].x, self.point_cloud[i].y, psi)
+            for i in range(close_could_idx, close_could_idx + self.LOS)]
+
+        if draw_points:
+            for i, point in enumerate(curvature_points):
+                pi = self.world_module.body_to_inertial_frame(point[0], point[1], psi)
+                self.world_module.points_to_draw['curvature cloud {}'.format(i)] = carla.Location(x=pi[0], y=pi[1])
+        return curvature_points
+
+    def interpolate_road_curvature(self, ego_transform, draw_poly=False):
+        # find the index of the closest point cloud to the ego
+        idx = self.closest_point_cloud_index(ego_transform.location)
+
+        if len(self.point_cloud) - idx <= 50:
+            track_finished = True
+        else:
+            track_finished = False
+
+        # update the curvature points window (points in body frame)
+        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx)
+
+        # fit a polynomial to the curvature points window
+        c = np.polyfit([p[0] for p in curvature_points], [p[1] for p in curvature_points], self.poly_deg)
+        # c: coefficients in decreasing power
+
+        if draw_poly:
+            poly = np.poly1d(c)
+            psi = math.radians(ego_transform.rotation.yaw)
+            for x in range(1, 50, 2):
+                pi = self.world_module.body_to_inertial_frame(x, poly(x), psi)
+                self.world_module.points_to_draw['poly fit {}'.format(x)] = carla.Location(x=pi[0], y=pi[1])
+
+        return c, track_finished
 
     def step(self, action=None):
         self.n_step += 1
@@ -75,11 +107,11 @@ class CarlaGymEnv(gym.Env):
         # Apply action
         action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        self.control_module.tick(action)    # apply control
+        self.control_module.tick(action)  # apply control
 
         # Calculate observation
         ego_transform = self.world_module.hero_actor.get_transform()
-
+        c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
         self.state = np.array([0, 0])
 
         # Reward function
@@ -87,6 +119,11 @@ class CarlaGymEnv(gym.Env):
 
         # Episode
         done = np.array([False])
+        # if track_finished:
+        #     print('Finished the race')
+            # reward = np.array([10.0])
+            # done = np.array([True])
+
         return self.state, reward, done, {}
 
     def reset(self):

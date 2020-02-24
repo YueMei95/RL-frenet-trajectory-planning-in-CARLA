@@ -109,6 +109,7 @@ class CarlaGymEnv(gym.Env):
         self.n_step += 1
         action[0] += self.maxSpeed / 2
         action[1] += 50  # only move forward
+        print(action)
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
@@ -144,7 +145,10 @@ class CarlaGymEnv(gym.Env):
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)
         # Set ego transform to its initial form
+        self.world_module.hero_actor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
+        self.world_module.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.world_module.hero_actor.set_transform(self.init_transform)
+
         self.n_step = 0     # initialize episode steps count
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])      # initialize state vector
         return np.array(self.state)

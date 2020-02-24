@@ -60,8 +60,10 @@ import weakref
 import math
 import random
 
-from operator import itemgetter
+# from operator import itemgetter
 from agents.strl.controller import VehiclePIDController
+from agents.strl.controller import PIDLateralController
+from agents.tools.misc import get_speed
 
 try:
     import pygame
@@ -1492,6 +1494,7 @@ class ModuleControl:
             'dt': self.dt}
         self.world = None
         self.vehicleController = None
+        self.vehicleLatController = None
 
     def start(self):
         # hud = self.module_manager.get_module(MODULE_HUD)
@@ -1500,28 +1503,34 @@ class ModuleControl:
         self.vehicleController = VehiclePIDController(self.world.hero_actor,
                                                       args_lateral=self.args_lateral_dict,
                                                       args_longitudinal=self.args_longitudinal_dict)
+        self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_longitudinal_dict)
 
     def render(self, display):
         pass
 
     def tick(self, action=None):
         # Receives waypoint in body frame and follows it using controller
-        # action = [x, y, speed]
+        # action = [throttle, x, y]
 
-        if action is None:
-            action = [80, -40, 0]  # Default action
+        if action is None:      # Follow the hardcoded waypoints in town map:
+            nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
+                                                      project_to_road=True).next(distance=10)[0]
+            targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+            targetSpeed = 80
+            control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
+        else:                   # Follow RL actions
+            psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
+            targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
 
-        targetSpeed = action[0]
-        psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-        targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
-        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+            steering = self.vehicleLatController.run_step(targetWP)
+            control = carla.VehicleControl()
+            control.steer = steering
+            control.throttle = action[0].item()
+            control.brake = 0.0
+            control.hand_brake = False
+            control.manual_gear_shift = False
 
-        # Follow the hardcoded waypoints in town map:
-        # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-        #                                          project_to_road=True).next(distance=10)[0]
-        # targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-        # targetSpeed = 100
+        # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
-        control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
         self.world.hero_actor.apply_control(control)
-        return speed
+        return get_speed(self.world.hero_actor)     # return speed in km/h

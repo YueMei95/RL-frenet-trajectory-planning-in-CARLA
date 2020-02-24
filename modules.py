@@ -993,7 +993,7 @@ class ModuleWorld:
         #    spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
         #    self.hero_actor = self.world.try_spawn_actor(blueprint, spawn_point)
 
-        nextWP = self.town_map.get_waypoint(carla.Location(x=402.242, y=-20.558, z=1.20001),
+        nextWP = self.town_map.get_waypoint(carla.Location(x=406, y=-25.558, z=1.20001),
                                             project_to_road=True).next(distance=10)[0]
         self.hero_actor = self.world.spawn_actor(blueprint, nextWP.transform)
         # use try_spawn_actor in while to find feasible location
@@ -1511,12 +1511,10 @@ class ModuleControl:
         if action is None:
             action = [80, -40, 0]  # Default action
 
-        action[1] += 50  # only move forward
-
         targetSpeed = action[0]
         psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
         targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
-        # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
         # Follow the hardcoded waypoints in town map:
         # nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),

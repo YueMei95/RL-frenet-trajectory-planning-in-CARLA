@@ -27,14 +27,15 @@ class CarlaGymEnv(gym.Env):
         self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 80  # km/h
-        self.maxSpeed = 300
+        self.maxSpeed = 150
+        self.maxDist = 5
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1, -1])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-200, -50, -50])  # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
-        action_high = np.array([200, 50, 50])
+        action_low = np.array([-self.maxSpeed/2, -50, -15])  # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
+        action_high = np.array([self.maxSpeed/2, 50, 15])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
@@ -60,7 +61,7 @@ class CarlaGymEnv(gym.Env):
                     min_dist = dist
                     min_idx = idx
 
-        return min_idx
+        return min_idx, min_dist
 
     # This function needs to be optimized in terms of time complexity
     # remove closest point add new one to end instead of calculation LOS points at every iteration
@@ -80,7 +81,7 @@ class CarlaGymEnv(gym.Env):
 
     def interpolate_road_curvature(self, ego_transform, draw_poly=False):
         # find the index of the closest point cloud to the ego
-        idx = self.closest_point_cloud_index(ego_transform.location)
+        idx, dist = self.closest_point_cloud_index(ego_transform.location)
 
         if len(self.point_cloud) - idx <= 50:
             track_finished = True
@@ -101,35 +102,43 @@ class CarlaGymEnv(gym.Env):
                 pi = self.world_module.body_to_inertial_frame(x, poly(x), psi)
                 self.world_module.points_to_draw['poly fit {}'.format(x)] = carla.Location(x=pi[0], y=pi[1])
 
-        return c, track_finished
+        return c, dist, track_finished
 
     def step(self, action=None):
         self.n_step += 1
-
+        action[0] += self.maxSpeed/2
+        action[1] += 50  # only move forward
+        print(action)
         # Apply action
-        action = None
+        # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         speed = self.control_module.tick(action)  # apply control
 
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
-        c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
+        c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
         yaw_norm = ego_transform.rotation.yaw/180
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
         self.state = np.append(c, [yaw_norm, speed_e])
 
         # Reward function
-        # speed_e = abs(self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
-        # reward = np.array([1 - 2 * speed_e])  # -1<= reward <= 1
-        reward = np.array([0.0])
+        speed_e_r = abs(self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
+        dist_e_r = dist/self.maxDist
+        reward = -1*np.array([speed_e_r + dist_e_r])  # -1<= reward <= 1
+
 
         # Episode
         # done = np.array([False])
         done = False
-        # if track_finished:
-        #     print('Finished the race')
-        # reward = np.array([10.0])
-        # done = np.array([True])
+        if track_finished:
+            print('Finished the race')
+            reward = np.array([10.0])
+            done = np.array([True])
+            return self.state, reward, done, {}
+        if dist >= self.maxDist:
+            reward = np.array([-5.0])
+            done = np.array([True])
+            return self.state, reward, done, {}
 
         return self.state, reward, done, {}
 

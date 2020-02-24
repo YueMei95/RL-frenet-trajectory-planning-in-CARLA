@@ -34,8 +34,8 @@ class CarlaGymEnv(gym.Env):
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-self.maxSpeed/2, -50, -15])  # action = [targetSpeed (m/s), WPb_x (m), WPb_y (m)]
-        action_high = np.array([self.maxSpeed/2, 50, 15])
+        action_low = np.array([-self.maxSpeed / 2, -50, -15])  # action = [targetSpeed (km/h), WPb_x (m), WPb_y (m)]
+        action_high = np.array([self.maxSpeed / 2, 50, 15])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
@@ -44,6 +44,7 @@ class CarlaGymEnv(gym.Env):
         self.hud_module = None
         self.input_module = None
         self.control_module = None
+        self.init_transform = None      # ego initial transform to recover at each episode
 
     def seed(self, seed=None):
         pass
@@ -106,9 +107,8 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         self.n_step += 1
-        action[0] += self.maxSpeed/2
+        action[0] += self.maxSpeed / 2
         action[1] += 50  # only move forward
-        print(action)
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
@@ -117,34 +117,36 @@ class CarlaGymEnv(gym.Env):
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
         c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
-        yaw_norm = ego_transform.rotation.yaw/180
+        yaw_norm = ego_transform.rotation.yaw / 180
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
         self.state = np.append(c, [yaw_norm, speed_e])
 
         # Reward function
         speed_e_r = abs(self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
-        dist_e_r = dist/self.maxDist
-        reward = -1*np.array([speed_e_r + dist_e_r])  # -1<= reward <= 1
-
+        dist_r = dist / self.maxDist
+        reward = -1 * (speed_e_r + dist_r)  # -1<= reward <= 1
 
         # Episode
         # done = np.array([False])
         done = False
         if track_finished:
             print('Finished the race')
-            reward = np.array([10.0])
-            done = np.array([True])
+            reward = 10.0
+            done = True
             return self.state, reward, done, {}
         if dist >= self.maxDist:
-            reward = np.array([-5.0])
-            done = np.array([True])
+            reward = -5.0
+            done = True
             return self.state, reward, done, {}
 
         return self.state, reward, done, {}
 
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)
-        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
+        # Set ego transform to its initial form
+        self.world_module.hero_actor.set_transform(self.init_transform)
+        self.n_step = 0     # initialize episode steps count
+        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])      # initialize state vector
         return np.array(self.state)
 
     #    def get_state(self):
@@ -167,9 +169,10 @@ class CarlaGymEnv(gym.Env):
         # Start Modules
         self.module_manager.start_modules()
         self.control_module.start()
-
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         self.control_module.tick()  # apply control
+
+        self.init_transform = self.world_module.hero_actor.get_transform()
 
         distance = 0
         for i in range(1520):
@@ -184,7 +187,7 @@ class CarlaGymEnv(gym.Env):
     def render(self, mode='human'):
         self.module_manager.render(self.world_module.display)
 
-    def destroy(self):
-        print('Destroying environment...')
+    def destroy(self, keepWorld=False):
+        # print('Destroying environment...')
         if self.world_module is not None:
             self.world_module.destroy()

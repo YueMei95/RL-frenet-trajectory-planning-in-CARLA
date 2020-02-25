@@ -1,6 +1,8 @@
 # run:
 pip install -r requirements.txt
+
 python run_carla_stable.py
+
 python run_carla_stable.py --num_timesteps=1e7
 
 # carla-decison-making

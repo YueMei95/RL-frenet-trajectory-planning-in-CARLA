@@ -121,12 +121,15 @@ class CarlaGymEnv(gym.Env):
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
         self.accum_speed_e += speed_e
         self.state = np.append(c, [yaw_norm, speed_e])
+        w = self.world_module.hero_actor.get_angular_velocity()
 
         # Reward function
         speed_r = speed/self.maxSpeed       # encourages agent to move
         speed_e_r = abs(self.targetSpeed - speed) / self.maxSpeed  # encourages agent to reduce speed error
         dist_r = dist / self.maxDist         # encourages agent to stay in lane
-        reward = -1 * (speed_e_r + dist_r) / 2 + speed_r        # -1<= reward <= 1
+        w_r = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180     # encourages comfort
+
+        reward = -1 * (speed_e_r + dist_r + w_r) / 3 + speed_r        # -1<= reward <= 1
 
         # Episode
         done = False

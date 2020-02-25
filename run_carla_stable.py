@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
     parser.add_argument('--log_path', help='Directory to save learning curve data.', default=None, type=str)
     parser.add_argument('--play', default=False, action='store_true')
+    parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--carla_host', metavar='H', default='127.0.0.1',
                         help='IP of the host server (default: 127.0.0.1)')
     parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int,
@@ -45,17 +46,18 @@ if __name__ == '__main__':
 
     model = DDPG(MlpPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise, render=args.play)
 
-    try:
-        model.learn(total_timesteps=args.num_timesteps)
-    finally:
-        model.save('models/ddpg_carla')        # save model even if training fails because of an error
-        env.destroy()
+    if not args.test:
+        try:
+            model.learn(total_timesteps=args.num_timesteps)
+        finally:
+            model.save('models/ddpg_carla')        # save model even if training fails because of an error
+            env.destroy()
 
     print(100*'*')
     print('FINISHED TRAINING')
     print(100 * '*')
 
-    if args.play:
+    if args.test:
         model = DDPG.load('models/ddpg_carla')
 
         try:

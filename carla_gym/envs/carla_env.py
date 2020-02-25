@@ -124,9 +124,10 @@ class CarlaGymEnv(gym.Env):
         self.state = np.append(c, [yaw_norm, speed_e])
 
         # Reward function
-        speed_e_r = abs(self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
-        dist_r = dist / self.maxDist
-        reward = -1 * (speed_e_r + dist_r)  # -1<= reward <= 1
+        speed_r = speed/self.maxSpeed       # encourages agent to move
+        speed_e_r = abs(self.targetSpeed - speed) / self.maxSpeed  # encourages agent to reduce speed error
+        dist_r = dist / self.maxDist         # encourages agent to stay in lane
+        reward = -1 * (speed_e_r + dist_r) / 2 + speed_r        # -1<= reward <= 1
 
         # Episode
         done = False

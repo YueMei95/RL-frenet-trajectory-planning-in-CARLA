@@ -35,8 +35,8 @@ class CarlaGymEnv(gym.Env):
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-1/2, -20, -10])  # action = [throttle , WPb_x (m), WPb_y (m)]
-        action_high = np.array([1/2, 20, 10])
+        action_low = np.array([-20, -10])  # action = [ WPb_x (m), WPb_y (m)]
+        action_high = np.array([20, 10])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
@@ -107,12 +107,12 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         self.n_step += 1
-        action[0] += 1/2
-        action[1] += 20  # only move forward
+
+        action[0] += 20  # only move forward
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        speed = self.control_module.tick(action)  # apply control
+        speed = self.control_module.tick(action, targetSpeed=self.targetSpeed)  # apply control
 
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()

@@ -62,6 +62,7 @@ import random
 
 # from operator import itemgetter
 from agents.strl.controller import VehiclePIDController
+from agents.strl.controller import PIDLongitudinalController
 from agents.strl.controller import PIDLateralController
 from agents.tools.misc import get_speed
 
@@ -1503,12 +1504,13 @@ class ModuleControl:
         self.vehicleController = VehiclePIDController(self.world.hero_actor,
                                                       args_lateral=self.args_lateral_dict,
                                                       args_longitudinal=self.args_longitudinal_dict)
-        self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_longitudinal_dict)
+        self.vehicleLonController = PIDLongitudinalController(self.world.hero_actor, **self.args_longitudinal_dict)
+        self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
 
     def render(self, display):
         pass
 
-    def tick(self, action=None):
+    def tick(self, action=None, targetSpeed=80):
         # Receives waypoint in body frame and follows it using controller
         # action = [throttle, x, y]
 
@@ -1516,16 +1518,15 @@ class ModuleControl:
             nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
                                                       project_to_road=True).next(distance=10)[0]
             targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-            targetSpeed = 80
             control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
         else:                   # Follow RL actions
             psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-            targetWP = self.world.body_to_inertial_frame(action[1], action[2], psi)
-
+            targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
+            throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
             steering = self.vehicleLatController.run_step(targetWP)
             control = carla.VehicleControl()
             control.steer = steering
-            control.throttle = action[0].item()
+            control.throttle = throttle
             control.brake = 0.0
             control.hand_brake = False
             control.manual_gear_shift = False
@@ -1533,4 +1534,4 @@ class ModuleControl:
         # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
         self.world.hero_actor.apply_control(control)
-        return get_speed(self.world.hero_actor)     # return speed in km/h
+        return speed     # return speed in km/h

@@ -1,5 +1,7 @@
 # run:
-python run_carla.py --num_timesteps=1e7
+pip install -r requirements.txt
+python run_carla_stable.py
+python run_carla_stable.py --num_timesteps=1e7
 
 # carla-decison-making
 Long short term decision making for autonomous vehicles using depp reinforcement learning

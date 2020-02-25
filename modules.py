@@ -1525,6 +1525,7 @@ class ModuleControl:
             steering = self.vehicleLatController.run_step(targetWP)
             control = carla.VehicleControl()
             control.steer = steering
+            control.steer = .1
             control.throttle = action[0].item()
             control.brake = 0.0
             control.hand_brake = False

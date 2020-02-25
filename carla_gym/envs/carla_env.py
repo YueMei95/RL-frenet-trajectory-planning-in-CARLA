@@ -62,7 +62,7 @@ class CarlaGymEnv(gym.Env):
                 if dist < min_dist:
                     min_dist = dist
                     min_idx = idx
-
+        print(min_idx)
         return min_idx, min_dist
 
     # This function needs to be optimized in terms of time complexity

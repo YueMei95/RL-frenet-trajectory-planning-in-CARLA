@@ -3,3 +3,4 @@ future
 numpy
 pygame
 pandas
+mpi4py

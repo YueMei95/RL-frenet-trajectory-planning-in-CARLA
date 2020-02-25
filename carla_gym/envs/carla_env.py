@@ -62,7 +62,6 @@ class CarlaGymEnv(gym.Env):
                 if dist < min_dist:
                     min_dist = dist
                     min_idx = idx
-        print(min_idx)
         return min_idx, min_dist
 
     # This function needs to be optimized in terms of time complexity
@@ -198,7 +197,7 @@ class CarlaGymEnv(gym.Env):
     def render(self, mode='human'):
         self.module_manager.render(self.world_module.display)
 
-    def destroy(self, keepWorld=False):
-        # print('Destroying environment...')
+    def destroy(self):
+        print('Destroying environment...')
         if self.world_module is not None:
             self.world_module.destroy()

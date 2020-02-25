@@ -154,6 +154,7 @@ class DDPG(object):
         self.setup_target_network_updates()
 
         self.initial_state = None  # recurrent architectures not supported yet
+        self.saver = tf.train.Saver()
 
     def setup_target_network_updates(self):
         actor_init_updates, actor_soft_updates = get_target_updates(self.actor.vars, self.target_actor.vars, self.tau)

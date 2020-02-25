@@ -35,7 +35,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-
+    print('Env is starting')
     env = gym.make(args.env)
     env.begin_modules(args)
 
@@ -45,9 +45,10 @@ if __name__ == '__main__':
     action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=float(0.5) * np.ones(n_actions))
 
     model = DDPG(MlpPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise, render=args.play)
-
+    print('Model is Created')
     if not args.test:
         try:
+            print('Training Started')
             model.learn(total_timesteps=args.num_timesteps)
         finally:
             model.save('models/ddpg_carla')        # save model even if training fails because of an error

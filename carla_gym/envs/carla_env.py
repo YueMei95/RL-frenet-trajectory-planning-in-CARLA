@@ -29,13 +29,14 @@ class CarlaGymEnv(gym.Env):
         self.targetSpeed = 80  # km/h
         self.maxSpeed = 150
         self.maxDist = 5
+        self.accum_speed_e = 0
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1, -1])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-1, -50, -15])  # action = [throttle , WPb_x (m), WPb_y (m)]
-        action_high = np.array([1, 50, 15])
+        action_low = np.array([-1/2, -20, -10])  # action = [throttle , WPb_x (m), WPb_y (m)]
+        action_high = np.array([1/2, 20, 10])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
@@ -107,9 +108,8 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         self.n_step += 1
-        print(action)
-        action[0] += 1
-        action[1] += 50  # only move forward
+        action[0] += 1/2
+        action[1] += 20  # only move forward
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
@@ -120,6 +120,7 @@ class CarlaGymEnv(gym.Env):
         c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
         yaw_norm = ego_transform.rotation.yaw / 180
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
+        self.accum_speed_e += speed_e
         self.state = np.append(c, [yaw_norm, speed_e])
 
         # Reward function
@@ -128,14 +129,18 @@ class CarlaGymEnv(gym.Env):
         reward = -1 * (speed_e_r + dist_r)  # -1<= reward <= 1
 
         # Episode
-        # done = np.array([False])
         done = False
         if track_finished:
             print('Finished the race')
-            reward = 10.0
+            reward = 1000.0
             done = True
             return self.state, reward, done, {}
         if dist >= self.maxDist:
+            reward = -5.0
+            done = True
+            return self.state, reward, done, {}
+
+        if (self.n_step >= 200) and (self.accum_speed_e/self.n_step) > 0.5:     # terminate if agent did not move much
             reward = -5.0
             done = True
             return self.state, reward, done, {}
@@ -149,6 +154,7 @@ class CarlaGymEnv(gym.Env):
         self.world_module.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.world_module.hero_actor.set_transform(self.init_transform)
 
+        self.accum_speed_e = 0
         self.n_step = 0     # initialize episode steps count
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])      # initialize state vector
         return np.array(self.state)

@@ -886,6 +886,7 @@ class ModuleWorld:
         return Xi
 
     def config(self, synchronous=True, no_rendering=True, time_step=None):
+        self.world.tick()
         self.initSettings = self.world.get_settings()  # backup the initial setting
         settings = self.world.get_settings()
         settings.synchronous_mode = synchronous
@@ -910,9 +911,9 @@ class ModuleWorld:
 
     def start(self):
         self.world, self.town_map = self._get_data_from_carla()
-
-        self.config(synchronous=True, no_rendering=True, time_step=0.05)
+        self.config(synchronous=True, no_rendering=True, time_step=0.1)
         settings = self.world.get_settings()
+        print(settings.fixed_delta_seconds)
         print(settings)
 
         if self.args.play:
@@ -996,9 +997,11 @@ class ModuleWorld:
         #    spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
         #    self.hero_actor = self.world.try_spawn_actor(blueprint, spawn_point)
 
-        nextWP = self.town_map.get_waypoint(carla.Location(x=406, y=-25.558, z=1.20001),
-                                            project_to_road=True).next(distance=10)[0]
-        self.hero_actor = self.world.spawn_actor(blueprint, nextWP.transform)
+        spawn_points = self.world.get_map().get_spawn_points()
+        # nextWP = self.town_map.get_waypoint(carla.Location(x=406, y=-25.558, z=1.20001),
+        #                                     project_to_road=True).next(distance=10)[0]
+
+        self.hero_actor = self.world.spawn_actor(blueprint, spawn_points[0])
         # use try_spawn_actor in while to find feasible location
 
         self.hero_transform = self.hero_actor.get_transform()
@@ -1014,11 +1017,11 @@ class ModuleWorld:
         if self.args.play:
             self.update_hud_info(self.clock)
         self.world.tick()
-        ts = self.world.wait_for_tick()
-        if self.frame is not None:
-            if ts.frame_count != self.frame + 1:
-                logging.warning('--------------- frame skip! -----------------')
-        self.frame = ts.frame_count
+        # ts = self.world.wait_for_tick()
+        # if self.frame is not None:
+        #     if ts.frame_count != self.frame + 1:
+        #         logging.warning('--------------- frame skip! -----------------')
+        # self.frame = ts.frame_count
 
     def update_hud_info(self, clock):
         hero_mode_text = []
@@ -1511,15 +1514,16 @@ class ModuleControl:
         pass
 
     def tick(self, action=None, targetSpeed=80):
+
         # Receives waypoint in body frame and follows it using controller
         # action = [throttle, x, y]
 
-        if action is None:      # Follow the hardcoded waypoints in town map:
+        if action is None:  # Follow the hardcoded waypoints in town map:
             nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
                                                       project_to_road=True).next(distance=10)[0]
             targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
             control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
-        else:                   # Follow RL actions
+        else:  # Follow RL actions
             psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
             targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
             throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
@@ -1531,7 +1535,6 @@ class ModuleControl:
             control.hand_brake = False
             control.manual_gear_shift = False
 
-        # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
-
+        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
         self.world.hero_actor.apply_control(control)
-        return speed     # return speed in km/h
+        return speed  # return speed in km/h

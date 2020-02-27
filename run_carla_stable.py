@@ -2,15 +2,21 @@ import gym
 import carla_gym
 import numpy as np
 import os.path as osp
+import os
 import inspect
 import sys
 
 currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 
+from stable_baselines.bench import Monitor
 from stable_baselines.ddpg.policies import MlpPolicy
 from stable_baselines.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec
 from stable_baselines import DDPG
+
+
+
+
 import argparse
 
 
@@ -37,6 +43,7 @@ if __name__ == '__main__':
     args = parse_args()
     print('Env is starting')
     env = gym.make(args.env)
+
     env.begin_modules(args)
 
     # the noise objects for DDPG
@@ -51,12 +58,11 @@ if __name__ == '__main__':
             print('Training Started')
             model.learn(total_timesteps=args.num_timesteps)
         finally:
-            model.save('models/ddpg_carla')        # save model even if training fails because of an error
+            print(100 * '*')
+            print('FINISHED TRAINING; saving model...')
+            print(100 * '*')
+            model.save('models/ddpg_carla')  # save model even if training fails because of an error
             env.destroy()
-
-    print(100*'*')
-    print('FINISHED TRAINING')
-    print(100 * '*')
 
     if args.test:
         model = DDPG.load('models/ddpg_carla')

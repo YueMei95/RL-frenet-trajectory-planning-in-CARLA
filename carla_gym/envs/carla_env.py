@@ -26,7 +26,7 @@ class CarlaGymEnv(gym.Env):
         self.point_cloud = []  # race waypoints (center lane)
         self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
-        self.targetSpeed = 80  # km/h
+        self.targetSpeed = 70  # km/h
         self.maxSpeed = 150
         self.maxDist = 5
         self.accum_speed_e = 0
@@ -107,15 +107,14 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         self.n_step += 1
-
         action[0] += 20  # only move forward
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        speed = self.control_module.tick(action, targetSpeed=self.targetSpeed)  # apply control
-
+        speed = self.control_module.tick(action=None, targetSpeed=self.targetSpeed)  # apply control
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
+        # print(self.n_step, ego_transform)
         c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
         yaw_norm = ego_transform.rotation.yaw / 180
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
@@ -188,7 +187,9 @@ class CarlaGymEnv(gym.Env):
         self.init_transform = self.world_module.hero_actor.get_transform()
 
         distance = 0
-        for i in range(1520):
+        print(self.world_module.hero_actor.get_location())
+
+        for i in range(300):
             distance += 2
             wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
                                                          project_to_road=True).next(distance=distance)[0]

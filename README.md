@@ -1,5 +1,5 @@
 # run:
-pip install -r requirements.txt
+python config.py --weather ClearNoon -m Town04
 
 python run_carla_stable.py
 

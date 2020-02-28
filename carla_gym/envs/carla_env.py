@@ -45,7 +45,7 @@ class CarlaGymEnv(gym.Env):
         self.hud_module = None
         self.input_module = None
         self.control_module = None
-        self.init_transform = None      # ego initial transform to recover at each episode
+        self.init_transform = None  # ego initial transform to recover at each episode
         self.dt = 0.05
         self.maxJerk = 1.5e2
         self.acceleration_ = 0
@@ -130,23 +130,23 @@ class CarlaGymEnv(gym.Env):
 
         # calculate jerk
         acc = self.world_module.hero_actor.get_acceleration()
-        acceleration = math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2)   # m/s^2
+        acceleration = math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2)  # m/s^2
         if self.n_step >= 3:
-            jerk = (acceleration - self.acceleration_)/(self.dt**2)
+            jerk = (acceleration - self.acceleration_) / (self.dt ** 2)
         else:
             jerk = 0
         self.acceleration_ = acceleration
 
         # Reward function
         # speed_r = speed/self.maxSpeed                                       # encourages agent to move
-        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed             # encourages agent to reduce speed error
-        dist_p = dist / self.maxDist                                          # encourages agent to stay in lane
-        jerk_p = abs(jerk)/self.maxJerk                                       # penalizes jerk
-        #w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                  # encourages comfort
+        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed  # encourages agent to reduce speed error
+        dist_p = dist / self.maxDist  # encourages agent to stay in lane
+        jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
+        w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                  # encourages comfort
 
         # reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
-        reward = -1 * (speed_e_p + dist_p + jerk_p) / 3   + 1  # -1<= reward <= 1
-        # print('reward: ', reward)
+        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + 1             # -1<= reward <= 1
+
         # Episode
         done = False
         if track_finished:
@@ -158,6 +158,7 @@ class CarlaGymEnv(gym.Env):
             reward = -5.0
             done = True
             return self.state, reward, done, {}
+
         # if (self.n_step >= 200) and (self.accum_speed_e/self.n_step) > 0.5:     # terminate if agent did not move much
         #     reward = -5.0
         #     done = True
@@ -173,9 +174,9 @@ class CarlaGymEnv(gym.Env):
         self.world_module.hero_actor.set_transform(self.init_transform)
 
         self.accum_speed_e = 0
-        self.n_step = 0     # initialize episode steps count
+        self.n_step = 0  # initialize episode steps count
         # self.maxJerk = 0
-        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])      # initialize state vector
+        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
         return np.array(self.state)
 
     #    def get_state(self):

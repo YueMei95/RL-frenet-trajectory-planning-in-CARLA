@@ -146,7 +146,7 @@ class CarlaGymEnv(gym.Env):
 
         # reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
         reward = -1 * (speed_e_p + dist_p + jerk_p) / 3   + 1  # -1<= reward <= 1
-        print('reward: ', reward)
+        # print('reward: ', reward)
         # Episode
         done = False
         if track_finished:

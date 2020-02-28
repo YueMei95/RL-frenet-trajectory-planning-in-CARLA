@@ -1066,7 +1066,7 @@ class DDPG(OffPolicyRLModel):
 
                     # Saving model every at every log_interval
                     if agent_id is not None:
-                        self.save('/carla/models/' + str(agent_id) + '/nstep-' + str(step))
+                        self.save('/carla/models/' + str(agent_id) + '/nepisode-' + str(episodes))
 
     def predict(self, observation, state=None, mask=None, deterministic=True):
         observation = np.array(observation)

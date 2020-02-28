@@ -52,7 +52,7 @@ if __name__ == '__main__':
         env = Monitor(env, '/carla/models/' + str(args.agent_id))
     else:
         env = Monitor(env, 'logs/')
-        
+
     env.begin_modules(args)
 
     # the noise objects for DDPG

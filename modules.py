@@ -832,7 +832,7 @@ class ModuleWorld:
         self.timeout = timeout
         self.server_fps = 0.0
         self.simulation_time = 0
-        self.dt = 0.1      # Set to None for variable time-step (real-world simulation)
+        self.dt = 0.1  # Set to None for variable time-step (real-world simulation)
 
         # World data
         self.world = None
@@ -1496,9 +1496,9 @@ class ModuleControl:
         self.module_manager = module_manager
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.name = name
-        if self.world.dt is not None:       # if world in fixed timestep
+        if self.world.dt is not None:  # if world in fixed timestep
             self.dt = self.world.dt
-        else:                               # if world is variable timestep
+        else:  # if world is variable timestep
             self.dt = 0.05
         self.args_lateral_dict = {
             'K_P': 1.95,
@@ -1514,7 +1514,7 @@ class ModuleControl:
         self.vehicleController = None
         self.vehicleLonController = None
         self.vehicleLatController = None
-        self.counter = 0
+        self.acceleration_ = 0
 
     def start(self):
         # hud = self.module_manager.get_module(MODULE_HUD)
@@ -1529,7 +1529,6 @@ class ModuleControl:
         pass
 
     def tick(self, action=None, targetSpeed=80):
-        self.counter += 1
 
         # Receives waypoint in body frame and follows it using controller
         # action = [throttle, x, y]

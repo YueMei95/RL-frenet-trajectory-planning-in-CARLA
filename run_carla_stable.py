@@ -23,6 +23,8 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v95')
+    parser.add_argument('--action_noise', help='Action noise', type=float, default=0.5)
+    parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
     parser.add_argument('--num_timesteps', type=float, default=1e6),
     parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='mlp')
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
@@ -50,14 +52,14 @@ if __name__ == '__main__':
     # the noise objects for DDPG
     n_actions = env.action_space.shape[-1]
     param_noise = None
-    action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=float(0.5) * np.ones(n_actions))
+    action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions), sigma=args.action_noise * np.ones(n_actions))
 
     model = DDPG(MlpPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise, render=args.play)
     print('Model is Created')
     if not args.test:
         try:
             print('Training Started')
-            model.learn(total_timesteps=args.num_timesteps)
+            model.learn(total_timesteps=args.num_timesteps, log_interval=args.log_interval)
         finally:
             print(100 * '*')
             print('FINISHED TRAINING; saving model...')

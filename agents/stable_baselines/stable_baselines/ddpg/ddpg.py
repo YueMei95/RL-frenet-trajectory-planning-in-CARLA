@@ -826,6 +826,7 @@ class DDPG(OffPolicyRLModel):
 
             eval_episode_rewards_history = deque(maxlen=100)
             episode_rewards_history = deque(maxlen=100)
+            saved_episode_reward_history = None
             episode_successes = []
 
 
@@ -917,6 +918,17 @@ class DDPG(OffPolicyRLModel):
                                 # Episode done.
                                 epoch_episode_rewards.append(episode_reward)
                                 episode_rewards_history.append(episode_reward)
+
+                                # Best model saved
+                                if (saved_episode_reward_history is None or \
+                                        saved_episode_reward_history < np.mean(episode_rewards_history)) and \
+                                        episodes > 100:
+
+                                    self.save('models/best')
+                                    saved_episode_reward_history = np.mean(episode_rewards_history)
+
+
+
                                 epoch_episode_steps.append(episode_step)
                                 episode_reward = 0.
                                 episode_step = 0
@@ -930,6 +942,7 @@ class DDPG(OffPolicyRLModel):
                                 self._reset()
                                 if not isinstance(self.env, VecEnv):
                                     obs = self.env.reset()
+
 
                         callback.on_rollout_end()
                         # Train.
@@ -980,6 +993,7 @@ class DDPG(OffPolicyRLModel):
                                     eval_episode_rewards.append(eval_episode_reward)
                                     eval_episode_rewards_history.append(eval_episode_reward)
                                     eval_episode_reward = 0.
+
 
                     mpi_size = MPI.COMM_WORLD.Get_size()
                     # Log stats.
@@ -1045,6 +1059,9 @@ class DDPG(OffPolicyRLModel):
                         if self.eval_env and hasattr(self.eval_env, 'get_state'):
                             with open(os.path.join(logdir, 'eval_env_state.pkl'), 'wb') as file_handler:
                                 pickle.dump(self.eval_env.get_state(), file_handler)
+
+                    # Saving model every at every log_interval
+                    self.save('models/nstep-' + str(step))
 
     def predict(self, observation, state=None, mask=None, deterministic=True):
         observation = np.array(observation)

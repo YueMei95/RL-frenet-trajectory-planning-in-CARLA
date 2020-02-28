@@ -1,9 +1,9 @@
 # run:
 python config.py --weather ClearNoon -m Town04
 
-python run_carla_stable.py
+python run_carla_stable.py --num_timesteps=1e6
 
-python run_carla_stable.py --num_timesteps=1e7
+kubectl exec sim-carla1-7p6kc -c carla-client -- /bin/bash -c "cd carla-decison-making && python run_carla_stable.py --num_timesteps=1e6 --log_interval=100 --action_noise=0.5 |& tee models/output.txt"
 
 # carla-decison-making
 Long short term decision making for autonomous vehicles using depp reinforcement learning

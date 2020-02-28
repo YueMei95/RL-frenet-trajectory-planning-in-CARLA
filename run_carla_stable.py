@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v95')
     parser.add_argument('--action_noise', help='Action noise', type=float, default=0.5)
     parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
+    parser.add_argument('--agent_id', type=int, default=None),
     parser.add_argument('--num_timesteps', type=float, default=1e6),
     parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='mlp')
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
@@ -45,8 +46,13 @@ if __name__ == '__main__':
     args = parse_args()
     print('Env is starting')
     env = gym.make(args.env)
-    env = Monitor(env, 'logs/')
 
+    if args.agent_id is not None:
+        os.mkdir('/carla/models/' + str(args.agent_id))
+        env = Monitor(env, '/carla/models/' + str(args.agent_id))
+    else:
+        env = Monitor(env, 'logs/')
+        
     env.begin_modules(args)
 
     # the noise objects for DDPG
@@ -59,7 +65,7 @@ if __name__ == '__main__':
     if not args.test:
         try:
             print('Training Started')
-            model.learn(total_timesteps=args.num_timesteps, log_interval=args.log_interval)
+            model.learn(total_timesteps=args.num_timesteps, log_interval=args.log_interval, agent_id=args.agent_id)
         finally:
             print(100 * '*')
             print('FINISHED TRAINING; saving model...')

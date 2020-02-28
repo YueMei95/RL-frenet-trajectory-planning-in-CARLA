@@ -803,7 +803,10 @@ class DDPG(OffPolicyRLModel):
             })
 
     def learn(self, total_timesteps, callback=None, log_interval=100, tb_log_name="DDPG",
-              reset_num_timesteps=True, replay_wrapper=None):
+              reset_num_timesteps=True, replay_wrapper=None, agent_id=None):
+
+
+
 
         new_tb_log = self._init_num_timesteps(reset_num_timesteps)
         callback = self._init_callback(callback)
@@ -924,8 +927,9 @@ class DDPG(OffPolicyRLModel):
                                         saved_episode_reward_history < np.mean(episode_rewards_history)) and \
                                         episodes > 100:
 
-                                    self.save('models/best')
-                                    saved_episode_reward_history = np.mean(episode_rewards_history)
+                                    if agent_id is not None:
+                                        self.save('/carla/models/' + str(agent_id) + '/best')
+                                        saved_episode_reward_history = np.mean(episode_rewards_history)
 
 
 
@@ -1061,7 +1065,8 @@ class DDPG(OffPolicyRLModel):
                                 pickle.dump(self.eval_env.get_state(), file_handler)
 
                     # Saving model every at every log_interval
-                    self.save('models/nstep-' + str(step))
+                    if agent_id is not None:
+                        self.save('/carla/models/' + str(agent_id) + '/nstep-' + str(step))
 
     def predict(self, observation, state=None, mask=None, deterministic=True):
         observation = np.array(observation)

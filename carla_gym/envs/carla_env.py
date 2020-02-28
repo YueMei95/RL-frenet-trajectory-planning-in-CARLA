@@ -189,12 +189,12 @@ class CarlaGymEnv(gym.Env):
         distance = 0
         print(self.world_module.hero_actor.get_location())
 
-        for i in range(300):
+        for i in range(1520):
             distance += 2
             wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
                                                          project_to_road=True).next(distance=distance)[0]
             self.point_cloud.append(wp.transform.location)
-
+            
             # To visualize point clouds
             # self.world_module.points_to_draw['wp {}'.format(wp.id)] = wp.transform.location
 

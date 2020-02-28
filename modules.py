@@ -832,6 +832,7 @@ class ModuleWorld:
         self.timeout = timeout
         self.server_fps = 0.0
         self.simulation_time = 0
+        self.dt = 0.1      # Set to None for variable time-step (real-world simulation)
 
         # World data
         self.world = None
@@ -911,9 +912,9 @@ class ModuleWorld:
 
     def start(self):
         self.world, self.town_map = self._get_data_from_carla()
-        self.config(synchronous=True, no_rendering=True, time_step=0.1)
+        self.config(synchronous=True, no_rendering=True, time_step=self.dt)
         settings = self.world.get_settings()
-        print(settings.fixed_delta_seconds)
+        print('fixed_delta_seconds= ', settings.fixed_delta_seconds)
         print(settings)
 
         if self.args.play:
@@ -998,10 +999,19 @@ class ModuleWorld:
         #    self.hero_actor = self.world.try_spawn_actor(blueprint, spawn_point)
 
         spawn_points = self.world.get_map().get_spawn_points()
-        # nextWP = self.town_map.get_waypoint(carla.Location(x=406, y=-25.558, z=1.20001),
+        v1 = [406, -25, 0]  # spawn the actor to the closes waypoint to this location
+        d = float('inf')
+        spawn_point = spawn_points[0]
+        for p in spawn_points:
+            v2 = [p.location.x, p.location.y, p.location.z]
+            d_ = math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
+            if d_ <= d:
+                spawn_point = p
+                d = d_
+        # nextWP = self.town_map.get_waypoint(carla.Location(x=406, y=-25, z=1.2),
         #                                     project_to_road=True).next(distance=10)[0]
 
-        self.hero_actor = self.world.spawn_actor(blueprint, spawn_points[0])
+        self.hero_actor = self.world.spawn_actor(blueprint, spawn_point)
         # use try_spawn_actor in while to find feasible location
 
         self.hero_transform = self.hero_actor.get_transform()
@@ -1484,8 +1494,12 @@ class ModuleInput(object):
 class ModuleControl:
     def __init__(self, name, module_manager):
         self.module_manager = module_manager
+        self.world = self.module_manager.get_module(MODULE_WORLD)
         self.name = name
-        self.dt = 1.0 / 20.0
+        if self.world.dt is not None:
+            self.dt = self.world.dt
+        else:
+            self.dt = 0.05
         self.args_lateral_dict = {
             'K_P': 1.95,
             'K_D': 0.01,
@@ -1498,15 +1512,15 @@ class ModuleControl:
             'dt': self.dt}
         self.world = None
         self.vehicleController = None
+        self.vehicleLonController = None
         self.vehicleLatController = None
 
     def start(self):
         # hud = self.module_manager.get_module(MODULE_HUD)
         # hud.notification("Press 'H' or '?' for help.", seconds=4.0)
+        # world has started so update it
         self.world = self.module_manager.get_module(MODULE_WORLD)
-        self.vehicleController = VehiclePIDController(self.world.hero_actor,
-                                                      args_lateral=self.args_lateral_dict,
-                                                      args_longitudinal=self.args_longitudinal_dict)
+        self.vehicleController = VehiclePIDController(self.world.hero_actor)
         self.vehicleLonController = PIDLongitudinalController(self.world.hero_actor, **self.args_longitudinal_dict)
         self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
 

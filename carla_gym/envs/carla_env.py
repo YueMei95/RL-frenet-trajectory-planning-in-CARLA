@@ -27,7 +27,7 @@ class CarlaGymEnv(gym.Env):
         self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 70  # km/h
-        self.maxSpeed = 150
+        self.maxSpeed = 100
         self.maxDist = 5
         self.accum_speed_e = 0
 
@@ -47,7 +47,7 @@ class CarlaGymEnv(gym.Env):
         self.control_module = None
         self.init_transform = None      # ego initial transform to recover at each episode
         self.dt = 0.05
-        self.maxJerk = 1e5
+        self.maxJerk = 1.5e2
         self.acceleration_ = 0
 
     def seed(self, seed=None):
@@ -138,14 +138,15 @@ class CarlaGymEnv(gym.Env):
         self.acceleration_ = acceleration
 
         # Reward function
-        speed_r = speed/self.maxSpeed                                       # encourages agent to move
-        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed           # encourages agent to reduce speed error
-        dist_p = dist / self.maxDist                                        # encourages agent to stay in lane
-        jerk_p = abs(jerk)/self.maxJerk                                     # penalizes jerk
-        w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                 # encourages comfort
+        # speed_r = speed/self.maxSpeed                                       # encourages agent to move
+        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed             # encourages agent to reduce speed error
+        dist_p = dist / self.maxDist                                          # encourages agent to stay in lane
+        jerk_p = abs(jerk)/self.maxJerk                                       # penalizes jerk
+        #w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                  # encourages comfort
 
-        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
-
+        # reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
+        reward = -1 * (speed_e_p + dist_p + jerk_p) / 3   + 1  # -1<= reward <= 1
+        print('reward: ', reward)
         # Episode
         done = False
         if track_finished:
@@ -154,10 +155,6 @@ class CarlaGymEnv(gym.Env):
             done = True
             return self.state, reward, done, {}
         if dist >= self.maxDist:
-            reward = -5.0
-            done = True
-            return self.state, reward, done, {}
-        if jerk > self.maxJerk:
             reward = -5.0
             done = True
             return self.state, reward, done, {}

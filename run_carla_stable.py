@@ -43,6 +43,7 @@ if __name__ == '__main__':
     args = parse_args()
     print('Env is starting')
     env = gym.make(args.env)
+    env = Monitor(env, 'logs/')
 
     env.begin_modules(args)
 

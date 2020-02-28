@@ -111,7 +111,7 @@ class CarlaGymEnv(gym.Env):
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        speed = self.control_module.tick(action=None, targetSpeed=self.targetSpeed)  # apply control
+        speed = self.control_module.tick(action=action, targetSpeed=self.targetSpeed)  # apply control
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
         # print(self.n_step, ego_transform)
@@ -194,7 +194,7 @@ class CarlaGymEnv(gym.Env):
             wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
                                                          project_to_road=True).next(distance=distance)[0]
             self.point_cloud.append(wp.transform.location)
-            
+
             # To visualize point clouds
             # self.world_module.points_to_draw['wp {}'.format(wp.id)] = wp.transform.location
 

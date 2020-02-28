@@ -141,11 +141,10 @@ class CarlaGymEnv(gym.Env):
             reward = -5.0
             done = True
             return self.state, reward, done, {}
-
-        if (self.n_step >= 200) and (self.accum_speed_e/self.n_step) > 0.5:     # terminate if agent did not move much
-            reward = -5.0
-            done = True
-            return self.state, reward, done, {}
+        # if (self.n_step >= 200) and (self.accum_speed_e/self.n_step) > 0.5:     # terminate if agent did not move much
+        #     reward = -5.0
+        #     done = True
+        #     return self.state, reward, done, {}
 
         return self.state, reward, done, {}
 

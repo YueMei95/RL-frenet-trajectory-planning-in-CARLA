@@ -1496,9 +1496,9 @@ class ModuleControl:
         self.module_manager = module_manager
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.name = name
-        if self.world.dt is not None:
+        if self.world.dt is not None:       # if world in fixed timestep
             self.dt = self.world.dt
-        else:
+        else:                               # if world is variable timestep
             self.dt = 0.05
         self.args_lateral_dict = {
             'K_P': 1.95,
@@ -1514,6 +1514,7 @@ class ModuleControl:
         self.vehicleController = None
         self.vehicleLonController = None
         self.vehicleLatController = None
+        self.counter = 0
 
     def start(self):
         # hud = self.module_manager.get_module(MODULE_HUD)
@@ -1528,6 +1529,7 @@ class ModuleControl:
         pass
 
     def tick(self, action=None, targetSpeed=80):
+        self.counter += 1
 
         # Receives waypoint in body frame and follows it using controller
         # action = [throttle, x, y]

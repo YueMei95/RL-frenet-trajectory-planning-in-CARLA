@@ -1170,5 +1170,4 @@ class DDPG(OffPolicyRLModel):
                 params_ += params[-n_normalisation_params:]
             params = params_
         model.load_parameters(params)
-
         return model

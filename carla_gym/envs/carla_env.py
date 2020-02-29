@@ -31,8 +31,8 @@ class CarlaGymEnv(gym.Env):
         self.maxDist = 5
         self.accum_speed_e = 0
 
-        self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1, -1])
-        self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1, 1])
+        self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1])
+        self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-20, -10])  # action = [ WPb_x (m), WPb_y (m)]
@@ -120,10 +120,10 @@ class CarlaGymEnv(gym.Env):
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
         c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
-        yaw_norm = ego_transform.rotation.yaw / 180
+        # yaw_norm = ego_transform.rotation.yaw / 180
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
         self.accum_speed_e += speed_e
-        self.state = np.append(c, [yaw_norm, speed_e])
+        self.state = np.append(c, [speed_e])
 
         # angular velocity
         w = self.world_module.hero_actor.get_angular_velocity()

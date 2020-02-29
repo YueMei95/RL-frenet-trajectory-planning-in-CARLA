@@ -1,5 +1,5 @@
 # run:
-python config.py --weather ClearNoon -m Town04
+python config.py --weather ClearNoon -m Town04; python run_carla_stable.py --play --env=CarlaGymEnv-v0
 
 python run_carla_stable.py --num_timesteps=1e6
 

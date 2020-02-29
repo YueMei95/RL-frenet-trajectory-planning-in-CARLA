@@ -21,7 +21,7 @@ def euclidean_distance(v1, v2):
 class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
-        self.__version__ = "9.5.0"
+        self.__version__ = "9.6.0"
         self.n_step = 0
         self.point_cloud = []  # race waypoints (center lane)
         self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
@@ -30,14 +30,14 @@ class CarlaGymEnv(gym.Env):
         self.maxSpeed = 100
         self.maxDist = 5
 
-        self.low_state = np.append([-float('inf') for _ in range(self.LOS)],
+        self.low_state = np.append([-float('inf') for _ in range(self.LOS*2)], # multiply by 2 to represent 2 arrays for each waypoint
                                    [-float('inf'), -float('inf'), -180, 0, 0])
-        self.high_state = np.append([float('inf') for _ in range(self.LOS)],
+        self.high_state = np.append([float('inf') for _ in range(self.LOS*2)], # multiply by 2 to represent 2 arrays for each waypoint
                                     [float('inf'), float('inf'), 180, 0, 0])
 
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        
+                                                       
         action_low = np.array([-20, -10])  # action = [ WPb_x (m), WPb_y (m)]
         action_high = np.array([20, 10])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
@@ -101,7 +101,7 @@ class CarlaGymEnv(gym.Env):
     def step(self, action=None):
         self.n_step += 1
         action[0] += 20  # only move forward
-
+        reward=0
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
@@ -114,6 +114,7 @@ class CarlaGymEnv(gym.Env):
 
         ego_pos = [ego_transform.location.x, ego_transform.location.y]
         self.state = np.append(points, [*ego_pos, yaw, speed, self.targetSpeed])
+
         # you may feed steering and throttle to state
 
         # angular velocity
@@ -129,14 +130,13 @@ class CarlaGymEnv(gym.Env):
         self.acceleration_ = acceleration
 
         # Reward function
-        # speed_r = speed/self.maxSpeed                                       # encourages agent to move
+        speed_r = speed/self.maxSpeed                                       # encourages agent to move
         speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed  # encourages agent to reduce speed error
         dist_p = dist / self.maxDist  # encourages agent to stay in lane
         jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
         w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2) / 180  # encourages comfort
 
-        # reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
-        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + 1  # -1<= reward <= 1
+        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
 
         # Episode
         done = False
@@ -146,7 +146,7 @@ class CarlaGymEnv(gym.Env):
             done = True
             return self.state, reward, done, {}
         if dist >= self.maxDist:
-            reward = -5.0
+            reward += -100.0
             done = True
             return self.state, reward, done, {}
 

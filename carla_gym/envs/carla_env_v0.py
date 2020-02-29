@@ -96,12 +96,15 @@ class CarlaGymEnv(gym.Env):
         # update the curvature points window (points in body frame)
         curvature_points = self.update_curvature_points(close_could_idx=idx)
 
+        if draw_poly:
+            for i, p in enumerate(curvature_points):
+                self.world_module.points_to_draw['poly point {}'.format(i)] = carla.Location(x=p[0], y=p[1])
         return curvature_points, dist, track_finished
 
     def step(self, action=None):
         self.n_step += 1
         action[0] += 20  # only move forward
-        reward=0
+        reward = 0
         # Apply action
         # action = None
         self.module_manager.tick()  # Update carla world and lat/lon controllers
@@ -130,13 +133,14 @@ class CarlaGymEnv(gym.Env):
         self.acceleration_ = acceleration
 
         # Reward function
-        speed_r = speed/self.maxSpeed                                       # encourages agent to move
+        # speed_r = speed/self.maxSpeed                                       # encourages agent to move
         speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed  # encourages agent to reduce speed error
         dist_p = dist / self.maxDist  # encourages agent to stay in lane
         jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
         w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2) / 180  # encourages comfort
 
-        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
+        # reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
+        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + 1  # -1<= reward <= 1
 
         # Episode
         done = False

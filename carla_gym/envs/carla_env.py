@@ -28,8 +28,7 @@ class CarlaGymEnv(gym.Env):
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 70  # km/h
         self.maxSpeed = 100
-        self.maxDist = 5
-        self.accum_speed_e = 0
+        self.maxCte = 2
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1])
@@ -120,11 +119,11 @@ class CarlaGymEnv(gym.Env):
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
         c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
+        cte = abs(c[-1])
+        # print(cte)
         # yaw_norm = ego_transform.rotation.yaw / 180
         speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
-        self.accum_speed_e += speed_e
         self.state = np.append(c, [speed_e])
-        print(self.state)
 
         # angular velocity
         w = self.world_module.hero_actor.get_angular_velocity()
@@ -139,14 +138,13 @@ class CarlaGymEnv(gym.Env):
         self.acceleration_ = acceleration
 
         # Reward function
-        # speed_r = speed/self.maxSpeed                                       # encourages agent to move
-        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed  # encourages agent to reduce speed error
-        dist_p = dist / self.maxDist  # encourages agent to stay in lane
+        step_r = 1                                                            # encourages agent to move
+        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed       # encourages agent to reduce speed error
+        cte_p = cte/self.maxCte                                               # encourages agent to stay in lane
         jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
-        w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                  # encourages comfort
+        w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                   # encourages comfort
 
-        # reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + speed_r     # -1<= reward <= 1
-        reward = -1 * (speed_e_p + dist_p + w_p + jerk_p) / 4 + 1             # -1<= reward <= 1
+        reward = -1 * (speed_e_p + cte_p + w_p + jerk_p) / 4 + step_r         # -1<= reward <= 1
 
         # Episode
         done = False
@@ -155,7 +153,7 @@ class CarlaGymEnv(gym.Env):
             reward = 1000.0
             done = True
             return self.state, reward, done, {}
-        if dist >= self.maxDist:
+        if cte >= self.maxCte:
             reward = -5.0
             done = True
             return self.state, reward, done, {}
@@ -174,9 +172,7 @@ class CarlaGymEnv(gym.Env):
         self.world_module.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.world_module.hero_actor.set_transform(self.init_transform)
 
-        self.accum_speed_e = 0
         self.n_step = 0  # initialize episode steps count
-        # self.maxJerk = 0
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
         return np.array(self.state)
 

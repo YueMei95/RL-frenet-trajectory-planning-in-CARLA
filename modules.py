@@ -1541,6 +1541,7 @@ class ModuleControl:
         else:  # Follow RL actions
             psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
             targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
+            # print(targetWP)
             throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
             steering = self.vehicleLatController.run_step(targetWP)
             control = carla.VehicleControl()

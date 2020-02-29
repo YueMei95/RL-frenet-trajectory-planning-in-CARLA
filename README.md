@@ -1,7 +1,5 @@
 # run:
-python config.py --weather ClearNoon -m Town04; python run_carla_stable.py --play --env=CarlaGymEnv-v0
-
-python run_carla_stable.py --num_timesteps=1e6
+python config.py --weather ClearNoon -m Town04; python run_carla_stable.py --env=CarlaGymEnv-v95 --num_timesteps=200e3 --action_noise=0.2
 
 kubectl exec sim-carla-km2lm -c carla-client -- /bin/bash -c "cd carla-decison-making && python run_carla_stable.py --num_timesteps=1e6 --action_noise=0.0 --agent_id=1 |& tee /carla/models/1-output.txt"
 

@@ -197,6 +197,7 @@ class DDPG(OffPolicyRLModel):
     :param n_cpu_tf_sess: (int) The number of threads for TensorFlow operations
         If None, the number of cpu of the current machine will be used.
     """
+
     def __init__(self, policy, env, gamma=0.99, memory_policy=None, eval_env=None, nb_train_steps=50,
                  nb_rollout_steps=100, nb_eval_steps=100, param_noise=None, action_noise=None,
                  normalize_observations=False, tau=0.001, batch_size=128, param_noise_adaption_interval=50,
@@ -355,9 +356,9 @@ class DDPG(OffPolicyRLModel):
                     self.action_target = self.target_policy.action_ph
 
                     normalized_obs = tf.clip_by_value(normalize(self.policy_tf.processed_obs, self.obs_rms),
-                                                       self.observation_range[0], self.observation_range[1])
+                                                      self.observation_range[0], self.observation_range[1])
                     normalized_next_obs = tf.clip_by_value(normalize(self.target_policy.processed_obs, self.obs_rms),
-                                                       self.observation_range[0], self.observation_range[1])
+                                                           self.observation_range[0], self.observation_range[1])
 
                     if self.param_noise is not None:
                         # Configure perturbed actor.
@@ -439,7 +440,7 @@ class DDPG(OffPolicyRLModel):
                     tf.summary.scalar('critic_loss', self.critic_loss)
 
                 self.params = tf_util.get_trainable_vars("model") \
-                    + tf_util.get_trainable_vars('noise/') + tf_util.get_trainable_vars('noise_adapt/')
+                              + tf_util.get_trainable_vars('noise/') + tf_util.get_trainable_vars('noise_adapt/')
 
                 self.target_params = tf_util.get_trainable_vars("target")
                 self.obs_rms_params = [var for var in tf.global_variables()
@@ -805,9 +806,6 @@ class DDPG(OffPolicyRLModel):
     def learn(self, total_timesteps, callback=None, log_interval=100, tb_log_name="DDPG",
               reset_num_timesteps=True, replay_wrapper=None, agent_id=None):
 
-
-
-
         new_tb_log = self._init_num_timesteps(reset_num_timesteps)
         callback = self._init_callback(callback)
 
@@ -831,7 +829,6 @@ class DDPG(OffPolicyRLModel):
             episode_rewards_history = deque(maxlen=100)
             saved_episode_reward_history = None
             episode_successes = []
-
 
             with self.sess.as_default(), self.graph.as_default():
                 # Prepare everything.
@@ -924,14 +921,12 @@ class DDPG(OffPolicyRLModel):
 
                                 # Best model saved
                                 if (saved_episode_reward_history is None or \
-                                        saved_episode_reward_history < np.mean(episode_rewards_history)) and \
+                                    saved_episode_reward_history < np.mean(episode_rewards_history)) and \
                                         episodes > 100:
 
                                     if agent_id is not None:
-                                        self.save('/carla/models/' + str(agent_id) + '/best')
+                                        self.save('/carla/models/' + str(agent_id) + '/best/' + str(step))
                                         saved_episode_reward_history = np.mean(episode_rewards_history)
-
-
 
                                 epoch_episode_steps.append(episode_step)
                                 episode_reward = 0.
@@ -946,7 +941,6 @@ class DDPG(OffPolicyRLModel):
                                 self._reset()
                                 if not isinstance(self.env, VecEnv):
                                     obs = self.env.reset()
-
 
                         callback.on_rollout_end()
                         # Train.
@@ -997,7 +991,6 @@ class DDPG(OffPolicyRLModel):
                                     eval_episode_rewards.append(eval_episode_reward)
                                     eval_episode_rewards_history.append(eval_episode_reward)
                                     eval_episode_reward = 0.
-
 
                     mpi_size = MPI.COMM_WORLD.Get_size()
                     # Log stats.
@@ -1066,7 +1059,7 @@ class DDPG(OffPolicyRLModel):
 
                     # Saving model every at every log_interval
                     if agent_id is not None:
-                        self.save('/carla/models/' + str(agent_id) + '/nepisode-' + str(episodes))
+                        self.save('/carla/models/' + str(agent_id) + '/nepisode-' + str(step))
 
     def predict(self, observation, state=None, mask=None, deterministic=True):
         observation = np.array(observation)
@@ -1161,8 +1154,8 @@ class DDPG(OffPolicyRLModel):
             n_normalisation_params = len(model.obs_rms_params) + len(model.ret_rms_params)
             # Check that the issue is the one from
             # https://github.com/hill-a/stable-baselines/issues/363
-            assert len(params) == 2 * (n_params + n_target_params) + n_normalisation_params,\
-                "The number of parameter saved differs from the number of parameters"\
+            assert len(params) == 2 * (n_params + n_target_params) + n_normalisation_params, \
+                "The number of parameter saved differs from the number of parameters" \
                 " that should be loaded: {}!={}".format(len(params), len(model.get_parameter_list()))
             # Remove duplicates
             params_ = params[:n_params + n_target_params]

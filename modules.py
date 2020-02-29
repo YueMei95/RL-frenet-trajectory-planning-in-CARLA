@@ -999,7 +999,7 @@ class ModuleWorld:
         #    self.hero_actor = self.world.try_spawn_actor(blueprint, spawn_point)
 
         spawn_points = self.world.get_map().get_spawn_points()
-        v1 = [406, -25, 0]  # spawn the actor to the closes waypoint to this location
+        v1 = [406, -100, 0]  # spawn the actor to the closes waypoint to this location
         d = float('inf')
         spawn_point = spawn_points[0]
         for p in spawn_points:

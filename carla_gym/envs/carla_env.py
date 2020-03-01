@@ -29,6 +29,7 @@ class CarlaGymEnv(gym.Env):
         self.targetSpeed = 70  # km/h
         self.maxSpeed = 100
         self.maxCte = 2
+        self.max_idx_achieved = 0
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1])
@@ -64,6 +65,8 @@ class CarlaGymEnv(gym.Env):
                 if dist < min_dist:
                     min_dist = dist
                     min_idx = idx
+        if min_idx > self.max_idx_achieved:
+            self.max_idx_achieved = min_idx
         return min_idx, min_dist
 
     # This function needs to be optimized in terms of time complexity
@@ -136,7 +139,8 @@ class CarlaGymEnv(gym.Env):
         else:
             jerk = 0
         self.acceleration_ = acceleration
-
+        # weight parameters
+        cte_weight = 10
         # Reward function
         speed_r = speed/self.maxSpeed
         speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed       # encourages agent to reduce speed error
@@ -144,26 +148,25 @@ class CarlaGymEnv(gym.Env):
         jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
         w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                   # encourages comfort
 
-        reward = -1 * (speed_e_p + cte_p + w_p + jerk_p) / 4 + speed_r         # -1<= reward <= 1
-
+        reward = -1 * (speed_e_p + cte_weight*cte_p + w_p + jerk_p) / 4 + speed_r + self.max_idx_achieved/1520  # -1<= reward <= 1
         # Episode
         done = False
         if track_finished:
             print('Finished the race')
             reward = 1000.0
             done = True
-            return self.state, reward, done, {}
+            return self.state, reward, done, {'max index': self.max_idx_achieved}
         if cte >= self.maxCte:
             reward = -5.0
             done = True
-            return self.state, reward, done, {}
+            return self.state, reward, done, {'max index': self.max_idx_achieved}
 
         # if (self.n_step >= 200) and (self.accum_speed_e/self.n_step) > 0.5:     # terminate if agent did not move much
         #     reward = -5.0
         #     done = True
         #     return self.state, reward, done, {}
 
-        return self.state, reward, done, {}
+        return self.state, reward, done, {'max index': self.max_idx_achieved}
 
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)

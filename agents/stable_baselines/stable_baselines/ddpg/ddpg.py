@@ -925,7 +925,7 @@ class DDPG(OffPolicyRLModel):
                                         episodes > 100:
 
                                     if agent_id is not None:
-                                        self.save('/carla/models/' + str(agent_id) + '/best/' + str(step))
+                                        self.save('/carla/models/' + str(agent_id) + '/best' + str(step))
                                         saved_episode_reward_history = np.mean(episode_rewards_history)
 
                                 epoch_episode_steps.append(episode_step)

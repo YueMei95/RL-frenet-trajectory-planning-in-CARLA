@@ -24,6 +24,7 @@ def parse_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v95')
     parser.add_argument('--action_noise', help='Action noise', type=float, default=0.2)
+    parser.add_argument('--param_noise_stddev', help='Param noise', type=float, default=0.0)
     parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
     parser.add_argument('--agent_id', type=int, default=None),
     parser.add_argument('--num_timesteps', type=float, default=1e6),
@@ -57,12 +58,12 @@ if __name__ == '__main__':
 
     # the noise objects for DDPG
     n_actions = env.action_space.shape[-1]
-    param_noise = None
+    # param_noise = None
 
     if not args.test:
         action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions),
                                                     sigma=args.action_noise * np.ones(n_actions))
-
+        param_noise = AdaptiveParamNoiseSpec(initial_stddev=float(args.param_noise_stddev), desired_action_stddev=float(args.param_noise_stddev))
         model = DDPG(MlpPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise, render=args.play)
         print('Model is Created')
         try:

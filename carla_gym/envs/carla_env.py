@@ -145,10 +145,10 @@ class CarlaGymEnv(gym.Env):
         speed_r = speed/self.maxSpeed
         speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed       # encourages agent to reduce speed error
         cte_p = cte/self.maxCte                                               # encourages agent to stay in lane
-        jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
-        w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                   # encourages comfort
-
-        reward = -1 * (speed_e_p + cte_weight*cte_p + w_p + jerk_p) / 4 + speed_r + self.max_idx_achieved/1520  # -1<= reward <= 1
+        # jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
+        # w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                   # encourages comfort
+        reward = -1 * (speed_e_p + cte_weight*cte_p) / 2 + speed_r 
+        # reward = -1 * (speed_e_p + cte_weight*cte_p + w_p + jerk_p) / 4 + speed_r + self.max_idx_achieved/1520  # -1<= reward <= 1
         # Episode
         done = False
         if track_finished:

@@ -84,6 +84,7 @@ if __name__ == '__main__':
         model = DDPG.load('models/ddpg_carla')
         model.action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions),
                                                           sigma=np.zeros(n_actions))
+        model.param_noise = None
         print('Model is loaded')
         try:
             obs = env.reset()

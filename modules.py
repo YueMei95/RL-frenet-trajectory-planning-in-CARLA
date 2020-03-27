@@ -902,7 +902,10 @@ class ModuleWorld:
         try:
             self.client = carla.Client(self.args.carla_host, self.args.carla_port)
             self.client.set_timeout(self.timeout)
-            world = self.client.get_world()
+            # world = self.client.get_world()
+            world = self.client.load_world('Town04')
+            world.set_weather(getattr(carla.WeatherParameters, 'ClearNoon'))
+            print('Map: Town04 --- Weather: ClearNoon')
             town_map = world.get_map()
             return world, town_map
 
@@ -1540,17 +1543,17 @@ class ModuleControl:
             control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
         else:  # Follow RL actions
             psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-            targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
+            # targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
             # print(targetWP)
             throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
-            steering = self.vehicleLatController.run_step(targetWP)
+            # steering = self.vehicleLatController.run_step(targetWP)
             control = carla.VehicleControl()
-            control.steer = steering
+            control.steer = action.item()
             control.throttle = throttle
             control.brake = 0.0
             control.hand_brake = False
             control.manual_gear_shift = False
 
-        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+        # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
         self.world.hero_actor.apply_control(control)
         return speed  # return speed in km/h

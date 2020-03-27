@@ -804,7 +804,7 @@ class DDPG(OffPolicyRLModel):
             })
 
     def learn(self, total_timesteps, callback=None, log_interval=100, tb_log_name="DDPG",
-              reset_num_timesteps=True, replay_wrapper=None, agent_id=None):
+              reset_num_timesteps=True, replay_wrapper=None, save_path='logs/'):
 
         new_tb_log = self._init_num_timesteps(reset_num_timesteps)
         callback = self._init_callback(callback)
@@ -923,11 +923,12 @@ class DDPG(OffPolicyRLModel):
                                 if (saved_episode_reward_history is None or
                                     saved_episode_reward_history < np.mean(episode_rewards_history)) and \
                                         episodes > 100:
-
-                                    if agent_id is not None:
+                                    self.save(save_path + 'best_{}'.format(step))
+                                    saved_episode_reward_history = np.mean(episode_rewards_history)
+                                    # if agent_id is not None:
                                         # self.save('/carla/models/' + str(agent_id) + '/best' + str(step))
-                                        self.save('/logs/agent {}/models/best_{}'.format(agent_id, step))
-                                        saved_episode_reward_history = np.mean(episode_rewards_history)
+                                        # self.save('logs/agent_{}/models/best_{}'.format(agent_id, step))
+                                        # saved_episode_reward_history = np.mean(episode_rewards_history)
 
                                 epoch_episode_steps.append(episode_step)
                                 episode_reward = 0.
@@ -1059,9 +1060,11 @@ class DDPG(OffPolicyRLModel):
                                 pickle.dump(self.eval_env.get_state(), file_handler)
 
                     # Saving model at every log_interval
-                    if agent_id is not None:
+                    self.save(save_path + 'step_{}'.format(step))
+                    # if agent_id is not None:
                         # self.save('/carla/models/' + str(agent_id) + '/nepisode-' + str(step))
-                        self.save('/logs/agent {}/models/step_{}'.format(agent_id, step))
+                        # self.save(save_path + 'step_{}'.format(step))
+                        # self.save('logs/agent_{}/models/step_{}'.format(agent_id, step))
 
     def predict(self, observation, state=None, mask=None, deterministic=True):
         observation = np.array(observation)

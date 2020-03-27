@@ -64,9 +64,11 @@ if __name__ == '__main__':
 
     # model save/load directory
     if args.agent_id is not None:
-        model_dir = '/logs/agent_{}/models/{}_final_model'.format(args.agent_id, args.alg)
+        save_path = 'logs/agent_{}/models/'.format(args.agent_id)
+        model_dir = save_path + '{}_final_model'.format(args.alg)
     else:
-        model_dir = '/logs/{}_final_model'.format(args.alg)
+        save_path = 'logs/'
+        model_dir = save_path + '{}_final_model'.format(args.alg)
 
     if not args.test:
         if args.alg == 'ddpg':
@@ -88,7 +90,10 @@ if __name__ == '__main__':
         print('Model is Created')
         try:
             print('Training Started')
-            model.learn(total_timesteps=args.num_timesteps, log_interval=args.log_interval, agent_id=args.agent_id)
+            if args.alg == 'ddpg':
+                model.learn(total_timesteps=args.num_timesteps, log_interval=args.log_interval, save_path=save_path)
+            else:
+                model.learn(total_timesteps=args.num_timesteps, log_interval=args.log_interval)
         finally:
             print(100 * '*')
             print('FINISHED TRAINING; saving model...')

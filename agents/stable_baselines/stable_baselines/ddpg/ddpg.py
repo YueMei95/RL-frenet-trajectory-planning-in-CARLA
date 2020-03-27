@@ -920,12 +920,13 @@ class DDPG(OffPolicyRLModel):
                                 episode_rewards_history.append(episode_reward)
 
                                 # Best model saved
-                                if (saved_episode_reward_history is None or \
+                                if (saved_episode_reward_history is None or
                                     saved_episode_reward_history < np.mean(episode_rewards_history)) and \
                                         episodes > 100:
 
                                     if agent_id is not None:
-                                        self.save('/carla/models/' + str(agent_id) + '/best' + str(step))
+                                        # self.save('/carla/models/' + str(agent_id) + '/best' + str(step))
+                                        self.save('/logs/agent {}/models/best_{}'.format(agent_id, step))
                                         saved_episode_reward_history = np.mean(episode_rewards_history)
 
                                 epoch_episode_steps.append(episode_step)
@@ -1057,9 +1058,10 @@ class DDPG(OffPolicyRLModel):
                             with open(os.path.join(logdir, 'eval_env_state.pkl'), 'wb') as file_handler:
                                 pickle.dump(self.eval_env.get_state(), file_handler)
 
-                    # Saving model every at every log_interval
+                    # Saving model at every log_interval
                     if agent_id is not None:
-                        self.save('/carla/models/' + str(agent_id) + '/nepisode-' + str(step))
+                        # self.save('/carla/models/' + str(agent_id) + '/nepisode-' + str(step))
+                        self.save('/logs/agent {}/models/step_{}'.format(agent_id, step))
 
     def predict(self, observation, state=None, mask=None, deterministic=True):
         observation = np.array(observation)

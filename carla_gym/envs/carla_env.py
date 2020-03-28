@@ -31,8 +31,8 @@ class CarlaGymEnv(gym.Env):
         self.maxCte = 2
         self.max_idx_achieved = 0
 
-        self.low_state = np.append([-float('inf') for _ in range(self.LOS*3)], [-float('inf'), -float('inf'), -float('inf'), -math.pi])
-        self.high_state = np.append([float('inf') for _ in range(self.LOS*3)], [float('inf'), float('inf'), float('inf'), math.pi])
+        self.low_state = np.append([-float('inf') for _ in range(6)], [-180])
+        self.high_state = np.append([float('inf') for _ in range(6)], [180])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-1])  # steering
@@ -91,24 +91,27 @@ class CarlaGymEnv(gym.Env):
             track_finished = False
 
         # update the curvature points window (points in inertial frame)
-        curvature_points = self.update_curvature_points(close_could_idx=idx)
+        # curvature_points = self.update_curvature_points(close_could_idx=idx, draw_points=True)
 
-        return curvature_points, dist, track_finished
+        return self.point_cloud[idx], dist, track_finished
 
     def step(self, action=None):
         self.n_step += 1
 
         # Apply action
         # action = None
+
         self.module_manager.tick()  # Update carla world and lat/lon controllers
+
         speed = self.control_module.tick(action=action, targetSpeed=self.targetSpeed)  # apply control
 
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
-        curvature_points, dist, track_finished = self.interpolate_road_curvature(ego_transform)
-        self.state = np.append(curvature_points,
-                               [ego_transform.location.x, ego_transform.location.y, ego_transform.location.z, ego_transform.rotation.yaw])
-        # print(dist)
+        point_ahead, dist, track_finished = self.interpolate_road_curvature(ego_transform)
+        self.world_module.points_to_draw['point ahead'] = carla.Location(x=point_ahead.x, y=point_ahead.y)
+        self.state = np.array([point_ahead.x, point_ahead.y, point_ahead.z,
+                               ego_transform.location.x, ego_transform.location.y, ego_transform.location.z, ego_transform.rotation.yaw])
+        # print(self.state)
 
         reward = 1 - dist/5
 

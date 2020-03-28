@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument('--log_path', help='Directory to save learning curve data.', default=None, type=str)
     parser.add_argument('--play', default=False, action='store_true')
     parser.add_argument('--test', default=False, action='store_true')
+    parser.add_argument('--test_model', help='test model file name', type=str, default='')
     parser.add_argument('--carla_host', metavar='H', default='127.0.0.1',
                         help='IP of the host server (default: 127.0.0.1)')
     parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int,
@@ -41,6 +42,14 @@ def parse_args():
     parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720',
                         help='window resolution (default: 1280x720)')
     args, _ = parser.parse_known_args(sys.argv)
+
+    # correct default test_model arg
+    if args.test_model == '':
+        args.test_model = '{}_final_model'.format(args.alg)
+
+    # visualize all test scenarios
+    if args.test:
+        args.play = True
     return args
 
 
@@ -51,24 +60,29 @@ if __name__ == '__main__':
     env = gym.make(args.env)
 
     if args.agent_id is not None:
-        os.mkdir(currentPath + '/logs/agent_{}/'.format(args.agent_id))
-        os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
-        env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id), info_keywords=('max index',))
+        if not args.test:
+            os.mkdir(currentPath + '/logs/agent_{}/'.format(args.agent_id))
+            os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
+            env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id), info_keywords=('max index',))
+        # model save/load directory
+        save_path = 'logs/agent_{}/models/'.format(args.agent_id)
+        if args.test:
+            model_dir = save_path + args.test_model
+        else:
+            model_dir = save_path + '{}_final_model'.format(args.alg)
     else:
-        env = Monitor(env, 'logs/', info_keywords=('max index',))
+        if not args.test:
+            env = Monitor(env, 'logs/', info_keywords=('max index',))
+        save_path = 'logs/'
+        if args.test:
+            model_dir = save_path + args.test_model
+        else:
+            model_dir = save_path + '{}_final_model'.format(args.alg)
 
     env.begin_modules(args)
 
     # the noise objects for DDPG
     n_actions = env.action_space.shape[-1]
-
-    # model save/load directory
-    if args.agent_id is not None:
-        save_path = 'logs/agent_{}/models/'.format(args.agent_id)
-        model_dir = save_path + '{}_final_model'.format(args.alg)
-    else:
-        save_path = 'logs/'
-        model_dir = save_path + '{}_final_model'.format(args.alg)
 
     if not args.test:
         if args.alg == 'ddpg':

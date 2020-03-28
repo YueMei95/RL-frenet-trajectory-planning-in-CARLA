@@ -9,7 +9,10 @@ sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 
 from stable_baselines.bench.monitor import load_results
 
-agent_id = 1
+agent_id = 5
+n_smooth = 200
+col = 'r'       # 'r', 'l', 'max index'
+
 df = load_results('logs/agent_' + str(agent_id) + '/')
 
 # Calculate timestep for each episode using episodes length
@@ -19,11 +22,16 @@ for i, epslen in enumerate(df['l'][1:]):
 df['timestep'] = timestep       # add timestep column to df
 
 print(df.head())
+data_n_step = []
+n_step = []
+for i in range(df.shape[0]-n_smooth):
+    data_n_step.append(df[col][i:i+n_smooth].mean())
+    n_step.append(df['timestep'][i+n_smooth-1])
 
 # Plot training & validation loss values
-plt.plot(df['timestep'], df['r'])
-plt.title('episodic reward')
-plt.ylabel('rew')
+plt.plot(n_step, data_n_step)
+plt.title('episodic ' + col)
+plt.ylabel(col)
 plt.xlabel('timestep')
 # plt.legend(['Train', 'Test'], loc='upper left')
 plt.grid(True)

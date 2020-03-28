@@ -41,7 +41,9 @@ def parse_args():
                         help='TCP port to listen to (default: 2000)')
     parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720',
                         help='window resolution (default: 1280x720)')
-    args, _ = parser.parse_known_args(sys.argv)
+    args, _ = parser.parse_args(sys.argv)
+    print(args)
+    print(_)
 
     # correct default test_model arg
     if args.test_model == '':

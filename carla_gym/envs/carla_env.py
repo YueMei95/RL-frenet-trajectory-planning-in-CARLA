@@ -27,12 +27,12 @@ class CarlaGymEnv(gym.Env):
         self.LOS = 10  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 70  # km/h
-        self.maxSpeed = 100
+        self.maxSpeed = 150
         self.maxCte = 2
         self.max_idx_achieved = 0
 
-        self.low_state = np.append([-float('inf') for _ in range(6)], [-180])
-        self.high_state = np.append([float('inf') for _ in range(6)], [180])
+        self.low_state = np.append([-float('inf') for _ in range(6)], [-180, 0, 0])
+        self.high_state = np.append([float('inf') for _ in range(6)], [180, self.maxSpeed, self.maxSpeed])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-1])  # steering
@@ -93,7 +93,7 @@ class CarlaGymEnv(gym.Env):
         # update the curvature points window (points in inertial frame)
         # curvature_points = self.update_curvature_points(close_could_idx=idx, draw_points=True)
 
-        return self.point_cloud[idx], dist, track_finished
+        return self.point_cloud[idx+10], dist, track_finished
 
     def step(self, action=None):
         self.n_step += 1
@@ -104,13 +104,15 @@ class CarlaGymEnv(gym.Env):
         self.module_manager.tick()  # Update carla world and lat/lon controllers
 
         speed = self.control_module.tick(action=action, targetSpeed=self.targetSpeed)  # apply control
+        # print(speed)
 
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
         point_ahead, dist, track_finished = self.interpolate_road_curvature(ego_transform)
         self.world_module.points_to_draw['point ahead'] = carla.Location(x=point_ahead.x, y=point_ahead.y)
         self.state = np.array([point_ahead.x, point_ahead.y, point_ahead.z,
-                               ego_transform.location.x, ego_transform.location.y, ego_transform.location.z, ego_transform.rotation.yaw])
+                               ego_transform.location.x, ego_transform.location.y, ego_transform.location.z,
+                               ego_transform.rotation.yaw, speed, self.targetSpeed])
         # print(self.state)
 
         reward = 1 - dist/5

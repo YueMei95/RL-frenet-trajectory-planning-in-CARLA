@@ -41,9 +41,7 @@ def parse_args():
                         help='TCP port to listen to (default: 2000)')
     parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720',
                         help='window resolution (default: 1280x720)')
-    args, _ = parser.parse_args(sys.argv)
-    print(args)
-    print(_)
+    args = parser.parse_args()
 
     # correct default test_model arg
     if args.test_model == '':
@@ -52,41 +50,33 @@ def parse_args():
     # visualize all test scenarios
     if args.test:
         args.play = True
+
+    args.num_timesteps = int(args.num_timesteps)
     return args
 
 
 if __name__ == '__main__':
     args = parse_args()
-    args.num_timesteps = int(args.num_timesteps)
     print('Env is starting')
     env = gym.make(args.env)
-
-    if args.agent_id is not None:
-        if not args.test:
-            os.mkdir(currentPath + '/logs/agent_{}/'.format(args.agent_id))
-            os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
-            env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id), info_keywords=('max index',))
-        # model save/load directory
-        save_path = 'logs/agent_{}/models/'.format(args.agent_id)
-        if args.test:
-            model_dir = save_path + args.test_model
-        else:
-            model_dir = save_path + '{}_final_model'.format(args.alg)
-    else:
-        if not args.test:
-            env = Monitor(env, 'logs/', info_keywords=('max index',))
-        save_path = 'logs/'
-        if args.test:
-            model_dir = save_path + args.test_model
-        else:
-            model_dir = save_path + '{}_final_model'.format(args.alg)
-
     env.begin_modules(args)
+    n_actions = env.action_space.shape[-1]  # the noise objects for DDPG
 
-    # the noise objects for DDPG
-    n_actions = env.action_space.shape[-1]
+    # --------------------------------------------------------------------------------------------------------------------
+    # --------------------------------------------------Training----------------------------------------------------------
+    # --------------------------------------------------------------------------------------------------------------------
 
-    if not args.test:
+    if not args.test:  # training
+        if args.agent_id is not None:
+            os.mkdir(currentPath + '/logs/agent_{}/'.format(args.agent_id))                             # create agent_id folder
+            os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
+            save_path = 'logs/agent_{}/models/'.format(args.agent_id)
+            env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id), info_keywords=('max index',))    # logging monitor
+        else:
+            save_path = 'logs/'
+            env = Monitor(env, 'logs/', info_keywords=('max index',))                                   # logging monitor
+        model_dir = save_path + '{}_final_model'.format(args.alg)                                       # model save/load directory
+
         if args.alg == 'ddpg':
             action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions),
                                                         sigma=args.action_noise * np.ones(n_actions))
@@ -119,7 +109,17 @@ if __name__ == '__main__':
             env.destroy()
             print('model has been saved.')
 
-    else:
+    # --------------------------------------------------------------------------------------------------------------------"""
+    # ------------------------------------------------Test----------------------------------------------------------------"""
+    # --------------------------------------------------------------------------------------------------------------------"""
+
+    else:  # test
+        if args.agent_id is not None:
+            save_path = 'logs/agent_{}/models/'.format(args.agent_id)
+        else:
+            save_path = 'logs/'
+        model_dir = save_path + args.test_model  # model save/load directory
+
         if args.alg == 'ddpg':
             model = DDPG.load(model_dir)
             model.action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions),

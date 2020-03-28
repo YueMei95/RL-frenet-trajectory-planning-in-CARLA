@@ -9,8 +9,8 @@ sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 
 from stable_baselines.bench.monitor import load_results
 
-agent_id = 5
-n_smooth = 200
+agent_id = 1
+n_smooth = 100
 col = 'r'       # 'r', 'l', 'max index'
 
 df = load_results('logs/agent_' + str(agent_id) + '/')

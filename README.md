@@ -1,13 +1,16 @@
 # run:
-python config.py --weather ClearNoon -m Town04; python run_carla_stable.py --env=CarlaGymEnv-v95 --num_timesteps=200e3 --action_noise=0.2
+python run_carla_stable.py --env=CarlaGymEnv-v95 --num_timesteps=200e3 --action_noise=0.2
 
 kubectl exec sim-carla-km2lm -c carla-client -- /bin/bash -c "cd carla-decison-making && python run_carla_stable.py --num_timesteps=1e6 --action_noise=0.0 --agent_id=1 |& tee /carla/models/1-output.txt"
 
+python config.py --weather ClearNoon -m Town04; 
 # carla-decison-making
 Long short term decision making for autonomous vehicles using depp reinforcement learning
 
 
 export UE4_ROOT=~/UnrealEngine_4.22
+
+DISPLAY= ./CarlaUE4.sh Town04 -quality-level=low -windowed -world-port=2000  -benchmark -fps=20 -opengl -carla settings=CarlaSettings.ini
 
 DISPLAY= ./CarlaUE4.sh /Game/Carla/Maps/Town02 -quality-level=low -windowed -world-port=2000  -benchmark -fps=20
 

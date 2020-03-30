@@ -915,7 +915,7 @@ class ModuleWorld:
 
     def start(self):
         self.world, self.town_map = self._get_data_from_carla()
-        self.config(synchronous=True, no_rendering=True, time_step=self.dt)
+        self.config(synchronous=True, no_rendering=False, time_step=self.dt)
         settings = self.world.get_settings()
         print('fixed_delta_seconds= ', settings.fixed_delta_seconds)
         print(settings)
@@ -1011,9 +1011,11 @@ class ModuleWorld:
             if d_ <= d:
                 spawn_point = p
                 d = d_
-        # nextWP = self.town_map.get_waypoint(carla.Location(x=406, y=-25, z=1.2),
-        #                                     project_to_road=True).next(distance=10)[0]
 
+        # Replace z = 1.2 with z = 0.1 (~road surface altitude) to spawn hero from small altitude
+        spawn_point.location.z = 0.1
+
+        # print(spawn_point)
         self.hero_actor = self.world.spawn_actor(blueprint, spawn_point)
         # use try_spawn_actor in while to find feasible location
 

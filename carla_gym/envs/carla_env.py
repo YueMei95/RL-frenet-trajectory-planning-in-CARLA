@@ -30,6 +30,8 @@ class CarlaGymEnv(gym.Env):
         self.maxSpeed = 150
         self.maxCte = 2
         self.max_idx_achieved = 0
+        self.maxJerk = 1.5e2
+        self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
         self.low_state = np.append([-float('inf') for _ in range(6)], [-180, 0, 0])
         self.high_state = np.append([float('inf') for _ in range(6)], [180, self.maxSpeed, self.maxSpeed])
@@ -47,7 +49,6 @@ class CarlaGymEnv(gym.Env):
         self.control_module = None
         self.init_transform = None  # ego initial transform to recover at each episode
         self.dt = 0.05
-        self.maxJerk = 1.5e2
         self.acceleration_ = 0
 
     def seed(self, seed=None):
@@ -93,7 +94,7 @@ class CarlaGymEnv(gym.Env):
         # update the curvature points window (points in inertial frame)
         # curvature_points = self.update_curvature_points(close_could_idx=idx, draw_points=True)
 
-        return self.point_cloud[idx+10], dist, track_finished
+        return self.point_cloud[idx + 10], dist, track_finished
 
     def step(self, action=None):
         self.n_step += 1
@@ -115,7 +116,13 @@ class CarlaGymEnv(gym.Env):
                                ego_transform.rotation.yaw, speed, self.targetSpeed])
         # print(self.state)
 
-        reward = 1 - dist/5
+        # reward function
+        # angular velocity
+        w = self.world_module.hero_actor.get_angular_velocity()
+        w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
+
+        reward = 1 - (dist/5 + w_norm/self.maxAngVelNorm)/2
+        print(reward)
 
         # Episode
         done = False
@@ -125,6 +132,10 @@ class CarlaGymEnv(gym.Env):
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if dist >= 5:
+            reward = -1.0
+            done = True
+            return self.state, reward, done, {'max index': self.max_idx_achieved}
+        if w_norm >= self.maxAngVelNorm:
             reward = -1.0
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
@@ -155,7 +166,7 @@ class CarlaGymEnv(gym.Env):
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
         self.control_module = ModuleControl(MODULE_CONTROL, module_manager=self.module_manager)
-        # We do not register control module bc we want to tick control separately
+        # We do not register control module bc we want to tick control separately with different arguments
         # self.module_manager.register_module(self.control_module)
 
         # Start Modules

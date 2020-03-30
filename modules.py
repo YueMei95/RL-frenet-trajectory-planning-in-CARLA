@@ -889,6 +889,7 @@ class ModuleWorld:
     def config(self, synchronous=True, no_rendering=True, time_step=None):
         self.world.tick()
         self.initSettings = self.world.get_settings()  # backup the initial setting
+        print('initial settings: ', self.initSettings)
         settings = self.world.get_settings()
         settings.synchronous_mode = synchronous
         settings.no_rendering_mode = no_rendering
@@ -918,7 +919,7 @@ class ModuleWorld:
         self.config(synchronous=True, no_rendering=True, time_step=self.dt)
         settings = self.world.get_settings()
         print('fixed_delta_seconds= ', settings.fixed_delta_seconds)
-        print(settings)
+        print('changed settings to: ', settings)
 
         if self.args.play:
             # Create Surfaces

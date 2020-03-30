@@ -33,8 +33,8 @@ class CarlaGymEnv(gym.Env):
         self.maxJerk = 1.5e2
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
-        self.low_state = np.append([-float('inf') for _ in range(6)], [-180, 0, 0])
-        self.high_state = np.append([float('inf') for _ in range(6)], [180, self.maxSpeed, self.maxSpeed])
+        self.low_state = np.append([-float('inf') for _ in range(6)], [-180, 0, 0, -180, -180, -180])
+        self.high_state = np.append([float('inf') for _ in range(6)], [180, self.maxSpeed, self.maxSpeed, 180, 180, 180])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-1])  # steering
@@ -111,18 +111,16 @@ class CarlaGymEnv(gym.Env):
         ego_transform = self.world_module.hero_actor.get_transform()
         point_ahead, dist, track_finished = self.interpolate_road_curvature(ego_transform)
         self.world_module.points_to_draw['point ahead'] = carla.Location(x=point_ahead.x, y=point_ahead.y)
+        w = self.world_module.hero_actor.get_angular_velocity()         # angular velocity
         self.state = np.array([point_ahead.x, point_ahead.y, point_ahead.z,
                                ego_transform.location.x, ego_transform.location.y, ego_transform.location.z,
-                               ego_transform.rotation.yaw, speed, self.targetSpeed])
+                               ego_transform.rotation.yaw, speed, self.targetSpeed, w.x, w.y, w.z])
         # print(self.state)
 
         # reward function
-        # angular velocity
-        w = self.world_module.hero_actor.get_angular_velocity()
         w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
-
         reward = 1 - (dist/5 + w_norm/self.maxAngVelNorm)/2
-        print(reward)
+        # print(reward)
 
         # Episode
         done = False

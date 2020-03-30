@@ -915,7 +915,7 @@ class ModuleWorld:
 
     def start(self):
         self.world, self.town_map = self._get_data_from_carla()
-        self.config(synchronous=True, no_rendering=False, time_step=self.dt)
+        self.config(synchronous=True, no_rendering=True, time_step=self.dt)
         settings = self.world.get_settings()
         print('fixed_delta_seconds= ', settings.fixed_delta_seconds)
         print(settings)

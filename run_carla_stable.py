@@ -140,6 +140,8 @@ if __name__ == '__main__':
             model = PPO2.load(model_dir)
         elif args.alg == 'trpo':
             model = TRPO.load(model_dir)
+        elif args.alg == 'a2c':
+            model = A2C(CommonMlpPolicy, env, verbose=1)
         else:
             print(args.alg)
             raise Exception('Algorithm name is not defined!')

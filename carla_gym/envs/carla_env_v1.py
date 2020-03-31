@@ -21,22 +21,24 @@ def euclidean_distance(v1, v2):
 class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
-        self.__version__ = "9.5.0"
+        self.__version__ = "9.6.0"
         self.n_step = 0
         self.point_cloud = []  # race waypoints (center lane)
-        self.LOS = 20  # line of sight, i.e. number of cloud points to interpolate road curvature
+        self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
-        self.targetSpeed = 70  # km/h
-        self.maxSpeed = 100
+        self.targetSpeed = 50  # km/h
+        self.maxSpeed = 150
         self.maxCte = 2
         self.max_idx_achieved = 0
+        self.maxJerk = 1.5e2
+        self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
-        self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [-1])
-        self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [1])
+        self.low_state = np.append([-float('inf') for _ in range(2)], [0, 0, -180, -180, -180])
+        self.high_state = np.append([float('inf') for _ in range(2)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-20, -10])  # action = [ WPb_x (m), WPb_y (m)]
-        action_high = np.array([20, 10])
+        action_low = np.array([-1])  # steering
+        action_high = np.array([1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
@@ -47,7 +49,6 @@ class CarlaGymEnv(gym.Env):
         self.control_module = None
         self.init_transform = None  # ego initial transform to recover at each episode
         self.dt = 0.05
-        self.maxJerk = 1.5e2
         self.acceleration_ = 0
 
     def seed(self, seed=None):
@@ -71,21 +72,17 @@ class CarlaGymEnv(gym.Env):
 
     # This function needs to be optimized in terms of time complexity
     # remove closest point add new one to end instead of calculation LOS points at every iteration
-    def update_curvature_points(self, ego_transform, close_could_idx, draw_points=False):
-        # transfer could points to body frame
-        psi = math.radians(ego_transform.rotation.yaw)
-        curvature_points = [
-            self.world_module.inertial_to_body_frame(self.point_cloud[i].x, self.point_cloud[i].y, psi)
-            for i in range(close_could_idx, close_could_idx + self.LOS)]
+    def update_curvature_points(self, close_could_idx, draw_points=False):
+        curvature_points = [[self.point_cloud[i].x, self.point_cloud[i].y, self.point_cloud[i].z]
+                            for i in range(close_could_idx, close_could_idx + self.LOS)]
 
         if draw_points:
             for i, point in enumerate(curvature_points):
-                pi = self.world_module.body_to_inertial_frame(point[0], point[1], psi)
-                self.world_module.points_to_draw['curvature cloud {}'.format(i)] = carla.Location(x=pi[0], y=pi[1])
+                self.world_module.points_to_draw['curvature cloud {}'.format(i)] = carla.Location(x=point[0], y=point[1])
 
         return curvature_points
 
-    def interpolate_road_curvature(self, ego_transform, draw_poly=False):
+    def interpolate_road_curvature(self, ego_transform):
         # find the index of the closest point cloud to the ego
         idx, dist = self.closest_point_cloud_index(ego_transform.location)
 
@@ -94,61 +91,36 @@ class CarlaGymEnv(gym.Env):
         else:
             track_finished = False
 
-        # update the curvature points window (points in body frame)
-        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx)
+        # update the curvature points window (points in inertial frame)
+        # curvature_points = self.update_curvature_points(close_could_idx=idx, draw_points=True)
 
-        # fit a polynomial to the curvature points window
-        c = np.polyfit([p[0] for p in curvature_points], [p[1] for p in curvature_points], self.poly_deg)
-        # c: coefficients in decreasing power
-
-        if draw_poly:
-            poly = np.poly1d(c)
-            psi = math.radians(ego_transform.rotation.yaw)
-            for x in range(1, 50, 2):
-                pi = self.world_module.body_to_inertial_frame(x, poly(x), psi)
-                self.world_module.points_to_draw['poly fit {}'.format(x)] = carla.Location(x=pi[0], y=pi[1])
-
-        return c, dist, track_finished
+        return self.point_cloud[idx + 10], dist, track_finished
 
     def step(self, action=None):
         self.n_step += 1
-        action[0] += 20  # only move forward
 
         # Apply action
         # action = None
+
         self.module_manager.tick()  # Update carla world and lat/lon controllers
+
         speed = self.control_module.tick(action=action, targetSpeed=self.targetSpeed)  # apply control
+        # print(speed)
 
         # Calculate observation vector
         ego_transform = self.world_module.hero_actor.get_transform()
-        c, dist, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
-        cte = abs(c[-1])
-        # print(cte)
-        # yaw_norm = ego_transform.rotation.yaw / 180
-        speed_e = (self.targetSpeed - speed) / self.maxSpeed  # normalized speed error
-        self.state = np.append(c, [speed_e])
+        point_ahead, dist, track_finished = self.interpolate_road_curvature(ego_transform)
+        self.world_module.points_to_draw['point ahead'] = carla.Location(x=point_ahead.x, y=point_ahead.y)
+        psi = math.radians(ego_transform.rotation.yaw)
+        point_ahead_b = self.world_module.inertial_to_body_frame(point_ahead.x, point_ahead.y, psi)
+        w = self.world_module.hero_actor.get_angular_velocity()         # angular velocity
+        self.state = np.array([point_ahead_b[0], point_ahead_b[1], speed, self.targetSpeed, w.x, w.y, w.z])
+        # print(self.state)
 
-        # angular velocity
-        w = self.world_module.hero_actor.get_angular_velocity()
-
-        # calculate jerk
-        acc = self.world_module.hero_actor.get_acceleration()
-        acceleration = math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2)  # m/s^2
-        if self.n_step >= 3:
-            jerk = (acceleration - self.acceleration_) / (self.dt ** 2)
-        else:
-            jerk = 0
-        self.acceleration_ = acceleration
-        # weight parameters
-        cte_weight = 10
-        # Reward function
-        speed_r = speed/self.maxSpeed
-        speed_e_p = abs(self.targetSpeed - speed) / self.maxSpeed       # encourages agent to reduce speed error
-        cte_p = cte/self.maxCte                                               # encourages agent to stay in lane
-        # jerk_p = abs(jerk) / self.maxJerk  # penalizes jerk
-        # w_p = math.sqrt(w.x ** 2 + w.y ** 2 + w.z ** 2)/180                   # encourages comfort
-        # reward = -1 * (speed_e_p + cte_weight*cte_p + w_p + jerk_p) / 4 + speed_r + self.max_idx_achieved/1520  # -1<= reward <= 1
-        reward = -1 * (speed_e_p + cte_weight*cte_p) / 2 + speed_r + self.max_idx_achieved/1520
+        # reward function
+        w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
+        reward = 1 - (dist/5 + w_norm/self.maxAngVelNorm)/2
+        # print(reward)
 
         # Episode
         done = False
@@ -157,16 +129,14 @@ class CarlaGymEnv(gym.Env):
             reward = 1000.0
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if cte >= self.maxCte:
-            reward = -5.0
+        if dist >= 5:
+            reward = -1.0
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
-
-        # if (self.n_step >= 200) and (self.accum_speed_e/self.n_step) > 0.5:     # terminate if agent did not move much
-        #     reward = -5.0
-        #     done = True
-        #     return self.state, reward, done, {}
-
+        if w_norm >= self.maxAngVelNorm:
+            reward = -1.0
+            done = True
+            return self.state, reward, done, {'max index': self.max_idx_achieved}
         return self.state, reward, done, {'max index': self.max_idx_achieved}
 
     def reset(self):
@@ -194,7 +164,7 @@ class CarlaGymEnv(gym.Env):
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
         self.control_module = ModuleControl(MODULE_CONTROL, module_manager=self.module_manager)
-        # We do not register control module bc we want to tick control separately
+        # We do not register control module bc we want to tick control separately with different arguments
         # self.module_manager.register_module(self.control_module)
 
         # Start Modules

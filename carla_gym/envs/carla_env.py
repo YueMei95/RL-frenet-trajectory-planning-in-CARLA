@@ -26,7 +26,7 @@ class CarlaGymEnv(gym.Env):
         self.point_cloud = []  # race waypoints (center lane)
         self.LOS = 10  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
-        self.targetSpeed = 70  # km/h
+        self.targetSpeed = 50  # km/h
         self.maxSpeed = 150
         self.maxCte = 2
         self.max_idx_achieved = 0

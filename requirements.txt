@@ -1,6 +1,7 @@
-tensorflow
+tensorflow==1.14
 future
 numpy
 pygame
 pandas
 mpi4py
+gitpython

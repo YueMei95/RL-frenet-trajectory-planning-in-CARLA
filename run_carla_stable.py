@@ -16,8 +16,10 @@ from stable_baselines.common.noise import NormalActionNoise, OrnsteinUhlenbeckAc
 from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
+from stable_baselines import A2C
 
 import argparse
+import git
 
 
 def parse_args():
@@ -72,6 +74,13 @@ if __name__ == '__main__':
             os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
             save_path = 'logs/agent_{}/models/'.format(args.agent_id)
             env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id), info_keywords=('max index',))    # logging monitor
+
+            repo = git.Repo(search_parent_directories=False)
+            commit_id = repo.head.object.hexsha
+            with open('logs/agent_{}/reproduction_info.txt'.format(args.agent_id), 'w') as f:  # Use file to refer to the file object
+                f.write('Git commit id: {}\n\n'.format(commit_id))
+                f.write('Program arguments:\n\n{}'.format(args))
+                f.close()
         else:
             save_path = 'logs/'
             env = Monitor(env, 'logs/', info_keywords=('max index',))                                   # logging monitor
@@ -89,6 +98,8 @@ if __name__ == '__main__':
             model = PPO2(CommonMlpPolicy, env, verbose=1)
         elif args.alg == 'trpo':
             model = TRPO(CommonMlpPolicy, env, verbose=1)
+        elif args.alg =='a2c':
+            model = A2C(CommonMlpPolicy, env, verbose=1)
         else:
             print(args.alg)
             raise Exception('Algorithm name is not defined!')

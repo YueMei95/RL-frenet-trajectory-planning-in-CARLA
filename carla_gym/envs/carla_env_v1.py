@@ -155,7 +155,7 @@ class CarlaGymEnv(gym.Env):
 
     def begin_modules(self, args):
         self.module_manager = ModuleManager()
-        self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=2.0, module_manager=self.module_manager)
+        self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager)
         self.module_manager.register_module(self.world_module)
         if args.play:
             width, height = [int(x) for x in args.carla_res.split('x')]

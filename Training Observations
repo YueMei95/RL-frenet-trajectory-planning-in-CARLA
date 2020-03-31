@@ -1,0 +1,17 @@
+- CommitID: e106fb8976dfbc2be4fdaa57f647aad4ac21bc6c
+
+In CarlaGymEnv-95: The state vector used to be: 
+
+[point_ahead.x, point_ahead.y, point_ahead.z,
+ego_transform.location.x, ego_transform.location.y, ego_transform.location.z,
+ego_transform.rotation.yaw, speed, self.targetSpeed, w.x, w.y, w.z]
+
+where point_ahead is in initial frame. During the training for 1M steps max eps mean rew was ~300. 
+
+In CarlaGymEnv-v1 I changed obs vector to:
+
+[point_ahead_b[0], point_ahead_b[1], speed, self.targetSpeed, w.x, w.y, w.z]
+
+where point_ahead is in body frame. in 1M steps max eps mean rew increased to ~800 and the agent finished the entire race for 37 times.
+
+

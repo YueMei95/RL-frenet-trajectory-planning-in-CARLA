@@ -1,0 +1,10 @@
+point_ahead = self.point_cloud[idx+10]
+
+state=np.array([point_ahead.x, point_ahead.y, point_ahead.z,
+                               ego_transform.location.x, ego_transform.location.y, ego_transform.location.z,
+                               ego_transform.rotation.yaw,  speed, self.targetSpeed])
+
+
+reward = 1 - dist/5
+
+

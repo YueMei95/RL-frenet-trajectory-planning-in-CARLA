@@ -123,7 +123,7 @@ class CarlaGymEnv(gym.Env):
         self.n_step += 1
 
         # Apply action
-        action = None
+        # action = None
 
         self.module_manager.tick()  # Update carla world and lat/lon controllers
 

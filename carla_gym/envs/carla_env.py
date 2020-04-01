@@ -26,6 +26,7 @@ class CarlaGymEnv(gym.Env):
         self.point_cloud = []  # race waypoints (center lane)
         self.min_idx = 0   # keep track of last closest idx in point cloud to reduce search space to find closest idx
         self.max_idx_achieved = 0
+        self.max_idx = 50       # max idx to finish the episode
         self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 50  # km/h
@@ -96,13 +97,14 @@ class CarlaGymEnv(gym.Env):
         # find the index of the closest point cloud to the ego
         idx, dist = self.closest_point_cloud_index(ego_transform.location)
 
-        if len(self.point_cloud) - idx <= 50:
+        # if len(self.point_cloud) - idx <= 50:
+        if idx >= self.max_idx:
             track_finished = True
         else:
             track_finished = False
 
         # update the curvature points window (points in body frame)
-        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx, draw_points=True)
+        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx, draw_points=False)
 
         # fit a polynomial to the curvature points window
         c = np.polyfit([p[0] for p in curvature_points], [p[1] for p in curvature_points], self.poly_deg)
@@ -147,25 +149,21 @@ class CarlaGymEnv(gym.Env):
         # Episode
         done = False
         if track_finished:
-            print('Finished the race')
-            reward = 1000.0
+            # print('Finished the race')
+            reward = 100
             done = True
-            # print(1)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if cte > self.maxCte:
             reward = -1.0
             done = True
-            # print(2)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if theta > self.maxTheta:
             reward = -1.0
             done = True
-            # print(3)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if w_norm > self.maxAngVelNorm:
             reward = -1.0
             done = True
-            # print(4)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         return self.state, reward, done, {'max index': self.max_idx_achieved}
 

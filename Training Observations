@@ -1,4 +1,4 @@
-- CommitID: e106fb8976dfbc2be4fdaa57f647aad4ac21bc6c
+Commit ID: e106fb8976dfbc2be4fdaa57f647aad4ac21bc6c
 
 In CarlaGymEnv-95: The state vector used to be: 
 
@@ -14,4 +14,12 @@ In CarlaGymEnv-v1 I changed obs vector to:
 
 where point_ahead is in body frame. in 1M steps max eps mean rew increased to ~800 and the agent finished the entire race for 37 times.
 
+---------------------------------------------------------------------------------------------------------------------------
+Commit ID:  d33578c68e431fb712a5bcffab3fd0c220b51b4b
+
+In env-v1 I changed the state vector to np.append(c, [speed, self.targetSpeed, w.x, w.y, w.z])
+
+I also added d and theta to rew function. The training plot shows that the agent learns to reach to the first left turn in 200k steps of training. After that the rew starts dropping until 1M steps. Probably the turn confuses the agent so the agents needs more training steps to find optimal policy for this long track. A better approach would be randomized spawn point. In order to accelerate training time we might want to incorporate expert (PID/MPC) demonstrations, e.g. DQfD paper.
+
+---------------------------------------------------------------------------------------------------------------------------
 

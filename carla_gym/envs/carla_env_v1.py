@@ -129,7 +129,7 @@ class CarlaGymEnv(gym.Env):
         c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
         w = self.world_module.hero_actor.get_angular_velocity()         # angular velocity
         self.state = np.append(c, [speed, self.targetSpeed, w.x, w.y, w.z])
-        print(self.state)
+        # print(self.state)
 
         # reward function
         cte = abs(c[-1])                 # cross track error

@@ -60,8 +60,9 @@ class CarlaGymEnv(gym.Env):
     def closest_point_cloud_index(self, ego_pos):
         # find closest point in point cloud
         min_dist = None
-        i = max(0, self.min_idx - 5)    # 5<= window size <= 10
-        j = self.min_idx + 5
+        i = max(0, self.min_idx - 5)    # window size = 10
+        j = i + 10
+        min_idx = 0
         for idx, point in enumerate(self.point_cloud[i:j]):
             dist = euclidean_distance([ego_pos.x, ego_pos.y, ego_pos.z], [point.x, point.y, point.z])
             if min_dist is None:
@@ -69,7 +70,8 @@ class CarlaGymEnv(gym.Env):
             else:
                 if dist < min_dist:
                     min_dist = dist
-                    self.min_idx += idx
+                    min_idx = idx
+        self.min_idx = i + min_idx
         if self.min_idx > self.max_idx_achieved:
             self.max_idx_achieved = self.min_idx
         return self.min_idx, min_dist
@@ -100,7 +102,7 @@ class CarlaGymEnv(gym.Env):
             track_finished = False
 
         # update the curvature points window (points in body frame)
-        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx)
+        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx, draw_points=True)
 
         # fit a polynomial to the curvature points window
         c = np.polyfit([p[0] for p in curvature_points], [p[1] for p in curvature_points], self.poly_deg)
@@ -119,7 +121,7 @@ class CarlaGymEnv(gym.Env):
         self.n_step += 1
 
         # Apply action
-        # action = None
+        action = None
 
         self.module_manager.tick()  # Update carla world and lat/lon controllers
 

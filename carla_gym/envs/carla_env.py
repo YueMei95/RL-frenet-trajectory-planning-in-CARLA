@@ -143,7 +143,7 @@ class CarlaGymEnv(gym.Env):
         w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
         reward = 1 - (cte/self.maxCte + theta/self.maxTheta + w_norm/self.maxAngVelNorm)/3
         self.eps_rew += reward
-        # print(self.n_step, self.eps_rew)
+        print(self.n_step, self.eps_rew)
         # print(reward)
 
         # Episode

@@ -1,0 +1,27 @@
+Commit ID: e106fb8976dfbc2be4fdaa57f647aad4ac21bc6c
+
+In CarlaGymEnv-95: The state vector used to be: 
+
+[point_ahead.x, point_ahead.y, point_ahead.z,
+ego_transform.location.x, ego_transform.location.y, ego_transform.location.z,
+ego_transform.rotation.yaw, speed, self.targetSpeed, w.x, w.y, w.z]
+
+where point_ahead is in initial frame. During the training for 1M steps max eps mean rew was ~300. 
+
+In CarlaGymEnv-v1 I changed obs vector to:
+
+[point_ahead_b[0], point_ahead_b[1], speed, self.targetSpeed, w.x, w.y, w.z]
+
+where point_ahead is in body frame. in 1M steps max eps mean rew increased to ~800 and the agent finished the entire race for 37 times.
+
+---------------------------------------------------------------------------------------------------------------------------
+Commit ID:  d33578c68e431fb712a5bcffab3fd0c220b51b4b
+
+In env-v1 I changed the state vector to np.append(c, [speed, self.targetSpeed, w.x, w.y, w.z])
+
+I also added d and theta to rew function. The training plot shows that the agent learns to reach to the first left turn in 200k steps of training. After that the rew starts dropping until 1M steps. Probably the turn confuses the agent so the agents needs more training steps to find optimal policy for this long track. A better approach would be randomized spawn point. In order to accelerate training time we might want to incorporate expert (PID/MPC) demonstrations, e.g. DQfD paper.
+
+---------------------------------------------------------------------------------------------------------------------------
+Commit ID: b25c2e6dcc90c58ecef8f7d70ba58a387cbb172d
+
+Having positive reward at each step does not seem a good idea as the agents try to maximize the number of steps for the episode to maximize the collected rewards. Here the PID receives 37 rewards per episode in 37 steps. We trained the agents 6-9 using differeng algs. Almost all of the agents surpassed the PID in terms of rew collection but they oscillate in driving. This shows a bad engineered reward. Next, we will try negative reward at each step for the bad actions. Best reward should be 0 at each step. We should carefully define early eps termination rewards to avoid having suicidal agent.

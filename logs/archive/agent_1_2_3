@@ -1,7 +1,0 @@
-point_ahead = self.point_cloud[idx]
-
-state=np.array([point_ahead.x, point_ahead.y, point_ahead.z,
-                               ego_transform.location.x, ego_transform.location.y, ego_transform.location.z,
-                               ego_transform.rotation.yaw])
-
-

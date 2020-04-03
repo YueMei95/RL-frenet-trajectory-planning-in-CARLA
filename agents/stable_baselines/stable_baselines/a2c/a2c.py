@@ -340,6 +340,7 @@ class A2CRunner(AbstractEnvRunner):
             if isinstance(self.env.action_space, gym.spaces.Box):
                 clipped_actions = np.clip(actions, self.env.action_space.low, self.env.action_space.high)
             obs, rewards, dones, infos = self.env.step(clipped_actions)
+            # self.env.render()
 
             self.model.num_timesteps += self.n_envs
 

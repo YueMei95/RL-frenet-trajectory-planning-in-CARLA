@@ -24,13 +24,15 @@ class CarlaGymEnv(gym.Env):
         self.__version__ = "9.6.0"
         self.n_step = 0
         self.point_cloud = []  # race waypoints (center lane)
+        self.min_idx = 0   # keep track of last closest idx in point cloud to reduce search space to find closest idx
+        self.max_idx_achieved = 0
+        self.max_idx = 50       # max idx to finish the episode
         self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 50  # km/h
         self.maxSpeed = 150
         self.maxCte = 3
         self.maxTheta = math.pi/2
-        self.max_idx_achieved = 0
         self.maxJerk = 1.5e2
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
@@ -59,8 +61,10 @@ class CarlaGymEnv(gym.Env):
     def closest_point_cloud_index(self, ego_pos):
         # find closest point in point cloud
         min_dist = None
+        i = max(0, self.min_idx - 5)    # window size = 10
+        j = i + 10
         min_idx = 0
-        for idx, point in enumerate(self.point_cloud):
+        for idx, point in enumerate(self.point_cloud[i:j]):
             dist = euclidean_distance([ego_pos.x, ego_pos.y, ego_pos.z], [point.x, point.y, point.z])
             if min_dist is None:
                 min_dist = dist
@@ -68,9 +72,10 @@ class CarlaGymEnv(gym.Env):
                 if dist < min_dist:
                     min_dist = dist
                     min_idx = idx
-        if min_idx > self.max_idx_achieved:
-            self.max_idx_achieved = min_idx
-        return min_idx, min_dist
+        self.min_idx = i + min_idx
+        if self.min_idx > self.max_idx_achieved:
+            self.max_idx_achieved = self.min_idx
+        return self.min_idx, min_dist
 
     # This function needs to be optimized in terms of time complexity
     # remove closest point add new one to end instead of calculation LOS points at every iteration
@@ -92,13 +97,14 @@ class CarlaGymEnv(gym.Env):
         # find the index of the closest point cloud to the ego
         idx, dist = self.closest_point_cloud_index(ego_transform.location)
 
-        if len(self.point_cloud) - idx <= 50:
+        # if len(self.point_cloud) - idx <= 50:
+        if idx >= self.max_idx:
             track_finished = True
         else:
             track_finished = False
 
         # update the curvature points window (points in body frame)
-        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx)
+        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx, draw_points=False)
 
         # fit a polynomial to the curvature points window
         c = np.polyfit([p[0] for p in curvature_points], [p[1] for p in curvature_points], self.poly_deg)
@@ -135,28 +141,28 @@ class CarlaGymEnv(gym.Env):
         cte = abs(c[-1])                 # cross track error
         theta = abs(math.atan(c[-2]))    # heading error wrt road curvature in radians. c[-2] is the slope
         w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
-        reward = 1 - (cte/self.maxCte + theta/self.maxTheta + w_norm/self.maxAngVelNorm)/3
+        reward = - (cte/self.maxCte + theta/self.maxTheta + w_norm/self.maxAngVelNorm)/3
         self.eps_rew += reward
-        # print(self.eps_rew)
+        # print(self.n_step, self.eps_rew)
         # print(reward)
 
         # Episode
         done = False
         if track_finished:
-            print('Finished the race')
-            reward = 1000.0
+            # print('Finished the race')
+            reward = 1000
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if cte > self.maxCte:
-            reward = -1.0
+            reward = -100
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if theta > self.maxTheta:
-            reward = -1.0
+            reward = -100
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if w_norm > self.maxAngVelNorm:
-            reward = -1.0
+            reward = -100
             done = True
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         return self.state, reward, done, {'max index': self.max_idx_achieved}
@@ -170,6 +176,7 @@ class CarlaGymEnv(gym.Env):
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
+        self.min_idx = 0
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
         return np.array(self.state)
 

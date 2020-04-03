@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: data-transfer
+spec:
+  containers:
+  - name: gpu-container
+    image: docker.io/ubuntu:bionic
+    command: ["sleep", "infinity"]
+    resources:
+      limits:
+        nvidia.com/gpu: 0
+        cpu: 1
+        memory: 512Mi
+
+    volumeMounts:
+    - mountPath: /carla/
+      name: carla
+
+  volumes:
+  - name: carla
+    persistentVolumeClaim:
+      claimName: carla

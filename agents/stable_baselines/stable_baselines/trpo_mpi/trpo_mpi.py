@@ -48,7 +48,7 @@ class TRPO(ActorCriticRLModel):
     def __init__(self, policy, env, gamma=0.99, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10, lam=0.98,
                  entcoeff=0.0, cg_damping=1e-2, vf_stepsize=3e-4, vf_iters=3, verbose=0, tensorboard_log=None,
                  _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False,
-                 seed=None, n_cpu_tf_sess=1):
+                 seed=None, n_cpu_tf_sess=1, model_dir=None):
         super(TRPO, self).__init__(policy=policy, env=env, verbose=verbose, requires_vec_env=False,
                                    _init_setup_model=_init_setup_model, policy_kwargs=policy_kwargs,
                                    seed=seed, n_cpu_tf_sess=n_cpu_tf_sess)
@@ -65,6 +65,7 @@ class TRPO(ActorCriticRLModel):
         self.entcoeff = entcoeff
         self.tensorboard_log = tensorboard_log
         self.full_tensorboard_log = full_tensorboard_log
+        self.model_dir = model_dir
 
         # GAIL Params
         self.hidden_size_adversary = 100
@@ -290,7 +291,8 @@ class TRPO(ActorCriticRLModel):
                 t_start = time.time()
                 len_buffer = deque(maxlen=40)  # rolling buffer for episode lengths
                 reward_buffer = deque(maxlen=40)  # rolling buffer for episode rewards
-
+                max_reward_mean = -500
+                
                 true_reward_buffer = None
                 if self.using_gail:
                     true_reward_buffer = deque(maxlen=40)
@@ -480,8 +482,14 @@ class TRPO(ActorCriticRLModel):
                     reward_buffer.extend(rews)
 
                     if len(len_buffer) > 0:
+                        temp_rew_mean = np.mean(reward_buffer)
+
                         logger.record_tabular("EpLenMean", np.mean(len_buffer))
-                        logger.record_tabular("EpRewMean", np.mean(reward_buffer))
+                        logger.record_tabular("EpRewMean", temp_rew_mean)
+
+                        if temp_rew_mean >= max_reward_mean: 
+                            self.save(self.model_dir + '{}_Episode'.format(episodes_so_far + len(lens)))
+                            max_reward_mean = temp_rew_mean
                     if self.using_gail:
                         logger.record_tabular("EpTrueRewMean", np.mean(true_reward_buffer))
                     logger.record_tabular("EpThisIter", len(lens))

@@ -141,9 +141,16 @@ class CarlaGymEnv(gym.Env):
         cte = abs(c[-1])                 # cross track error
         theta = abs(math.atan(c[-2]))    # heading error wrt road curvature in radians. c[-2] is the slope
         w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
-        reward = 1 - (cte/self.maxCte + theta/self.maxTheta + w_norm/self.maxAngVelNorm)/3
-        self.eps_rew += reward
-        # print(self.n_step, self.eps_rew)
+        w_cte = 10
+        r_cte = np.exp(-cte**2/self.maxCte*w_cte)-1
+        w_theta = 12
+        r_theta = np.exp(-theta**2/self.maxTheta*w_theta)-1
+        w_angVel = 1/5
+        r_angVel = np.exp(-w_norm**2/self.maxAngVelNorm*w_angVel)-1
+        w_speed = 1
+        e_speed = abs(self.targetSpeed - speed)
+        r_speed = np.exp(-e_speed**2/self.maxSpeed*w_speed) - 1
+        reward = (r_cte + r_theta + r_angVel + r_speed)/4
         # print(reward)
 
         # Episode
@@ -152,19 +159,29 @@ class CarlaGymEnv(gym.Env):
             # print('Finished the race')
             reward = 1000
             done = True
+            self.eps_rew += reward
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if cte > self.maxCte:
-            reward = -1
+            reward = -100
             done = True
+            self.eps_rew += reward
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if theta > self.maxTheta:
-            reward = -1
+            reward = -100
             done = True
+            self.eps_rew += reward
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if w_norm > self.maxAngVelNorm:
-            reward = -1
+            reward = -100
             done = True
+            self.eps_rew += reward
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
+        self.eps_rew += reward
+        # print(self.n_step, self.eps_rew)
         return self.state, reward, done, {'max index': self.max_idx_achieved}
 
     def reset(self):

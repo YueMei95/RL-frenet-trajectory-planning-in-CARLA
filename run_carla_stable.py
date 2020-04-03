@@ -97,7 +97,7 @@ if __name__ == '__main__':
         elif args.alg == 'ppo2':
             model = PPO2(CommonMlpPolicy, env, verbose=1)
         elif args.alg == 'trpo':
-            model = TRPO(CommonMlpPolicy, env, verbose=1)
+            model = TRPO(CommonMlpPolicy, env, verbose=1, model_dir=save_path)
         elif args.alg =='a2c':
             model = A2C(CommonMlpPolicy, env, verbose=1)
         else:

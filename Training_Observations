@@ -25,3 +25,19 @@ I also added d and theta to rew function. The training plot shows that the agent
 Commit ID: b25c2e6dcc90c58ecef8f7d70ba58a387cbb172d
 
 Having positive reward at each step does not seem a good idea as the agents try to maximize the number of steps for the episode to maximize the collected rewards. Here the PID receives 37 rewards per episode in 37 steps. We trained the agents 6-9 using differeng algs. Almost all of the agents surpassed the PID in terms of rew collection but they oscillate in driving. This shows a bad engineered reward. Next, we will try negative reward at each step for the bad actions. Best reward should be 0 at each step. We should carefully define early eps termination rewards to avoid having suicidal agent.
+
+---------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+

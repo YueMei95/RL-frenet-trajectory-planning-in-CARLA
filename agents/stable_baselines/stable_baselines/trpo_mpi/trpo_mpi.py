@@ -291,7 +291,7 @@ class TRPO(ActorCriticRLModel):
                 t_start = time.time()
                 len_buffer = deque(maxlen=40)  # rolling buffer for episode lengths
                 reward_buffer = deque(maxlen=40)  # rolling buffer for episode rewards
-                max_reward_mean = -500
+                max_reward_mean = -float('inf')
                 
                 true_reward_buffer = None
                 if self.using_gail:

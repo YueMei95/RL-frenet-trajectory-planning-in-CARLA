@@ -27,6 +27,20 @@ Commit ID: b25c2e6dcc90c58ecef8f7d70ba58a387cbb172d
 Having positive reward at each step does not seem a good idea as the agents try to maximize the number of steps for the episode to maximize the collected rewards. Here the PID receives 37 rewards per episode in 37 steps. We trained the agents 6-9 using differeng algs. Almost all of the agents surpassed the PID in terms of rew collection but they oscillate in driving. This shows a bad engineered reward. Next, we will try negative reward at each step for the bad actions. Best reward should be 0 at each step. We should carefully define early eps termination rewards to avoid having suicidal agent.
 
 ---------------------------------------------------------------------------------------------------------------------------
+Commit ID: cbaaf8b0e9adac565e37af0ec4d2172d315db737
+
+It looks like negative exponential rewards improved the agents stability. However, results are note ready yet. This will be aupdated later on.
+update: vice versa, negative agent made the training more unstable. The reward increases initially then the agent starts forgetting past experiences and rew decreases. I tried both linear and exponential rews for negative rewards (agents 11, 12, and 13) and for positive rews I tried linear rew fucntion (agent 10). Although, agent 10 has not finished converging (mean rew still increasing i step 1M), this agent outperforms agents 11, 12, 13. I have not tried positive exponential rewards yet.
+
+---------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
 
 
 

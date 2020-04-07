@@ -21,15 +21,36 @@ import os
 
 source = os.path.dirname(__file__)
 parent = os.path.join(source, '../')
-command = os.path.join(parent, 'CarlaUE4.sh ' + 'Town04 -quality-level=low -windowed -world-port=3000  '
-                                                                  '-benchmark -fps=20 -opengl -carla-settings=CarlaSettings.ini')
+command = os.path.join(parent, 'CarlaUE4.sh ' + 'Town04 -quality-level=low -windowed -world-port=2000  '
+                                                '-benchmark -fps=20 -opengl -carla-settings={}CarlaSettings.ini'.format(parent))
 # DISPLAY= ./CarlaUE4.sh Town04 -quality-level=low -windowed -world-port=2000  -benchmark -fps=20 -opengl -carla-settings=CarlaSettings.ini
 # command = command.split()
 # command[0] = 'DISPLAY= ' + command[0]
 command = 'DISPLAY= ' + command
 print(command)
 process = Popen(command, shell=True, stdout=subprocess.PIPE)
-print(process.pid)
-time.sleep(10)
+time.sleep(5)
+# print(process.pid)
+# time.sleep(10)
 # print('STDOUT:{}'.format(stdout))
-process.kill()
+# process.kill()
+
+import psutil
+
+# for proc in psutil.process_iter():
+#     print(proc)
+
+from subprocess import check_output
+
+carla_process_ids = list(map(int, check_output(["pidof", 'CarlaUE4-Linux-Shipping']).decode("utf-8").split()))
+
+print(carla_process_ids)
+
+for pid in carla_process_ids:
+    psutil.Process(pid).terminate()
+
+
+
+
+
+

@@ -3,6 +3,10 @@ python run_carla_stable.py --env=CarlaGymEnv-v95 --num_timesteps=200e3 --action_
 
 kubectl exec sim-carla-km2lm -c carla-client -- /bin/bash -c "cd carla-decison-making && python run_carla_stable.py --num_timesteps=1e6 --action_noise=0.0 --agent_id=1 |& tee /carla/models/1-output.txt"
 
+kubectl cp data-transfer:/carla/CARLA-RL/b25c2e6/carla-decison-making/logs /home/asl/Desktop/CARLA_0.9.6/test_repo/logs
+
+kubectl cp ucsc-adas/carla-sim-dn9nz:/carla/CARLA-RL/e106fb8/carla-decison-making/logs /Users/engintekin/Desktop/log -c carla-client
+
 python config.py --weather ClearNoon -m Town04; 
 # carla-decison-making
 Long short term decision making for autonomous vehicles using depp reinforcement learning

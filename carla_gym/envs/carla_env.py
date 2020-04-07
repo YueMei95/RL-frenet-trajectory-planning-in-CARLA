@@ -152,36 +152,37 @@ class CarlaGymEnv(gym.Env):
         r_speed = np.exp(-e_speed**2/self.maxSpeed*w_speed) - 1
         reward = (r_cte + r_theta + r_angVel + r_speed)/4
         # print(reward)
-
+        # print(self.n_step, self.eps_rew)
+        
         # Episode
         done = False
         if track_finished:
-            # print('Finished the race')
+            print('Finished the race')
             reward = 1000
             done = True
             self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
+            print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if cte > self.maxCte:
             reward = -100
             done = True
             self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
+            print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if theta > self.maxTheta:
             reward = -100
             done = True
             self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
+            print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if w_norm > self.maxAngVelNorm:
             reward = -100
             done = True
             self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
+            print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         self.eps_rew += reward
-        # print(self.n_step, self.eps_rew)
+        print(self.n_step, self.eps_rew)
         return self.state, reward, done, {'max index': self.max_idx_achieved}
 
     def reset(self):

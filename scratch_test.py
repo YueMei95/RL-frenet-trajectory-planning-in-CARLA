@@ -18,6 +18,7 @@ generate_expert_traj(model, 'expert_pendulum', n_timesteps=100, n_episodes=10)
 dataset = ExpertDataset(expert_path='expert_pendulum.npz', traj_limitation=10, verbose=1)
 
 model = GAIL('MlpPolicy', 'Pendulum-v0', dataset, verbose=1)
+save_path = 'logs/'
 # Note: in practice, you need to train for 1M steps to have a working policy
 model.learn(total_timesteps=1000)
 model.save("gail_pendulum")

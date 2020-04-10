@@ -488,7 +488,7 @@ class TRPO(ActorCriticRLModel):
                         logger.record_tabular("EpRewMean", temp_rew_mean)
 
                         if temp_rew_mean >= max_reward_mean: 
-                            self.save(self.model_dir + '{}_Episode'.format(episodes_so_far + len(lens)))
+                            self.save(self.model_dir + '{}_Episode'.format(episodes_so_far + len(lens)), finished_training=False)
                             max_reward_mean = temp_rew_mean
                     if self.using_gail:
                         logger.record_tabular("EpTrueRewMean", np.mean(true_reward_buffer))
@@ -506,13 +506,19 @@ class TRPO(ActorCriticRLModel):
                     if self.verbose >= 1 and self.rank == 0:
                         logger.dump_tabular()
 
-        callback.on_training_end()
-        return self
-
-    def save(self, save_path, cloudpickle=False):
         if self.using_gail and self.expert_dataset is not None:
             # Exit processes to pickle the dataset
             self.expert_dataset.prepare_pickling()
+
+        callback.on_training_end()
+        return self
+
+    def save(self, save_path, cloudpickle=False, finished_training=True):
+        # save expert dataset only in final model
+        if finished_training:
+            expert_dataset = self.expert_dataset
+        else:
+            expert_dataset = None
         data = {
             "gamma": self.gamma,
             "timesteps_per_batch": self.timesteps_per_batch,
@@ -525,7 +531,7 @@ class TRPO(ActorCriticRLModel):
             "vf_iters": self.vf_iters,
             "hidden_size_adversary": self.hidden_size_adversary,
             "adversary_entcoeff": self.adversary_entcoeff,
-            "expert_dataset": self.expert_dataset,
+            "expert_dataset": expert_dataset,
             "g_step": self.g_step,
             "d_step": self.d_step,
             "d_stepsize": self.d_stepsize,

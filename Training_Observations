@@ -30,11 +30,19 @@ Having positive reward at each step does not seem a good idea as the agents try 
 Commit ID: cbaaf8b0e9adac565e37af0ec4d2172d315db737
 
 It looks like negative exponential rewards improved the agents stability. However, results are note ready yet. This will be aupdated later on.
-update: vice versa, negative agent made the training more unstable. The reward increases initially then the agent starts forgetting past experiences and rew decreases. I tried both linear and exponential rews for negative rewards (agents 11, 12, and 13) and for positive rews I tried linear rew fucntion (agent 10). Although, agent 10 has not finished converging (mean rew still increasing i step 1M), this agent outperforms agents 11, 12, 13. I have not tried positive exponential rewards yet.
+update: vice versa, negative agent made the training more unstable. The reward increases initially then the agent starts forgetting past experiences and rew decreases. I tried both linear and exponential rews for negative rewards (agents 11, 12, and 13) and for positive rews I tried linear rew fucntion (agent 10). Although, agent 10 has not finished converging (mean rew still increasing in step 1M), this agent outperforms agents 11, 12, 13. I have not tried positive exponential rewards yet.
 
 ---------------------------------------------------------------------------------------------------------------------------
 
+It looked like positive reward function was more stable during the training. So, I decided to train trpo agent for 1e7 steps with positve and negative exponential rewards. For the negative rewards I tried to shape the terminal rewards to prevent training a suicidal agents (agents 14, 15, and 16). Again, the agents starts learning policies to increase episodic rewrads but then they start forgetting everything and the rewards start decreasing, droping to minimum possible value after ~ 3M steps.
 
+---------------------------------------------------------------------------------------------------------------------------
+
+In summary, it looks like trpo has fergetting problem specially in sparse environments and DDPG has convergence and stability problems. Other agents, more or less, share similar shortcomes. I decided to tcease raining a RL agent to generate continuous actions as it is far worse than simple classical approaches. 
+
+For the trajectory generation we are planning to use A* or deep A*. Maybe, we will find a way to mix A* with RL to increase the intelligence of traj gen layer. 
+
+---------------------------------------------------------------------------------------------------------------------------
 
 
 

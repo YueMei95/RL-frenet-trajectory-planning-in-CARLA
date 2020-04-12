@@ -1,0 +1,5 @@
+Git commit id: cbaaf8b0e9adac565e37af0ec4d2172d315db737
+
+Program arguments:
+
+Namespace(action_noise=0.5, agent_id=13, alg='trpo', carla_host='127.0.0.1', carla_port=5000, carla_res='1280x720', env='CarlaGymEnv-v95', log_interval=100, log_path=None, network='mlp', num_timesteps=1000000, param_noise_stddev=0.0, play=False, save_path=None, test=False, test_model='trpo_final_model')

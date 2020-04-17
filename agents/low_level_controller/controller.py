@@ -18,6 +18,35 @@ import carla
 from agents.tools.misc import get_speed
 
 
+class PIDCrossTrackController:
+    """
+    PID control for the trajectory tracking
+    """
+    def __init__(self, params, dt=0.05):
+        """
+        params: dictionary of PID coefficients
+        """
+        self.params = params
+        self.e_buffer = deque(maxlen=30)        # error buffer; error: deviation from center lane -/+ value
+
+    def run_step(self, cte):
+        """
+        cte: a weak definition for cross track error. i.e. cross track error = |cte|
+        ***************** modify the code to use dt in correct places ***************
+        """
+        self.e_buffer.append(cte)
+        if len(self.e_buffer) >= 2:
+            _de = (self.e_buffer[-1] - self.e_buffer[-2]) / self.params['dt']
+            _ie = sum(self.e_buffer) * self.params['dt']
+        else:
+            _de = 0.0
+            _ie = 0.0
+
+        print(cte)
+        return np.clip((self.params['K_P'] * cte) + (self.params['K_D'] * _de / self.params['dt'])
+                       + (self.params['K_I'] * _ie * self.params['dt']), -0.5, 0.5)
+
+
 class VehiclePIDController:
     """
     VehiclePIDController is the combination of two PID controllers (lateral and longitudinal) to perform the

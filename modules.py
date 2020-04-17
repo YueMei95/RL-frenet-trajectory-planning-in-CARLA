@@ -64,6 +64,7 @@ import random
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.low_level_controller.controller import PIDLongitudinalController
 from agents.low_level_controller.controller import PIDLateralController
+from agents.low_level_controller.controller import PIDCrossTrackController
 from agents.tools.misc import get_speed
 
 try:
@@ -1506,10 +1507,15 @@ class ModuleControl:
             self.dt = self.world.dt
         else:  # if world is variable timestep
             self.dt = 0.05
+        # self.args_lateral_dict = {
+        #     'K_P': 1.95,
+        #     'K_D': 0.01,
+        #     'K_I': 1.4,
+        #     'dt': self.dt}
         self.args_lateral_dict = {
-            'K_P': 1.95,
+            'K_P': 0.01,
             'K_D': 0.01,
-            'K_I': 1.4,
+            'K_I': 0.15,
             'dt': self.dt}
         self.args_longitudinal_dict = {
             'K_P': 1.0,
@@ -1529,13 +1535,16 @@ class ModuleControl:
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.vehicleController = VehiclePIDController(self.world.hero_actor)
         self.vehicleLonController = PIDLongitudinalController(self.world.hero_actor, **self.args_longitudinal_dict)
-        self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
+        # self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
+        self.vehicleLatController = PIDCrossTrackController(self.args_lateral_dict)
 
     def render(self, display):
         pass
 
-    def tick(self, action=None, targetSpeed=80):
-
+    def tick(self, cte, action=None, targetSpeed=80):
+        """
+        cte: a weak definition for cross track error. i.e. cross track error = |cte|
+        """
         # Receives waypoint in body frame and follows it using controller
         # action = [throttle, x, y]
 
@@ -1550,8 +1559,10 @@ class ModuleControl:
             # print(targetWP)
             throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
             # steering = self.vehicleLatController.run_step(targetWP)
+            steering = self.vehicleLatController.run_step(cte)
             control = carla.VehicleControl()
-            control.steer = action.item()
+            # control.steer = action.item()
+            control.steer = steering
             control.throttle = throttle
             control.brake = 0.0
             control.hand_brake = False

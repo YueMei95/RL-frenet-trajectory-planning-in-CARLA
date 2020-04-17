@@ -61,9 +61,9 @@ import math
 import random
 
 # from operator import itemgetter
-from agents.strl.controller import VehiclePIDController
-from agents.strl.controller import PIDLongitudinalController
-from agents.strl.controller import PIDLateralController
+from agents.low_level_controller.controller import VehiclePIDController
+from agents.low_level_controller.controller import PIDLongitudinalController
+from agents.low_level_controller.controller import PIDLateralController
 from agents.tools.misc import get_speed
 
 try:

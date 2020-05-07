@@ -2,9 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/agents/baselines" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/agents/stable-baselines" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/agents/stable_baselines" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/agents/stable_baselines_" vcs="Git" />
   </component>
 </project>

@@ -12,7 +12,8 @@ MODULE_CONTROL = 'CONTROL'
 import numpy as np
 from modules import *
 import gym
-
+from agents.local_planner.frenet_optimal_trajectory import MotionPlanner
+from agents.tools.misc import get_speed
 
 def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
@@ -23,10 +24,10 @@ class CarlaGymEnv(gym.Env):
     def __init__(self):
         self.__version__ = "9.6.0"
         self.n_step = 0
-        self.point_cloud = []  # race waypoints (center lane)
+        self.global_route = []  # race waypoints (center lane)
         self.min_idx = 0   # keep track of last closest idx in point cloud to reduce search space to find closest idx
         self.max_idx_achieved = 0
-        self.max_idx = 50       # max idx to finish the episode
+        self.max_idx = 1000       # max idx to finish the episode
         self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 50  # km/h
@@ -35,6 +36,9 @@ class CarlaGymEnv(gym.Env):
         self.maxTheta = math.pi/2
         self.maxJerk = 1.5e2
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
+
+        self.idx = 0
+        self.wps_to_go = 0
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg+1)], [0, 0, -180, -180, -180])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg+1)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
@@ -64,7 +68,7 @@ class CarlaGymEnv(gym.Env):
         i = max(0, self.min_idx - 5)    # window size = 10
         j = i + 10
         min_idx = 0
-        for idx, point in enumerate(self.point_cloud[i:j]):
+        for idx, point in enumerate(self.global_route[i:j]):
             dist = euclidean_distance([ego_pos.x, ego_pos.y, ego_pos.z], [point.x, point.y, point.z])
             if min_dist is None:
                 min_dist = dist
@@ -83,7 +87,7 @@ class CarlaGymEnv(gym.Env):
         # transfer could points to body frame
         psi = math.radians(ego_transform.rotation.yaw)
         curvature_points = [
-            self.world_module.inertial_to_body_frame(self.point_cloud[i].x, self.point_cloud[i].y, psi)
+            self.world_module.inertial_to_body_frame(self.global_route[i].x, self.global_route[i].y, psi)
             for i in range(close_could_idx, close_could_idx + self.LOS)]
 
         if draw_points:
@@ -122,12 +126,32 @@ class CarlaGymEnv(gym.Env):
     def step(self, action=None):
         self.n_step += 1
 
-        # Apply action
-        # action = None
-
+        speed = get_speed(self.world_module.hero_actor)
+        acc_vec = self.world_module.hero_actor.get_acceleration()
+        acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         self.module_manager.tick()  # Update carla world and lat/lon controllers
+        if self.idx >= self.wps_to_go:
+            ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
+            self.path, self.fplist = self.motionPlanner.run_step(ego_state, self.idx)
+            self.wps_to_go = len(self.path.t) - 1
+            self.idx = 0
+        self.idx += 1
 
-        speed = self.control_module.tick(action=action, targetSpeed=self.targetSpeed)  # apply control
+        # for i in range(len(self.global_path)):
+        #     self.world.points_to_draw['course {}'.format(i)] = \
+        #         [carla.Location(x=self.global_path[i][0], y=self.global_path[i][1]), 'COLOR_CHAMELEON_0']
+
+        # for j, path in enumerate(self.fplist):
+        #     for i in range(len(path.x)):
+        #         self.world.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
+
+        for i in range(len(self.path.x)):
+            self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.path.x[i], y=self.path.y[i]), 'COLOR_ALUMINIUM_0']
+
+        targetWP = [self.path.x[self.idx], self.path.y[self.idx]]
+        targetSpeed = math.sqrt((self.path.s_d[self.idx] * 3.6) ** 2 + (self.path.d_d[self.idx] * 3.6) ** 2)
+
+        self.control_module.tick(targetWP=targetWP, targetSpeed=targetSpeed)  # apply control
         # print(speed)
 
         # Calculate observation vector
@@ -159,36 +183,36 @@ class CarlaGymEnv(gym.Env):
         if track_finished:
             print('Finished the race')
             reward = 1000
-            done = True
+            # done = True
             self.eps_rew += reward
-            print(self.n_step, self.eps_rew)
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if cte > self.maxCte:
             reward = -100
-            done = True
+            # done = True
             self.eps_rew += reward
-            print(self.n_step, self.eps_rew)
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if theta > self.maxTheta:
             reward = -100
-            done = True
+            # done = True
             self.eps_rew += reward
-            print(self.n_step, self.eps_rew)
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         if w_norm > self.maxAngVelNorm:
             reward = -100
-            done = True
+            # done = True
             self.eps_rew += reward
-            print(self.n_step, self.eps_rew)
+            # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
         self.eps_rew += reward
-        print(self.n_step, self.eps_rew)
+        # print(self.n_step, self.eps_rew)
         return self.state, reward, done, {'max index': self.max_idx_achieved}
 
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)
         # Set ego transform to its initial form
-        self.world_module.hero_actor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
+        self.world_module.hero_actor.set_velocity(carla.Vector3D(x=0, y=-1, z=0))
         self.world_module.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.world_module.hero_actor.set_transform(self.init_transform)
 
@@ -211,15 +235,14 @@ class CarlaGymEnv(gym.Env):
             self.module_manager.register_module(self.hud_module)
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
+        self.motionPlanner = MotionPlanner()
         self.control_module = ModuleControl(MODULE_CONTROL, module_manager=self.module_manager)
         # We do not register control module bc we want to tick control separately with different arguments
         # self.module_manager.register_module(self.control_module)
 
         # Start Modules
         self.module_manager.start_modules()
-        self.control_module.start()
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        self.control_module.tick()  # apply control
 
         self.init_transform = self.world_module.hero_actor.get_transform()
         if self.world_module.dt is not None:
@@ -233,10 +256,14 @@ class CarlaGymEnv(gym.Env):
             distance += 2
             wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
                                                          project_to_road=True).next(distance=distance)[0]
-            self.point_cloud.append(wp.transform.location)
+            self.global_route.append(wp.transform.location)
 
             # To visualize point clouds
             # self.world_module.points_to_draw['wp {}'.format(wp.id)] = wp.transform.location
+
+        self.motionPlanner.start([[p.x, p.y] for p in self.global_route])
+        self.control_module.start()
+        # self.control_module.tick()  # apply control
 
     def render(self, mode='human'):
         self.module_manager.render(self.world_module.display)

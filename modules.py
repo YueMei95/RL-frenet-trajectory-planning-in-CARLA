@@ -66,6 +66,7 @@ from agents.low_level_controller.controller import PIDLongitudinalController
 from agents.low_level_controller.controller import PIDLateralController
 from agents.low_level_controller.controller import PIDCrossTrackController
 from agents.tools.misc import get_speed
+from collections import deque
 
 try:
     import pygame
@@ -161,6 +162,9 @@ PIXELS_AHEAD_VEHICLE = 150
 # ==============================================================================
 # -- Util -----------------------------------------------------------
 # ==============================================================================
+
+def euclidean_distance(v1, v2):
+    return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
 
 
 def get_actor_display_name(actor, truncate=250):
@@ -1232,13 +1236,21 @@ class ModuleWorld:
                                   self.map_image.world_to_pixel_width)
 
         # Dynamic actors
+        # Render points_to_draw
+        self.render_points_to_draw(radius=5)
         self._render_vehicles(surface, vehicles, self.map_image.world_to_pixel)
         self._render_walkers(surface, walkers, self.map_image.world_to_pixel)
 
     def render_points_to_draw(self, radius=7):
-        for name, location in self.points_to_draw.items():
+        for name, val in self.points_to_draw.items():
+            if isinstance(val, list):
+                location = val[0]
+                color = val[1]
+            else:
+                location = val
+                color = 'COLOR_ORANGE_0'
             center = self.map_image.world_to_pixel(location)
-            pygame.draw.circle(self.actors_surface, COLOR_ORANGE_0, center, radius)
+            pygame.draw.circle(self.actors_surface, eval(color), center, radius)
 
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)
@@ -1285,9 +1297,6 @@ class ModuleWorld:
             traffic_lights,
             speed_limits,
             walkers)
-
-        # Render points_to_draw
-        self.render_points_to_draw(radius=7)
 
         # Render Ids
         self.module_hud.render_vehicles_ids(self.vehicle_id_surface, vehicles,
@@ -1503,19 +1512,20 @@ class ModuleControl:
         self.module_manager = module_manager
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.name = name
+        self.steps = 0
+        self.idx = 0
+        self.wps_to_go = 0
+        self.path = None
+        self.fplist = None
+
         if self.world.dt is not None:  # if world in fixed timestep
             self.dt = self.world.dt
         else:  # if world is variable timestep
             self.dt = 0.05
-        # self.args_lateral_dict = {
-        #     'K_P': 1.95,
-        #     'K_D': 0.01,
-        #     'K_I': 1.4,
-        #     'dt': self.dt}
         self.args_lateral_dict = {
-            'K_P': 0.01,
+            'K_P': 1.95,
             'K_D': 0.01,
-            'K_I': 0.15,
+            'K_I': 1.4,
             'dt': self.dt}
         self.args_longitudinal_dict = {
             'K_P': 1.0,
@@ -1527,6 +1537,7 @@ class ModuleControl:
         self.vehicleLonController = None
         self.vehicleLatController = None
         self.acceleration_ = 0
+        self.motionPlanner = None
 
     def start(self):
         # hud = self.module_manager.get_module(MODULE_HUD)
@@ -1535,39 +1546,53 @@ class ModuleControl:
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.vehicleController = VehiclePIDController(self.world.hero_actor)
         self.vehicleLonController = PIDLongitudinalController(self.world.hero_actor, **self.args_longitudinal_dict)
-        # self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
-        self.vehicleLatController = PIDCrossTrackController(self.args_lateral_dict)
+        self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
 
     def render(self, display):
         pass
 
-    def tick(self, cte, action=None, targetSpeed=80):
+    def tick(self, targetWP=None, targetSpeed=80):
         """
         cte: a weak definition for cross track error. i.e. cross track error = |cte|
         """
         # Receives waypoint in body frame and follows it using controller
-        # action = [throttle, x, y]
+        # action = [x, y]
 
-        if action is None:  # Follow the hardcoded waypoints in town map:
-            nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-                                                      project_to_road=True).next(distance=10)[0]
-            targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-            control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
-        else:  # Follow RL actions
-            psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-            # targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
-            # print(targetWP)
-            throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
-            # steering = self.vehicleLatController.run_step(targetWP)
-            steering = self.vehicleLatController.run_step(cte)
-            control = carla.VehicleControl()
-            # control.steer = action.item()
-            control.steer = steering
-            control.throttle = throttle
-            control.brake = 0.0
-            control.hand_brake = False
-            control.manual_gear_shift = False
+        control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
 
-        # self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+        '''Automatic control'''
+        # if targetWP is None:  # Follow the hardcoded waypoints in town map:
+        #     nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
+        #                                               project_to_road=True).next(distance=10)[0]
+        #
+        #     targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+        #     control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
+        #
+        #     psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
+        #
+        #     # print(self.idx, '/', len(self.path.x))
+        #     # print(targetSpeed, speed)
+        #     # s_1 = self.path.s_d[self.idx] * 3.6
+        #     # s_2 = math.sqrt((self.path.s_d[self.idx] * 3.6) ** 2 + (self.path.d_d[self.idx] * 3.6) ** 2)
+        #     # s_3 = self.path.ds[self.idx] * 3.6 / 0.1
+        #     # print(speed, s_1, s_2, s_3)
+        #     # print(100*'--')
+        #     control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
+        # else:  # Follow RL actions
+        #     psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
+        #     # targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
+        #     targetWP = targetWP
+        #     # print(targetWP)
+        #     throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
+        #     steering = self.vehicleLatController.run_step(targetWP)
+        #
+        #     control = carla.VehicleControl()
+        #     control.steer = steering
+        #     control.throttle = throttle
+        #     control.brake = 0.0
+        #     control.hand_brake = False
+        #     control.manual_gear_shift = False
+
+        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
         self.world.hero_actor.apply_control(control)
-        return speed  # return speed in km/h
+        self.steps += 1

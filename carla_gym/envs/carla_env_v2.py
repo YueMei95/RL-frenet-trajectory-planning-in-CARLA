@@ -12,7 +12,7 @@ MODULE_CONTROL = 'CONTROL'
 import numpy as np
 from modules import *
 import gym
-
+import time
 
 def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
@@ -28,6 +28,7 @@ class CarlaGymEnv(gym.Env):
         self.max_idx_achieved = 0
         self.max_idx = 50  # max idx to finish the episode
         self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
+        self.wp_buffer = deque(maxlen=10)       # Waypoints buffer (wps in inertial frame)
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 50  # km/h
         self.maxSpeed = 150
@@ -63,6 +64,8 @@ class CarlaGymEnv(gym.Env):
         min_dist = None
         i = max(0, self.min_idx - 5)  # window size = 10
         j = i + 10
+        i=0
+        j=-1
         min_idx = 0
         for idx, point in enumerate(self.point_cloud[i:j]):
             dist = euclidean_distance([ego_pos.x, ego_pos.y, ego_pos.z], [point.x, point.y, point.z])
@@ -84,7 +87,7 @@ class CarlaGymEnv(gym.Env):
         psi = math.radians(ego_transform.rotation.yaw)
         curvature_points = [
             self.world_module.inertial_to_body_frame(self.point_cloud[i].x, self.point_cloud[i].y, psi)
-            for i in range(close_could_idx, close_could_idx + self.LOS)]
+            for i in range(close_could_idx+6, close_could_idx + self.LOS+6)]
 
         if draw_points:
             for i, point in enumerate(curvature_points):
@@ -117,31 +120,53 @@ class CarlaGymEnv(gym.Env):
                 pi = self.world_module.body_to_inertial_frame(x, poly(x), psi)
                 self.world_module.points_to_draw['poly fit {}'.format(x)] = carla.Location(x=pi[0], y=pi[1])
 
-        return c, track_finished
+        return c, track_finished, idx
 
     def step(self, action=None):
         self.n_step += 1
 
         # Apply action
-        # action = None
+        action = None
 
         self.module_manager.tick()  # Update carla world
 
         # Calculate observation vector for controller
         ego_transform = self.world_module.hero_actor.get_transform()
-        c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=True)
+        c, track_finished, idx = self.interpolate_road_curvature(ego_transform, draw_poly=False)
 
-        speed = self.control_module.tick(c[-1], action=action, targetSpeed=self.targetSpeed)  # apply control
+        if self.n_step == 1:
+            wps = [[p.x, p.y] for p in self.point_cloud]
+        else:
+            wps = [[p.x, p.y] for p in self.point_cloud[idx:idx+10]]
+
+        self.wp_buffer.extend(wps)
+        for i, p in enumerate(self.wp_buffer):
+            self.world_module.points_to_draw['wp buffer {}'.format(i)] = carla.Location(x=p[0], y=p[1])
+        speed = 0
+        for _ in range(self.wp_buffer.maxlen // 2):
+            targetWP = self.wp_buffer.popleft()
+            self.world_module.points_to_draw['targetWP'] = [carla.Location(x=targetWP[0], y=targetWP[1]), 'COLOR_ALUMINIUM_0']
+            while True:
+                targetWP_body = self.world_module.inertial_to_body_frame(targetWP[0], targetWP[1],
+                                                                         math.radians(self.world_module.hero_actor.get_transform().rotation.yaw))
+                if targetWP_body[0] <= 1: break
+                speed = self.control_module.tick(action=targetWP, targetSpeed=self.targetSpeed)  # apply control
+                self.module_manager.tick()  # Update carla world
+                ego_transform = self.world_module.hero_actor.get_transform()
+                dist_e = euclidean_distance([ego_transform.location.x, ego_transform.location.y], targetWP)
+                self.render()
+                print(dist_e)
+                if dist_e <= 1: break
+
+        """ RL Observation Vector """
         # print(speed)
-
-        # Calculate observation vector for RL
-        ego_transform = self.world_module.hero_actor.get_transform()
+        # ego_transform = self.world_module.hero_actor.get_transform()
         # c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
         w = self.world_module.hero_actor.get_angular_velocity()  # angular velocity
         self.state = np.append(c, [speed, self.targetSpeed, w.x, w.y, w.z])
         # print(self.state)
 
-        # reward function
+        """ Reward Function"""
         cte = abs(c[-1])  # cross track error
         theta = abs(math.atan(c[-2]))  # heading error wrt road curvature in radians. c[-2] is the slope
         w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
@@ -223,7 +248,7 @@ class CarlaGymEnv(gym.Env):
         self.module_manager.start_modules()
         self.control_module.start()
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        self.control_module.tick(0)  # apply control
+        self.control_module.tick()  # apply control
 
         self.init_transform = self.world_module.hero_actor.get_transform()
         if self.world_module.dt is not None:

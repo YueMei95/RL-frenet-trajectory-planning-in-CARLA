@@ -131,6 +131,8 @@ class CarlaGymEnv(gym.Env):
         speed = get_speed(self.world_module.hero_actor)
         acc_vec = self.world_module.hero_actor.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
+        psi = math.radians(self.world_module.hero_actor.get_transform().rotation.yaw)
+
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         if self.idx >= self.wps_to_go:
             ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
@@ -141,16 +143,12 @@ class CarlaGymEnv(gym.Env):
 
         self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
 
-        # for i in range(len(self.global_path)):
-        #     self.world.points_to_draw['course {}'.format(i)] = \
-        #         [carla.Location(x=self.global_path[i][0], y=self.global_path[i][1]), 'COLOR_CHAMELEON_0']
-
-        # for j, path in enumerate(self.fplist):
-        #     for i in range(len(path.x)):
-        #         self.world.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
-
-        for i in range(len(self.fpath.x)):
-            self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
+        for j, path in enumerate(self.fplist):
+            for i in range(len(path.t)):
+                self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
+        #
+        # for i in range(len(self.fpath.t)):
+        #     self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
 
         targetWP = [self.fpath.x[self.idx], self.fpath.y[self.idx]]
         targetSpeed = math.sqrt((self.fpath.s_d[self.idx]) ** 2 + (self.fpath.d_d[self.idx]) ** 2)*3.6

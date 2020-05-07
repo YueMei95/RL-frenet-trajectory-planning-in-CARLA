@@ -24,6 +24,8 @@ import time
 MAX_SPEED = 150.0 / 3.6  # maximum speed [m/s]
 MAX_ACCEL = 4.0  # maximum acceleration [m/ss]  || Tesla model 3: 6.878
 MAX_CURVATURE = 1.0  # maximum curvature [1/m]
+LANE_WIDTH = 3.5    # lane width [m]
+LAT_CENTERS = np.arange(-1, 3)*LANE_WIDTH   # lateral centers
 MAX_ROAD_WIDTH = 4.0  # maximum road width [m]
 D_ROAD_W = 2.0  # road width sampling length [m]
 DT = 0.1  # simulation time tick [s]
@@ -34,6 +36,7 @@ TARGET_SPEED = 30.0 / 3.6  # target speed [m/s]
 D_T_S = 5.0 / 3.6  # target speed sampling length [m/s]
 N_S_SAMPLE = 1  # sampling number of target speed
 ROBOT_RADIUS = 2.0  # robot radius [m]
+MAX_DIST_ERR = 4.0  # max distance error to update frenet states based on ego states
 
 # cost weights
 KJ = 0.1
@@ -196,7 +199,7 @@ def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd):
 
     # generate path to each offset goal
     path_id = 0
-    for di in np.arange(-MAX_ROAD_WIDTH, MAX_ROAD_WIDTH + D_ROAD_W, D_ROAD_W):
+    for di in LAT_CENTERS:
 
         # Lateral motion planning
         for Ti in np.arange(MINT, MAXT + D_T, D_T):
@@ -366,7 +369,7 @@ class MotionPlanner:
 
         # Update frenet state estimation when distance error gets large (option 2: re-initialize the planner)
         e = euclidean_distance(ego_state[0:2], [self.path.x[idx], self.path.y[idx]])
-        if e > 4:
+        if e > MAX_DIST_ERR:
             s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
             # f_state[0], f_state[3] = s, d
             f_state = s, s_d, s_dd, d, d_d, d_dd
@@ -375,6 +378,6 @@ class MotionPlanner:
         # Frenet motion planning
         best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob)
         self.path = fplist[best_path_idx]
-
+        print(len(fplist))
         print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist

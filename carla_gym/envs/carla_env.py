@@ -37,7 +37,7 @@ class CarlaGymEnv(gym.Env):
         self.maxJerk = 1.5e2
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
-        self.idx = 0
+        self.f_idx = 0
         self.wps_to_go = 0
         self.fpath = None
         self.fplist = None
@@ -133,13 +133,21 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.world_module.hero_actor.get_transform().rotation.yaw)
 
+        planner_action = 0
+        if 2 <= self.motionPlanner.steps < 4:
+            planner_action = 1
+        elif 4 <= self.motionPlanner.steps < 7:
+            planner_action = 2
+        elif 7 <= self.motionPlanner.steps < 8:
+            planner_action = 1
+        
         self.module_manager.tick()  # Update carla world and lat/lon controllers
-        if self.idx >= self.wps_to_go:
+        if self.f_idx >= self.wps_to_go:
             ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
-            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.idx)
+            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, action=planner_action)
             self.wps_to_go = len(self.fpath.t) - 1
-            self.idx = 0
-        self.idx += 1
+            self.f_idx = 0
+        self.f_idx += 1
 
         self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
 
@@ -150,8 +158,8 @@ class CarlaGymEnv(gym.Env):
         # for i in range(len(self.fpath.t)):
         #     self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
 
-        targetWP = [self.fpath.x[self.idx], self.fpath.y[self.idx]]
-        targetSpeed = math.sqrt((self.fpath.s_d[self.idx]) ** 2 + (self.fpath.d_d[self.idx]) ** 2)*3.6
+        targetWP = [self.fpath.x[self.f_idx], self.fpath.y[self.f_idx]]
+        targetSpeed = math.sqrt((self.fpath.s_d[self.f_idx]) ** 2 + (self.fpath.d_d[self.f_idx]) ** 2) * 3.6
 
         self.control_module.tick(targetWP=targetWP, targetSpeed=targetSpeed)  # apply control
         # print(speed)

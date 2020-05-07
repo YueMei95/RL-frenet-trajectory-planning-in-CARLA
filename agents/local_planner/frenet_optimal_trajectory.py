@@ -26,6 +26,7 @@ MAX_ACCEL = 4.0  # maximum acceleration [m/ss]  || Tesla model 3: 6.878
 MAX_CURVATURE = 1.0  # maximum curvature [1/m]
 LANE_WIDTH = 3.5    # lane width [m]
 LAT_CENTERS = np.arange(-1, 3)*LANE_WIDTH   # lateral centers
+D_LIST = [0, LANE_WIDTH, -LANE_WIDTH]   # target values for d state
 MAX_ROAD_WIDTH = 4.0  # maximum road width [m]
 D_ROAD_W = 2.0  # road width sampling length [m]
 DT = 0.1  # simulation time tick [s]
@@ -194,7 +195,8 @@ class Frenet_path:
         self.v = []  # speed
 
 
-def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd):
+def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, action=0):
+    target_d = d + D_LIST[action]
     frenet_paths = []
 
     # generate path to each offset goal
@@ -233,7 +235,7 @@ def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd):
                 # square of diff from target speed
                 ds = (TARGET_SPEED - tfp.s_d[-1]) ** 2
 
-                tfp.cd = KJ * Jp + KT * Ti + KD * (tfp.d[-1]) ** 2
+                tfp.cd = KJ * Jp + KT * Ti + KD * (tfp.d[-1] - target_d) ** 2
                 tfp.cv = KJ * Js + KT * Ti + KD * ds
                 tfp.cf = KLAT * tfp.cd + KLON * tfp.cv
 
@@ -305,9 +307,9 @@ def check_paths(fplist, ob):
     return [fplist[i] for i in okind]
 
 
-def frenet_optimal_planning(csp, f_state, ob):
+def frenet_optimal_planning(csp, f_state, ob, action=0):
     s, s_d, s_dd, d, d_d, d_dd = f_state
-    fplist = calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd)
+    fplist = calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, action=action)
     fplist = calc_global_paths(fplist, csp)
     fplist = check_paths(fplist, ob)
 
@@ -342,6 +344,7 @@ class MotionPlanner:
         self.path = None
         self.ob = []
         self.csp = None
+        self.steps = 0
 
     def update_global_route(self, global_route):
         wx = []
@@ -360,7 +363,8 @@ class MotionPlanner:
         best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob)
         self.path = fplist[best_path_idx]
 
-    def run_step(self, ego_state, idx):
+    def run_step(self, ego_state, idx, action=0):
+        self.steps += 1
         t0 = time.time()
 
         # Frenet state estimation [s, s_d, s_dd, d, d_d, d_dd]
@@ -376,8 +380,7 @@ class MotionPlanner:
         # f_state[1:3] = ego_state[2:]
 
         # Frenet motion planning
-        best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob)
+        best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob, action=action)
         self.path = fplist[best_path_idx]
-        print(len(fplist))
         print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist

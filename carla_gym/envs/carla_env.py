@@ -39,6 +39,8 @@ class CarlaGymEnv(gym.Env):
 
         self.idx = 0
         self.wps_to_go = 0
+        self.fpath = None
+        self.fplist = None
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg+1)], [0, 0, -180, -180, -180])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg+1)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
@@ -132,8 +134,8 @@ class CarlaGymEnv(gym.Env):
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         if self.idx >= self.wps_to_go:
             ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
-            self.path, self.fplist = self.motionPlanner.run_step(ego_state, self.idx)
-            self.wps_to_go = len(self.path.t) - 1
+            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.idx)
+            self.wps_to_go = len(self.fpath.t) - 1
             self.idx = 0
         self.idx += 1
 
@@ -145,11 +147,11 @@ class CarlaGymEnv(gym.Env):
         #     for i in range(len(path.x)):
         #         self.world.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
-        for i in range(len(self.path.x)):
-            self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.path.x[i], y=self.path.y[i]), 'COLOR_ALUMINIUM_0']
+        for i in range(len(self.fpath.x)):
+            self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
 
-        targetWP = [self.path.x[self.idx], self.path.y[self.idx]]
-        targetSpeed = math.sqrt((self.path.s_d[self.idx] * 3.6) ** 2 + (self.path.d_d[self.idx] * 3.6) ** 2)
+        targetWP = [self.fpath.x[self.idx], self.fpath.y[self.idx]]
+        targetSpeed = math.sqrt((self.fpath.s_d[self.idx]) ** 2 + (self.fpath.d_d[self.idx]) ** 2)*3.6
 
         self.control_module.tick(targetWP=targetWP, targetSpeed=targetSpeed)  # apply control
         # print(speed)

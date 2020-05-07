@@ -365,7 +365,8 @@ class MotionPlanner:
         e = euclidean_distance(ego_state[0:2], [self.path.x[idx], self.path.y[idx]])
         if e > 4:
             s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
-            f_state[0], f_state[3] = s, d
+            # f_state[0], f_state[3] = s, d
+            f_state = s, s_d, s_dd, d, d_d, d_dd
         # f_state[1:3] = ego_state[2:]
 
         # Frenet motion planning

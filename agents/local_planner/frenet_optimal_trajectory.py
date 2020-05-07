@@ -51,18 +51,21 @@ def update_frenet_coordinate(fpath, loc):
     """
     Finds best Frenet coordinates (s, d) in the path based on current position
     """
+
     min_e = float('inf')
-    s, s_d, s_dd, d, d_d, d_dd = fpath.s[-1], fpath.s_d[-1], fpath.s_dd[-1], fpath.d[-1], fpath.d_d[-1], fpath.d_dd[-1]
+    min_idx = -1
     for i in range(len(fpath.t)):
         e = euclidean_distance([fpath.x[i], fpath.y[i]], loc)
         if e < min_e:
             min_e = e
-            s = fpath.s[i]
-            s_d = fpath.s_d[i]
-            s_dd = fpath.s_dd[i]
-            d = fpath.d[i]
-            d_d = fpath.d_d[i]
-            d_dd = fpath.d_dd[i]
+            min_idx = i
+
+    if min_idx != len(fpath.t)-1:
+        min_idx += 1
+
+    s, s_d, s_dd = fpath.s[min_idx], fpath.s_d[min_idx], fpath.s_dd[min_idx]
+    d, d_d, d_dd = fpath.d[min_idx], fpath.d_d[min_idx], fpath.d_dd[min_idx]
+
     return s, s_d, s_dd, d, d_d, d_dd
 
 

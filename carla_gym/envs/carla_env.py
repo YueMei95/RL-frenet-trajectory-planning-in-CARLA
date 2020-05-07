@@ -27,7 +27,7 @@ class CarlaGymEnv(gym.Env):
         self.global_route = []  # race waypoints (center lane)
         self.min_idx = 0   # keep track of last closest idx in point cloud to reduce search space to find closest idx
         self.max_idx_achieved = 0
-        self.max_idx = 1000       # max idx to finish the episode
+        self.max_idx = 1400       # max idx to finish the episode
         self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
         self.targetSpeed = 50  # km/h
@@ -138,6 +138,8 @@ class CarlaGymEnv(gym.Env):
             self.wps_to_go = len(self.fpath.t) - 1
             self.idx = 0
         self.idx += 1
+
+        self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
 
         # for i in range(len(self.global_path)):
         #     self.world.points_to_draw['course {}'.format(i)] = \

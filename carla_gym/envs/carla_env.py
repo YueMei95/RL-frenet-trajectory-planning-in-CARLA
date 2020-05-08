@@ -133,18 +133,19 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.world_module.hero_actor.get_transform().rotation.yaw)
 
-        planner_action = 0
+        target_speed = 30/3.6
+        change_lane = 0
         if 2 <= self.motionPlanner.steps < 4:
-            planner_action = 1
+            change_lane = 1
         elif 4 <= self.motionPlanner.steps < 7:
-            planner_action = 2
+            change_lane = -1
         elif 7 <= self.motionPlanner.steps < 8:
-            planner_action = 1
+            change_lane = 1
 
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         if self.f_idx >= self.wps_to_go:
             ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
-            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, action=planner_action)
+            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed)
             self.wps_to_go = len(self.fpath.t) - 1
             self.f_idx = 0
         self.f_idx += 1

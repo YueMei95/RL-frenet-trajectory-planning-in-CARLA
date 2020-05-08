@@ -25,14 +25,10 @@ MAX_SPEED = 150.0 / 3.6  # maximum speed [m/s]
 MAX_ACCEL = 4.0  # maximum acceleration [m/ss]  || Tesla model 3: 6.878
 MAX_CURVATURE = 1.0  # maximum curvature [1/m]
 LANE_WIDTH = 3.5    # lane width [m]
-LAT_CENTERS = np.arange(-1, 3)*LANE_WIDTH   # lateral centers
-D_LIST = [0, LANE_WIDTH, -LANE_WIDTH]   # target values for d state
-MAX_ROAD_WIDTH = 4.0  # maximum road width [m]
-D_ROAD_W = 2.0  # road width sampling length [m]
 DT = 0.1  # simulation time tick [s]
-MAXT = 5.0  # max prediction time [m]
-MINT = 4.0  # min prediction time [m]
-D_T = 1.0  # prediction timestep length (s)
+MAXT = 6.0  # max prediction time [m]
+MINT = 3.0  # min prediction time [m]
+D_T = 3.0  # prediction timestep length (s)
 TARGET_SPEED = 30.0 / 3.6  # target speed [m/s]
 D_T_S = 5.0 / 3.6  # target speed sampling length [m/s]
 N_S_SAMPLE = 1  # sampling number of target speed
@@ -195,13 +191,13 @@ class Frenet_path:
         self.v = []  # speed
 
 
-def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, action=0):
-    target_d = d + D_LIST[action]
+def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, change_lane=0, target_speed=30/3.6):
+    target_d = d + change_lane*LANE_WIDTH
     frenet_paths = []
 
     # generate path to each offset goal
     path_id = 0
-    for di in LAT_CENTERS:
+    for di in [d, target_d]:
 
         # Lateral motion planning
         for Ti in np.arange(MINT, MAXT + D_T, D_T):
@@ -216,7 +212,7 @@ def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, action=0):
                 fp.d_ddd.append(lat_qp.calc_third_derivative(t))
 
             # Loongitudinal motion planning (Velocity keeping)
-            for tv in np.arange(TARGET_SPEED - D_T_S * N_S_SAMPLE, TARGET_SPEED + D_T_S * N_S_SAMPLE, D_T_S):
+            for tv in np.arange(target_speed - D_T_S * N_S_SAMPLE, target_speed + D_T_S * N_S_SAMPLE, D_T_S):
                 tfp = copy.deepcopy(fp)
                 tfp.id = path_id
                 path_id += 1
@@ -315,9 +311,9 @@ def check_paths(fplist, ob):
     return [fplist[i] for i in okind]
 
 
-def frenet_optimal_planning(csp, f_state, ob, action=0):
+def frenet_optimal_planning(csp, f_state, ob, change_lane=0, target_speed=30/3.6):
     s, s_d, s_dd, d, d_d, d_dd = f_state
-    fplist = calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, action=action)
+    fplist = calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, change_lane=change_lane, target_speed=target_speed)
     fplist = calc_global_paths(fplist, csp)
     fplist = check_paths(fplist, ob)
 
@@ -371,7 +367,10 @@ class MotionPlanner:
         best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob)
         self.path = fplist[best_path_idx]
 
-    def run_step(self, ego_state, idx, action=0):
+    def run_step(self, ego_state, idx, change_lane=0, target_speed=30/3.6):
+        """
+        change lane: -1: go to left lane; 0: stay in current lane; 1: go to right lane;
+        """
         self.steps += 1
         t0 = time.time()
 
@@ -384,11 +383,13 @@ class MotionPlanner:
         if e > MAX_DIST_ERR:
             s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
             # f_state[0], f_state[3] = s, d
-            f_state = s, s_d, s_dd, d, d_d, d_dd
-        # f_state[1:3] = ego_state[2:]
+            f_state = [s, s_d, s_dd, d, d_d, d_dd]
+        f_state[1:3] = ego_state[2:]
+        # f_state[1] = ego_state[2]
 
         # Frenet motion planning
-        best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob, action=action)
+        best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob, change_lane=change_lane, target_speed=target_speed)
         self.path = fplist[best_path_idx]
+        print(change_lane)
         print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist

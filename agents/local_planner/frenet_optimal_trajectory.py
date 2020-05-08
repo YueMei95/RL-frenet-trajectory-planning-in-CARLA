@@ -258,19 +258,23 @@ def calc_global_paths(fplist, csp):
             fp.x.append(fx)
             fp.y.append(fy)
 
-        # calc yaw and ds
-        for i in range(len(fp.x) - 1):
-            dx = fp.x[i + 1] - fp.x[i]
-            dy = fp.y[i + 1] - fp.y[i]
-            fp.yaw.append(math.atan2(dy, dx))
-            fp.ds.append(math.sqrt(dx ** 2 + dy ** 2))
+        # find curvature
+        # source: http://www.kurims.kyoto-u.ac.jp/~kyodo/kokyuroku/contents/pdf/1111-16.pdf
+        # and https://math.stackexchange.com/questions/2507540/numerical-way-to-solve-for-the-curvature-of-a-curve
+        fp.c.append(0.0)
+        for i in range(1, len(fp.t)-1):
+            a = np.hypot(fp.x[i-1] - fp.x[i], fp.y[i-1] - fp.y[i])
+            b = np.hypot(fp.x[i] - fp.x[i+1], fp.y[i] - fp.y[i+1])
+            c = np.hypot(fp.x[i+1] - fp.x[i-1], fp.y[i+1] - fp.y[i-1])
 
-        fp.yaw.append(fp.yaw[-1])
-        fp.ds.append(fp.ds[-1])
-
-        # calc curvature
-        for i in range(len(fp.yaw) - 1):
-            fp.c.append((fp.yaw[i + 1] - fp.yaw[i]) / fp.ds[i])
+            # Compute inverse radius of circle using surface of triangle (for which Heron's formula is used)
+            k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))) / 4  # Heron's formula for triangle's surface
+            den = a * b * c  # Denumerator; make sure there is no division by zero.
+            if den == 0.0:  # Very unlikely, but just to be sure
+                fp.c.append(0.0)
+            else:
+                fp.c.append(4 * k / den)
+        fp.c.append(0.0)
 
     return fplist
 
@@ -294,12 +298,16 @@ def check_paths(fplist, ob):
     okind = []
     for i in range(len(fplist)):
         if any([v > MAX_SPEED for v in fplist[i].s_d]):  # Max speed check
+            print('speed')
             continue
         elif any([abs(a) > MAX_ACCEL for a in fplist[i].s_dd]):  # Max accel check
+            print('acc')
             continue
         elif any([abs(c) > MAX_CURVATURE for c in fplist[i].c]):  # Max curvature check
+            print('cur')
             continue
         elif not check_collision(fplist[i], ob):
+            print('col')
             continue
 
         okind.append(i)

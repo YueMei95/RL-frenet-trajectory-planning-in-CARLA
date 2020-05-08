@@ -140,7 +140,7 @@ class CarlaGymEnv(gym.Env):
             planner_action = 2
         elif 7 <= self.motionPlanner.steps < 8:
             planner_action = 1
-        
+
         self.module_manager.tick()  # Update carla world and lat/lon controllers
         if self.f_idx >= self.wps_to_go:
             ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
@@ -269,7 +269,7 @@ class CarlaGymEnv(gym.Env):
             self.global_route.append(wp.transform.location)
 
             # To visualize point clouds
-            # self.world_module.points_to_draw['wp {}'.format(wp.id)] = wp.transform.location
+            self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
 
         self.motionPlanner.start([[p.x, p.y] for p in self.global_route])
         self.control_module.start()

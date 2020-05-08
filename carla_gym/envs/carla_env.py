@@ -135,7 +135,7 @@ class CarlaGymEnv(gym.Env):
 
         target_speed = 30/3.6
         change_lane = 0
-        if 2 <= self.motionPlanner.steps < 4:
+        if 1 <= self.motionPlanner.steps < 4:
             change_lane = 1
         elif 4 <= self.motionPlanner.steps < 7:
             change_lane = -1

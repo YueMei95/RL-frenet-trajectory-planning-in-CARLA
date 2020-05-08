@@ -192,7 +192,7 @@ class Frenet_path:
 
 
 def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, change_lane=0, target_speed=30/3.6):
-    target_d = d + change_lane*LANE_WIDTH
+    target_d = np.clip(d + change_lane*LANE_WIDTH, -LANE_WIDTH, 2*LANE_WIDTH)
     frenet_paths = []
 
     # generate path to each offset goal

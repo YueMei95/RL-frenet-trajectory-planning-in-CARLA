@@ -43,7 +43,6 @@ class VehiclePIDController:
             args_longitudinal = {'K_P': 1.0, 'K_D': 0.0, 'K_I': 0.0}
 
         self._vehicle = vehicle
-        self._world = self._vehicle.get_world()
         self._lon_controller = PIDLongitudinalController(self._vehicle, **args_longitudinal)
         self._lat_controller = PIDLateralController(self._vehicle, **args_lateral)
 
@@ -65,7 +64,7 @@ class VehiclePIDController:
         control.hand_brake = False
         control.manual_gear_shift = False
 
-        return control, speed
+        return control
 
 
 class PIDLongitudinalController:
@@ -88,7 +87,7 @@ class PIDLongitudinalController:
         self._dt = dt
         self._e_buffer = deque(maxlen=30)
 
-    def run_step(self, target_speed, debug=False):
+    def run_step(self, target_speed):
         """
         Execute one step of longitudinal control to reach a given target speed.
 
@@ -96,9 +95,6 @@ class PIDLongitudinalController:
         :return: throttle control in the range [0, 1]
         """
         current_speed = get_speed(self._vehicle)
-
-        if debug:
-            print('Current speed = {}'.format(current_speed))
 
         return self._pid_control(target_speed, current_speed), current_speed
 

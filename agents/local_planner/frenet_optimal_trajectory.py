@@ -20,28 +20,6 @@ from agents.local_planner import cubic_spline_planner
 
 import time
 
-# Parameter
-MAX_SPEED = 150.0 / 3.6  # maximum speed [m/s]
-MAX_ACCEL = 4.0  # maximum acceleration [m/ss]  || Tesla model 3: 6.878
-MAX_CURVATURE = 1.0  # maximum curvature [1/m]
-LANE_WIDTH = 3.5    # lane width [m]
-DT = 0.1  # simulation time tick [s]
-MAXT = 6.0  # max prediction time [m]
-MINT = 3.0  # min prediction time [m]
-D_T = 3.0  # prediction timestep length (s)
-TARGET_SPEED = 30.0 / 3.6  # target speed [m/s]
-D_T_S = 5.0 / 3.6  # target speed sampling length [m/s]
-N_S_SAMPLE = 1  # sampling number of target speed
-ROBOT_RADIUS = 2.0  # robot radius [m]
-MAX_DIST_ERR = 4.0  # max distance error to update frenet states based on ego states
-
-# cost weights
-KJ = 0.1
-KT = 0.1
-KD = 1.0
-KLAT = 1.0
-KLON = 1.0
-
 
 def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
@@ -60,7 +38,7 @@ def update_frenet_coordinate(fpath, loc):
             min_e = e
             min_idx = i
 
-    if min_idx != len(fpath.t)-1:
+    if min_idx != len(fpath.t) - 1:
         min_idx += 1
 
     s, s_d, s_dd = fpath.s[min_idx], fpath.s_d[min_idx], fpath.s_dd[min_idx]
@@ -166,7 +144,6 @@ class quartic_polynomial:
 
 
 class Frenet_path:
-
     def __init__(self):
         self.id = None
         self.t = []
@@ -191,166 +168,40 @@ class Frenet_path:
         self.v = []  # speed
 
 
-def calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, change_lane=0, target_speed=30/3.6):
-    target_d = np.clip(d + change_lane*LANE_WIDTH, -LANE_WIDTH, 2*LANE_WIDTH)
-    frenet_paths = []
+class FrenetPlanner:
+    def __init__(self, dt):
 
-    # generate path to each offset goal
-    path_id = 0
-    for di in [d, target_d]:
+        self.dt = dt  # simulation time tick [s]
 
-        # Lateral motion planning
-        for Ti in np.arange(MINT, MAXT + D_T, D_T):
-            fp = Frenet_path()
-            lat_qp = quintic_polynomial(d, d_d, d_dd, di, 0.0, 0.0, Ti)
+        # Parameters
+        self.MAX_SPEED = 150.0 / 3.6  # maximum speed [m/s]
+        self.MAX_ACCEL = 4.0  # maximum acceleration [m/ss]  || Tesla model 3: 6.878
+        self.MAX_CURVATURE = 1.0  # maximum curvature [1/m]
+        self.LANE_WIDTH = 3.5  # lane width [m]
+        self.MAXT = 6.0  # max prediction time [m]
+        self.MINT = 3.0  # min prediction time [m]
+        self.D_T = 3.0  # prediction timestep length (s)
+        self.D_T_S = 5.0 / 3.6  # target speed sampling length [m/s]
+        self.N_S_SAMPLE = 1  # sampling number of target speed
+        self.ROBOT_RADIUS = 2.0  # robot radius [m]
+        self.MAX_DIST_ERR = 4.0  # max distance error to update frenet states based on ego states
 
-            for t in np.arange(0.0, Ti, DT):
-                fp.t.append(t)
-                fp.d.append(lat_qp.calc_point(t))
-                fp.d_d.append(lat_qp.calc_first_derivative(t))
-                fp.d_dd.append(lat_qp.calc_second_derivative(t))
-                fp.d_ddd.append(lat_qp.calc_third_derivative(t))
+        # cost weights
+        self.KJ = 0.1
+        self.KT = 0.1
+        self.KD = 1.0
+        self.KLAT = 1.0
+        self.KLON = 1.0
 
-            # Loongitudinal motion planning (Velocity keeping)
-            for tv in np.arange(target_speed - D_T_S * N_S_SAMPLE, target_speed + D_T_S * N_S_SAMPLE, D_T_S):
-                tfp = copy.deepcopy(fp)
-                tfp.id = path_id
-                path_id += 1
-
-                lon_qp = quartic_polynomial(s, s_d, s_dd, tv, 0.0, Ti)
-
-                for t in tfp.t:
-                    tfp.s.append(lon_qp.calc_point(t))
-                    tfp.s_d.append(lon_qp.calc_first_derivative(t))
-                    tfp.s_dd.append(lon_qp.calc_second_derivative(t))
-                    tfp.s_ddd.append(lon_qp.calc_third_derivative(t))
-
-                Jp = sum(np.power(tfp.d_ddd, 2))  # square of jerk
-                Js = sum(np.power(tfp.s_ddd, 2))  # square of jerk
-
-                # square of diff from target speed
-                ds = (TARGET_SPEED - tfp.s_d[-1]) ** 2
-
-                tfp.cd = KJ * Jp + KT * Ti + KD * (tfp.d[-1] - target_d) ** 2
-                tfp.cv = KJ * Js + KT * Ti + KD * ds
-                tfp.cf = KLAT * tfp.cd + KLON * tfp.cv
-
-                frenet_paths.append(tfp)
-    return frenet_paths
-
-
-def calc_global_paths(fplist, csp):
-    for fp in fplist:
-
-        # calc global positions
-        for i in range(len(fp.s)):
-            ix, iy = csp.calc_position(fp.s[i])
-            if ix is None:
-                break
-            iyaw = csp.calc_yaw(fp.s[i])
-            di = fp.d[i]
-            fx = ix + di * math.cos(iyaw + math.pi / 2.0)
-            fy = iy + di * math.sin(iyaw + math.pi / 2.0)
-            fp.x.append(fx)
-            fp.y.append(fy)
-
-        # find curvature
-        # source: http://www.kurims.kyoto-u.ac.jp/~kyodo/kokyuroku/contents/pdf/1111-16.pdf
-        # and https://math.stackexchange.com/questions/2507540/numerical-way-to-solve-for-the-curvature-of-a-curve
-        fp.c.append(0.0)
-        for i in range(1, len(fp.t)-1):
-            a = np.hypot(fp.x[i-1] - fp.x[i], fp.y[i-1] - fp.y[i])
-            b = np.hypot(fp.x[i] - fp.x[i+1], fp.y[i] - fp.y[i+1])
-            c = np.hypot(fp.x[i+1] - fp.x[i-1], fp.y[i+1] - fp.y[i-1])
-
-            # Compute inverse radius of circle using surface of triangle (for which Heron's formula is used)
-            k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))) / 4  # Heron's formula for triangle's surface
-            den = a * b * c  # Denumerator; make sure there is no division by zero.
-            if den == 0.0:  # Very unlikely, but just to be sure
-                fp.c.append(0.0)
-            else:
-                fp.c.append(4 * k / den)
-        fp.c.append(0.0)
-
-    return fplist
-
-
-def check_collision(fp, ob):
-    if len(ob) == 0:
-        return True
-    for i in range(len(ob[:, 0])):
-        d = [((ix - ob[i, 0]) ** 2 + (iy - ob[i, 1]) ** 2)
-             for (ix, iy) in zip(fp.x, fp.y)]
-
-        collision = any([di <= ROBOT_RADIUS ** 2 for di in d])
-
-        if collision:
-            return False
-
-    return True
-
-
-def check_paths(fplist, ob):
-    okind = []
-    for i in range(len(fplist)):
-        if any([v > MAX_SPEED for v in fplist[i].s_d]):  # Max speed check
-            print('speed')
-            continue
-        elif any([abs(a) > MAX_ACCEL for a in fplist[i].s_dd]):  # Max accel check
-            print('acc')
-            continue
-        elif any([abs(c) > MAX_CURVATURE for c in fplist[i].c]):  # Max curvature check
-            print('cur')
-            continue
-        elif not check_collision(fplist[i], ob):
-            print('col')
-            continue
-
-        okind.append(i)
-
-    return [fplist[i] for i in okind]
-
-
-def frenet_optimal_planning(csp, f_state, ob, change_lane=0, target_speed=30/3.6):
-    s, s_d, s_dd, d, d_d, d_dd = f_state
-    fplist = calc_frenet_paths(s, s_d, s_dd, d, d_d, d_dd, change_lane=change_lane, target_speed=target_speed)
-    fplist = calc_global_paths(fplist, csp)
-    fplist = check_paths(fplist, ob)
-
-    # find minimum cost path
-    mincost = float("inf")
-    bestpath_idx = None
-    for i, fp in enumerate(fplist):
-        if mincost >= fp.cf:
-            mincost = fp.cf
-            bestpath_idx = i
-
-    return bestpath_idx, fplist
-
-
-# def generate_target_course(x, y):
-#     csp = cubic_spline_planner.Spline2D(x, y)
-#
-#     s = np.arange(0, csp.s[-1], 0.1)
-#     rx, ry, ryaw, rk = [], [], [], []
-#     for i_s in s:
-#         ix, iy = csp.calc_position(i_s)
-#         rx.append(ix)
-#         ry.append(iy)
-#         ryaw.append(csp.calc_yaw(i_s))
-#         rk.append(csp.calc_curvature(i_s))
-#
-#     return csp
-
-
-class MotionPlanner:
-    def __init__(self):
-        self.path = None
-        self.ob = []
-        self.csp = None
-        self.steps = 0
+        self.path = None    # current frenet path
+        self.ob = []        # n obstacles [[x1, y1], [x2, y2], ... ,[xn, yn]]
+        self.csp = None     # cubic spline for global rout
+        self.steps = 0      # planner steps
 
     def update_global_route(self, global_route):
+        """
+        fit an spline to the updated global route in inertial frame
+        """
         wx = []
         wy = []
         for p in global_route:
@@ -361,35 +212,253 @@ class MotionPlanner:
     def update_obstacles(self, ob):
         self.ob = ob
 
-    def start(self, route):
-        self.update_global_route(route)
-        f_state = [0, 0, 0, 0, 0, 0]
-        best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob)
-        self.path = fplist[best_path_idx]
-
-    def run_step(self, ego_state, idx, change_lane=0, target_speed=30/3.6):
+    def estimate_frenet_state(self, ego_state, idx):
         """
-        change lane: -1: go to left lane; 0: stay in current lane; 1: go to right lane;
-        """
-        self.steps += 1
-        t0 = time.time()
+        estimate the frenet state based on ego state and the current frenet state
+        procedure: - initialize the estimation with the last frenet state
+                   - check the error btw ego true position and the frenet's estimation of global position
+                   - if error larger than threshold, update the frenet state
 
+        """
         # Frenet state estimation [s, s_d, s_dd, d, d_d, d_dd]
         f_state = [self.path.s[idx], self.path.s_d[idx], self.path.s_dd[idx],
                    self.path.d[idx], self.path.d_d[idx], self.path.d_dd[idx]]
 
         # Update frenet state estimation when distance error gets large (option 2: re-initialize the planner)
         e = euclidean_distance(ego_state[0:2], [self.path.x[idx], self.path.y[idx]])
-        if e > MAX_DIST_ERR:
+        if e > self.MAX_DIST_ERR:
             s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
             # f_state[0], f_state[3] = s, d
             f_state = [s, s_d, s_dd, d, d_d, d_dd]
         f_state[1:3] = ego_state[2:]
         # f_state[1] = ego_state[2]
+        return f_state
+
+    def generate_single_frenet_path(self, f_state, df=0, Tf=4, Vf=30 / 3.6):
+        """
+        generate a single frenet path based on the current and terminal frenet state values
+        input: ego's current frenet state and terminal frenet values (lateral displacement, time of arrival, and speed)
+        output: single frenet path
+        """
+        s, s_d, s_dd, d, d_d, d_dd = f_state
+        fp = Frenet_path()
+        lat_qp = quintic_polynomial(d, d_d, d_dd, df, 0.0, 0.0, Tf)
+        lon_qp = quartic_polynomial(s, s_d, s_dd, Vf, 0.0, Tf)
+
+        for t in np.arange(0.0, Tf, self.dt):
+            fp.t.append(t)
+            fp.d.append(lat_qp.calc_point(t))
+            fp.d_d.append(lat_qp.calc_first_derivative(t))
+            fp.d_dd.append(lat_qp.calc_second_derivative(t))
+            fp.d_ddd.append(lat_qp.calc_third_derivative(t))
+
+            fp.s.append(lon_qp.calc_point(t))
+            fp.s_d.append(lon_qp.calc_first_derivative(t))
+            fp.s_dd.append(lon_qp.calc_second_derivative(t))
+            fp.s_ddd.append(lon_qp.calc_third_derivative(t))
+
+        fp = self.calc_global_paths([fp])[0]
+
+        return fp
+
+    def calc_frenet_paths(self, f_state, change_lane=0, target_speed=30 / 3.6):
+        """
+        generate lattices - discretized candidate frenet paths
+        input: ego's current frenet state and actions
+        output: list of candidate frenet paths
+        """
+        s, s_d, s_dd, d, d_d, d_dd = f_state
+
+        # clip for feasible target lane numbers
+        target_d = np.clip(d + change_lane * self.LANE_WIDTH, -self.LANE_WIDTH, 2 * self.LANE_WIDTH)
+        frenet_paths = []
+
+        # generate path to each offset goal
+        path_id = 0
+        for di in [d, target_d]:
+
+            # Lateral motion planning
+            for Ti in np.arange(self.MINT, self.MAXT + self.D_T, self.D_T):
+                fp = Frenet_path()
+                lat_qp = quintic_polynomial(d, d_d, d_dd, di, 0.0, 0.0, Ti)
+
+                for t in np.arange(0.0, Ti, self.dt):
+                    fp.t.append(t)
+                    fp.d.append(lat_qp.calc_point(t))
+                    fp.d_d.append(lat_qp.calc_first_derivative(t))
+                    fp.d_dd.append(lat_qp.calc_second_derivative(t))
+                    fp.d_ddd.append(lat_qp.calc_third_derivative(t))
+
+                # Loongitudinal motion planning (Velocity keeping)
+                for tv in np.arange(target_speed - self.D_T_S * self.N_S_SAMPLE, target_speed + self.D_T_S * self.N_S_SAMPLE, self.D_T_S):
+                    tfp = copy.deepcopy(fp)
+                    tfp.id = path_id
+                    path_id += 1
+
+                    lon_qp = quartic_polynomial(s, s_d, s_dd, tv, 0.0, Ti)
+
+                    for t in tfp.t:
+                        tfp.s.append(lon_qp.calc_point(t))
+                        tfp.s_d.append(lon_qp.calc_first_derivative(t))
+                        tfp.s_dd.append(lon_qp.calc_second_derivative(t))
+                        tfp.s_ddd.append(lon_qp.calc_third_derivative(t))
+
+                    Jp = sum(np.power(tfp.d_ddd, 2))  # square of jerk
+                    Js = sum(np.power(tfp.s_ddd, 2))  # square of jerk
+
+                    # square of diff from target speed
+                    ds = (target_speed - tfp.s_d[-1]) ** 2
+
+                    tfp.cd = self.KJ * Jp + self.KT * Ti + self.KD * (tfp.d[-1] - target_d) ** 2
+                    tfp.cv = self.KJ * Js + self.KT * Ti + self.KD * ds
+                    tfp.cf = self.KLAT * tfp.cd + self.KLON * tfp.cv
+
+                    frenet_paths.append(tfp)
+        return frenet_paths
+
+    def calc_global_paths(self, fplist):
+        """
+        transform paths from frenet frame to inertial frame
+        input: path list
+        output: path list
+        """
+        for fp in fplist:
+
+            # calc global positions
+            for i in range(len(fp.s)):
+                ix, iy = self.csp.calc_position(fp.s[i])
+                if ix is None:
+                    break
+                iyaw = self.csp.calc_yaw(fp.s[i])
+                di = fp.d[i]
+                fx = ix + di * math.cos(iyaw + math.pi / 2.0)
+                fy = iy + di * math.sin(iyaw + math.pi / 2.0)
+                fp.x.append(fx)
+                fp.y.append(fy)
+
+            # find curvature
+            # source: http://www.kurims.kyoto-u.ac.jp/~kyodo/kokyuroku/contents/pdf/1111-16.pdf
+            # and https://math.stackexchange.com/questions/2507540/numerical-way-to-solve-for-the-curvature-of-a-curve
+            fp.c.append(0.0)
+            for i in range(1, len(fp.t) - 1):
+                a = np.hypot(fp.x[i - 1] - fp.x[i], fp.y[i - 1] - fp.y[i])
+                b = np.hypot(fp.x[i] - fp.x[i + 1], fp.y[i] - fp.y[i + 1])
+                c = np.hypot(fp.x[i + 1] - fp.x[i - 1], fp.y[i + 1] - fp.y[i - 1])
+
+                # Compute inverse radius of circle using surface of triangle (for which Heron's formula is used)
+                k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))) / 4  # Heron's formula for triangle's surface
+                den = a * b * c  # Denumerator; make sure there is no division by zero.
+                if den == 0.0:  # Very unlikely, but just to be sure
+                    fp.c.append(0.0)
+                else:
+                    fp.c.append(4 * k / den)
+            fp.c.append(0.0)
+
+        return fplist
+
+    def check_collision(self, fp, ob):
+        """
+        check if a frenet path makes collision with obstacles
+        input: frenet path
+        output: True/False
+        """
+        if len(ob) == 0:
+            return True
+        for i in range(len(ob[:, 0])):
+            d = [((ix - ob[i, 0]) ** 2 + (iy - ob[i, 1]) ** 2)
+                 for (ix, iy) in zip(fp.x, fp.y)]
+
+            collision = any([di <= self.ROBOT_RADIUS ** 2 for di in d])
+
+            if collision:
+                return False
+
+        return True
+
+    def check_paths(self, fplist):
+        """
+        check for collisions
+        input: list of frenet paths
+        output: list of frenet paths - removed the infeasible ones
+        """
+        okind = []
+        for i in range(len(fplist)):
+            if any([v > self.MAX_SPEED for v in fplist[i].s_d]):  # Max speed check
+                print('speed')
+                continue
+            elif any([abs(a) > self.MAX_ACCEL for a in fplist[i].s_dd]):  # Max accel check
+                print('acc')
+                continue
+            elif any([abs(c) > self.MAX_CURVATURE for c in fplist[i].c]):  # Max curvature check
+                print('cur')
+                continue
+            elif not self.check_collision(fplist[i], self.ob):
+                print('col')
+                continue
+
+            okind.append(i)
+
+        return [fplist[i] for i in okind]
+
+    def frenet_optimal_planning(self, f_state, change_lane=0, target_speed=30 / 3.6):
+        """
+        input: current frenet state and actions
+        output: candidate frenet paths and index of the optimal path
+        process:
+                - generate candidate frenet paths
+                - calculate the inertial (global) trajectories
+                - remove infeasible paths (those who make collisions)
+                - find the optimal path based on cost values
+        """
+
+        fplist = self.calc_frenet_paths(f_state, change_lane=change_lane, target_speed=target_speed)
+        fplist = self.calc_global_paths(fplist)
+        fplist = self.check_paths(fplist)
+
+        # find minimum cost path
+        mincost = float("inf")
+        bestpath_idx = None
+        for i, fp in enumerate(fplist):
+            if mincost >= fp.cf:
+                mincost = fp.cf
+                bestpath_idx = i
+
+        return bestpath_idx, fplist
+
+    def start(self, route):
+        self.update_global_route(route)
+        f_state = [0, 0, 0, 0, 0, 0]
+        best_path_idx, fplist = self.frenet_optimal_planning(f_state)
+        self.path = fplist[best_path_idx]
+
+    def run_step(self, ego_state, idx, change_lane=0, target_speed=30 / 3.6):
+        """
+        change lane: -1: go to left lane; 0: stay in current lane; 1: go to right lane;
+        """
+        self.steps += 1
+        t0 = time.time()
+        print('actions: ', change_lane, target_speed)
+
+        f_state = self.estimate_frenet_state(ego_state, idx)
 
         # Frenet motion planning
-        best_path_idx, fplist = frenet_optimal_planning(self.csp, f_state, self.ob, change_lane=change_lane, target_speed=target_speed)
+        best_path_idx, fplist = self.frenet_optimal_planning(f_state, change_lane=change_lane, target_speed=target_speed)
         self.path = fplist[best_path_idx]
-        print(change_lane)
         print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist
+
+    def run_step_single_path(self, ego_state, idx, df=0, Tf=4, Vf=30/3.6):
+        """
+        input: ego states, current frenet path's waypoint index, actions
+        output: frenet path
+        actions: final values for frenet lateral displacement (d), time, and speed
+        """
+        self.steps += 1
+        t0 = time.time()
+
+        f_state = self.estimate_frenet_state(ego_state, idx)
+
+        # Frenet motion planning
+        self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)
+        print('trajectory planning time: {} s'.format(time.time() - t0))
+        return self.path

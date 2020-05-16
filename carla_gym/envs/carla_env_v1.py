@@ -40,9 +40,6 @@ class CarlaGymEnv(gym.Env):
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
         self.f_idx = 0
-        self.wps_to_go = 0
-        self.fpath = None
-        self.fplist = None
 
         self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [0, 0, -180, -180, -180])
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
@@ -143,15 +140,15 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
 
         ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
-        # self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
-        self.fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=30/3.6)
-        self.wps_to_go = len(self.fpath.t) - 1
+        # fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
+        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=30/3.6)
+        wps_to_go = len(fpath.t) - 1
         self.f_idx = 0
 
-        for _ in range(self.wps_to_go):
+        for _ in range(wps_to_go):
             self.f_idx += 1
-            targetWP = [self.fpath.x[self.f_idx], self.fpath.y[self.f_idx]]
-            targetSpeed = math.sqrt((self.fpath.s_d[self.f_idx]) ** 2 + (self.fpath.d_d[self.f_idx]) ** 2) * 3.6
+            targetWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            targetSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
             """
                     **********************************************************************************************************************
                     ************************************************* Controller *********************************************************
@@ -169,8 +166,8 @@ class CarlaGymEnv(gym.Env):
             #     for i in range(len(path.t)):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
-            for i in range(len(self.fpath.t)):
-                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
+            for i in range(len(fpath.t)):
+                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
             self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
             self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 

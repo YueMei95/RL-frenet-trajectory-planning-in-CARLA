@@ -446,13 +446,17 @@ class FrenetPlanner:
         # print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist
 
-    def run_step_single_path(self, ego_state, idx, df=0, Tf=4, Vf=30/3.6):
+    def run_step_single_path(self, ego_state, idx, df_n=0, Tf=4, Vf=30/3.6):
         """
         input: ego states, current frenet path's waypoint index, actions
         output: frenet path
         actions: final values for frenet lateral displacement (d), time, and speed
         """
         self.steps += 1
+
+        # convert df value in from range (-1, 1) to the target d value
+        d = self.path.d[idx]
+        df = df_n*self.LANE_WIDTH + d
 
         f_state = self.estimate_frenet_state(ego_state, idx)
 

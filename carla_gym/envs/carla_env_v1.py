@@ -138,10 +138,8 @@ class CarlaGymEnv(gym.Env):
         speed = get_speed(self.world_module.hero_actor)
         acc_vec = self.world_module.hero_actor.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
-
         ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
-        # fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
-        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=30/3.6)
+        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf=30/3.6)
         wps_to_go = len(fpath.t) - 1
         self.f_idx = 0
 

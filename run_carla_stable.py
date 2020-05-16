@@ -61,6 +61,8 @@ if __name__ == '__main__':
     args = parse_args()
     print('Env is starting')
     env = gym.make(args.env)
+    if args.play:
+        env.enable_auto_render()
     env.begin_modules(args)
     n_actions = env.action_space.shape[-1]  # the noise objects for DDPG
 
@@ -92,8 +94,7 @@ if __name__ == '__main__':
 
             param_noise = AdaptiveParamNoiseSpec(initial_stddev=float(args.param_noise_stddev),
                                                  desired_action_stddev=float(args.param_noise_stddev))
-            model = DDPG(DDPGPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise,
-                         render=args.play)
+            model = DDPG(DDPGPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise)
         elif args.alg == 'ppo2':
             model = PPO2(CommonMlpPolicy, env, verbose=1)
         elif args.alg == 'trpo':

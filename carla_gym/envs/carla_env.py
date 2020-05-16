@@ -24,6 +24,7 @@ class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
         self.__version__ = "9.6.0"
+        self.auto_render = False    # automatically render the environment
         self.n_step = 0
         self.global_route = []  # race waypoints (center lane)
         self.min_idx = 0  # keep track of last closest idx in point cloud to reduce search space to find closest idx
@@ -47,7 +48,7 @@ class CarlaGymEnv(gym.Env):
         self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-1])  # steering
+        action_low = np.array([-1])
         action_high = np.array([1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
@@ -132,7 +133,11 @@ class CarlaGymEnv(gym.Env):
     def step(self, action=None):
         self.n_step += 1
 
-        """ Set high-level actions """
+        """
+                **********************************************************************************************************************
+                *********************************************** Motion Planner *******************************************************
+                **********************************************************************************************************************
+        """
         target_speed = 30
         change_lane = 0
         if 1 <= self.motionPlanner.steps < 4:
@@ -140,54 +145,50 @@ class CarlaGymEnv(gym.Env):
         elif 4 <= self.motionPlanner.steps < 5:
             change_lane = 1
 
-        """
-                **********************************************************************************************************************
-                *********************************************** Motion Planner *******************************************************
-                **********************************************************************************************************************
-        """
-
         speed = get_speed(self.world_module.hero_actor)
         acc_vec = self.world_module.hero_actor.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
 
-        if self.f_idx >= self.wps_to_go:
-            ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
-            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
-            # self.fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=target_speed/3.6)
-            self.wps_to_go = len(self.fpath.t) - 1
-            self.f_idx = 0
-        self.f_idx += 1
-        targetWP = [self.fpath.x[self.f_idx], self.fpath.y[self.f_idx]]
-        targetSpeed = math.sqrt((self.fpath.s_d[self.f_idx]) ** 2 + (self.fpath.d_d[self.f_idx]) ** 2) * 3.6
+        ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
+        self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
+        # self.fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=30/3.6)
+        self.wps_to_go = len(self.fpath.t) - 1
+        self.f_idx = 0
 
-        """
-                **********************************************************************************************************************
-                ************************************************* Controller *********************************************************
-                **********************************************************************************************************************
-        """
-        control = self.vehicleController.run_step(targetSpeed, targetWP)  # calculate control
-        self.world_module.hero_actor.apply_control(control)               # apply control
+        for _ in range(self.wps_to_go):
+            self.f_idx += 1
+            targetWP = [self.fpath.x[self.f_idx], self.fpath.y[self.f_idx]]
+            targetSpeed = math.sqrt((self.fpath.s_d[self.f_idx]) ** 2 + (self.fpath.d_d[self.f_idx]) ** 2) * 3.6
+            """
+                    **********************************************************************************************************************
+                    ************************************************* Controller *********************************************************
+                    **********************************************************************************************************************
+            """
+            control = self.vehicleController.run_step(targetSpeed, targetWP)  # calculate control
+            self.world_module.hero_actor.apply_control(control)               # apply control
 
-        """
-                **********************************************************************************************************************
-                *********************************************** Draw Waypoints *******************************************************
-                **********************************************************************************************************************
-        """
-        # for j, path in enumerate(self.fplist):
-        #     for i in range(len(path.t)):
-        #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
+            """
+                    **********************************************************************************************************************
+                    *********************************************** Draw Waypoints *******************************************************
+                    **********************************************************************************************************************
+            """
+            # for j, path in enumerate(self.fplist):
+            #     for i in range(len(path.t)):
+            #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
-        for i in range(len(self.fpath.t)):
-            self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
-        self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
-        self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+            for i in range(len(self.fpath.t)):
+                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
+            self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
+            self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
-        """
-                **********************************************************************************************************************
-                ************************************************ Update Carla ********************************************************
-                **********************************************************************************************************************
-        """
-        self.module_manager.tick()  # Update carla world
+            """
+                    **********************************************************************************************************************
+                    ************************************************ Update Carla ********************************************************
+                    **********************************************************************************************************************
+            """
+            self.module_manager.tick()  # Update carla world
+            if self.auto_render:
+                self.render()
 
         """
                 *********************************************************************************************************************
@@ -270,9 +271,6 @@ class CarlaGymEnv(gym.Env):
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
         return np.array(self.state)
 
-    #    def get_state(self):
-    #        return self.state
-
     def begin_modules(self, args):
         self.module_manager = ModuleManager()
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager)
@@ -283,8 +281,6 @@ class CarlaGymEnv(gym.Env):
             self.module_manager.register_module(self.hud_module)
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
-        # We do not register control module bc we want to tick control separately with different arguments
-        # self.module_manager.register_module(self.control_module)
 
         if self.world_module.dt is not None:
             self.dt = self.world_module.dt
@@ -312,6 +308,9 @@ class CarlaGymEnv(gym.Env):
             # self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
 
         self.motionPlanner.start([[p.x, p.y] for p in self.global_route])
+
+    def enable_auto_render(self):
+        self.auto_render = True
 
     def render(self, mode='human'):
         self.module_manager.render(self.world_module.display)

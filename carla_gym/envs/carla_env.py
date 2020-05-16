@@ -133,7 +133,7 @@ class CarlaGymEnv(gym.Env):
         self.n_step += 1
 
         """ Set high-level actions """
-        target_speed = 30 / 3.6
+        target_speed = 30
         change_lane = 0
         if 1 <= self.motionPlanner.steps < 4:
             change_lane = -1
@@ -141,7 +141,9 @@ class CarlaGymEnv(gym.Env):
             change_lane = 1
 
         """
-                ************ Motion Planner ******************
+                **********************************************************************************************************************
+                *********************************************** Motion Planner *******************************************************
+                **********************************************************************************************************************
         """
 
         speed = get_speed(self.world_module.hero_actor)
@@ -149,9 +151,9 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
 
         if self.f_idx >= self.wps_to_go:
-            ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed / 3.6, acc]
-            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed)
-            # self.fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx)
+            ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
+            self.fpath, self.fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
+            # self.fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=target_speed/3.6)
             self.wps_to_go = len(self.fpath.t) - 1
             self.f_idx = 0
         self.f_idx += 1
@@ -159,30 +161,38 @@ class CarlaGymEnv(gym.Env):
         targetSpeed = math.sqrt((self.fpath.s_d[self.f_idx]) ** 2 + (self.fpath.d_d[self.f_idx]) ** 2) * 3.6
 
         """
-                ************ Controller ******************
+                **********************************************************************************************************************
+                ************************************************* Controller *********************************************************
+                **********************************************************************************************************************
         """
         control = self.vehicleController.run_step(targetSpeed, targetWP)  # calculate control
         self.world_module.hero_actor.apply_control(control)               # apply control
 
         """
-                ************ Draw Waypoints ******************
+                **********************************************************************************************************************
+                *********************************************** Draw Waypoints *******************************************************
+                **********************************************************************************************************************
         """
-        self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
-
         # for j, path in enumerate(self.fplist):
         #     for i in range(len(path.t)):
         #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
         for i in range(len(self.fpath.t)):
             self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=self.fpath.x[i], y=self.fpath.y[i]), 'COLOR_ALUMINIUM_0']
+        self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
+        self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
 
         """
-                ************ Update Carla World ******************
+                **********************************************************************************************************************
+                ************************************************ Update Carla ********************************************************
+                **********************************************************************************************************************
         """
         self.module_manager.tick()  # Update carla world
 
         """
-                ************ RL Observation Vector ******************
+                *********************************************************************************************************************
+                *********************************************** RL Observation ******************************************************
+                *********************************************************************************************************************
         """
         ego_transform = self.world_module.hero_actor.get_transform()
         c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
@@ -192,7 +202,9 @@ class CarlaGymEnv(gym.Env):
         # print(self.state)
 
         """
-                ************ RL Reward Function ******************
+                **********************************************************************************************************************
+                ********************************************* RL Reward Function *****************************************************
+                **********************************************************************************************************************
         """
         cte = abs(c[-1])  # cross track error
         theta = abs(math.atan(c[-2]))  # heading error wrt road curvature in radians. c[-2] is the slope
@@ -211,7 +223,9 @@ class CarlaGymEnv(gym.Env):
         # print(self.n_step, self.eps_rew)
 
         """
-                ************ Episode Termination ******************
+                **********************************************************************************************************************
+                ********************************************* Episode Termination ****************************************************
+                **********************************************************************************************************************
         """
         done = False
         if track_finished:

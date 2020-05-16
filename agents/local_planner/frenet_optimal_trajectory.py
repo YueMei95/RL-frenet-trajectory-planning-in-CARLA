@@ -436,15 +436,14 @@ class FrenetPlanner:
         change lane: -1: go to left lane; 0: stay in current lane; 1: go to right lane;
         """
         self.steps += 1
-        t0 = time.time()
-        print('actions: ', change_lane, target_speed)
+        # t0 = time.time()
 
         f_state = self.estimate_frenet_state(ego_state, idx)
 
         # Frenet motion planning
         best_path_idx, fplist = self.frenet_optimal_planning(f_state, change_lane=change_lane, target_speed=target_speed)
         self.path = fplist[best_path_idx]
-        print('trajectory planning time: {} s'.format(time.time() - t0))
+        # print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist
 
     def run_step_single_path(self, ego_state, idx, df=0, Tf=4, Vf=30/3.6):
@@ -454,11 +453,10 @@ class FrenetPlanner:
         actions: final values for frenet lateral displacement (d), time, and speed
         """
         self.steps += 1
-        t0 = time.time()
 
         f_state = self.estimate_frenet_state(ego_state, idx)
 
         # Frenet motion planning
         self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)
-        print('trajectory planning time: {} s'.format(time.time() - t0))
+
         return self.path

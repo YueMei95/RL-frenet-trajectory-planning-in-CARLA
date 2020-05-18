@@ -29,11 +29,12 @@ class CarlaGymEnv(gym.Env):
         self.global_route = []  # race waypoints (center lane)
         self.min_idx = 0  # keep track of last closest idx in point cloud to reduce search space to find closest idx
         self.max_idx_achieved = 0
-        self.max_idx = 1400  # max idx to finish the episode
+        self.max_idx = 300  # max idx to finish the episode
         self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
         self.poly_deg = 3  # polynomial degree to fit the road curvature points
-        self.targetSpeed = 50  # km/h
+        self.targetSpeed = 30  # km/h
         self.maxSpeed = 150
+        self.maxAcc = 24.7608  # km/h.s OR 6.878 m/s^2 for Tesla model 3
         self.maxCte = 3
         self.maxTheta = math.pi / 2
         self.maxJerk = 1.5e2
@@ -41,12 +42,12 @@ class CarlaGymEnv(gym.Env):
 
         self.f_idx = 0
 
-        self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [0, 0, -180, -180, -180])
-        self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
+        self.low_state = np.array([-1, -1])
+        self.high_state = np.array([1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-1])
-        action_high = np.array([1])
+        action_low = np.array([-1, -1])
+        action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
@@ -129,6 +130,7 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         self.n_step += 1
+        track_finished = False
 
         """
                 **********************************************************************************************************************
@@ -139,20 +141,22 @@ class CarlaGymEnv(gym.Env):
         acc_vec = self.world_module.hero_actor.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
-        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf=30/3.6)
+        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
         wps_to_go = len(fpath.t) - 1
         self.f_idx = 0
 
+        speeds = []
+        accelerations = []
         for _ in range(wps_to_go):
             self.f_idx += 1
-            targetWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
-            targetSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
             """
                     **********************************************************************************************************************
                     ************************************************* Controller *********************************************************
                     **********************************************************************************************************************
             """
-            control = self.vehicleController.run_step(targetSpeed, targetWP)  # calculate control
+            cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
+            control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
             self.world_module.hero_actor.apply_control(control)               # apply control
 
             """
@@ -164,51 +168,62 @@ class CarlaGymEnv(gym.Env):
             #     for i in range(len(path.t)):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
-            for i in range(len(fpath.t)):
-                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
-            self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
-            self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+            # for i in range(len(fpath.t)):
+            #     self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
+            # self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
+            # self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
 
             """
                     **********************************************************************************************************************
                     ************************************************ Update Carla ********************************************************
                     **********************************************************************************************************************
             """
+            speed_ = get_speed(self.world_module.hero_actor)
             self.module_manager.tick()  # Update carla world
             if self.auto_render:
                 self.render()
 
+            speed = get_speed(self.world_module.hero_actor)
+            acc = (speed - speed_) / self.dt
+            speeds.append(speed)
+            accelerations.append(acc)
+
+            # find the index of the closest point cloud to the ego
+            ego_transform = self.world_module.hero_actor.get_transform()
+            idx, dist = self.closest_point_cloud_index(ego_transform.location)
+            
+            # if len(self.point_cloud) - idx <= 50:
+            if idx >= self.max_idx:
+                track_finished = True
+                break
+            else:
+                track_finished = False
         """
                 *********************************************************************************************************************
                 *********************************************** RL Observation ******************************************************
                 *********************************************************************************************************************
         """
-        ego_transform = self.world_module.hero_actor.get_transform()
-        c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
-        w = self.world_module.hero_actor.get_angular_velocity()  # angular velocity
-        speed = get_speed(self.world_module.hero_actor)
-        self.state = np.append(c, [speed, self.targetSpeed, w.x, w.y, w.z])
+        meanSpeed = np.mean(speeds)
+        meanAcc = np.mean(accelerations)
+        speed_n = (meanSpeed - self.targetSpeed)/self.targetSpeed   # -1<= speed_n <=1
+        acc_n = meanAcc/(2*self.maxAcc)                             # -1<= acc_n <=1
+        self.state = np.array([speed_n, acc_n])
         # print(self.state)
-
+        # print(100 * '--')
         """
                 **********************************************************************************************************************
                 ********************************************* RL Reward Function *****************************************************
                 **********************************************************************************************************************
         """
-        cte = abs(c[-1])  # cross track error
-        theta = abs(math.atan(c[-2]))  # heading error wrt road curvature in radians. c[-2] is the slope
-        w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
-        w_cte = 10
-        r_cte = np.exp(-cte ** 2 / self.maxCte * w_cte) - 1
-        w_theta = 12
-        r_theta = np.exp(-theta ** 2 / self.maxTheta * w_theta) - 1
-        w_angVel = 1 / 5
-        r_angVel = np.exp(-w_norm ** 2 / self.maxAngVelNorm * w_angVel) - 1
-        w_speed = 1
+        w_speed = 10
+        w_acc = 1/2
         e_speed = abs(self.targetSpeed - speed)
-        r_speed = np.exp(-e_speed ** 2 / self.maxSpeed * w_speed) - 1
-        reward = (r_cte + r_theta + r_angVel + r_speed) / 4
-        # print(reward)
+        r_speed = np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)           # 0<= r_speed <= 1
+        r_acc = np.exp(-abs(meanAcc) ** 2 / (2*self.maxAcc) * w_acc) - 1    # -1<= r_acc <= 0
+        r_laneChange = -abs(action[0])                                      # -1<= r_laneChange <= 0
+        positives = r_speed
+        negatives = (r_acc + r_laneChange)/2
+        reward = positives + negatives                                      # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
 
         """
@@ -218,30 +233,30 @@ class CarlaGymEnv(gym.Env):
         """
         done = False
         if track_finished:
-            print('Finished the race')
-            reward = 1000
-            # done = True
+            # print('Finished the race')
+            reward = 10
+            done = True
             self.eps_rew += reward
             # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if cte > self.maxCte:
-            reward = -100
-            # done = True
-            self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if theta > self.maxTheta:
-            reward = -100
-            # done = True
-            self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if w_norm > self.maxAngVelNorm:
-            reward = -100
-            # done = True
-            self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if cte > self.maxCte:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if theta > self.maxTheta:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if w_norm > self.maxAngVelNorm:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
         return self.state, reward, done, {'max index': self.max_idx_achieved}
@@ -249,9 +264,11 @@ class CarlaGymEnv(gym.Env):
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)
         # Set ego transform to its initial form
-        self.world_module.hero_actor.set_velocity(carla.Vector3D(x=0, y=-1, z=0))
+        self.world_module.hero_actor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.world_module.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.world_module.hero_actor.set_transform(self.init_transform)
+
+        self.motionPlanner.start([[p.x, p.y] for p in self.global_route])
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
@@ -277,7 +294,7 @@ class CarlaGymEnv(gym.Env):
 
         # Start Modules
         self.module_manager.start_modules()
-        self.motionPlanner = MotionPlanner(dt=self.dt)
+        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed/3.6)
         self.vehicleController = VehiclePIDController(self.world_module.hero_actor)
         self.module_manager.tick()  # Update carla world
 

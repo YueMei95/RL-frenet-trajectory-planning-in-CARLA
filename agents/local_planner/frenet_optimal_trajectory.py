@@ -38,8 +38,8 @@ def update_frenet_coordinate(fpath, loc):
             min_e = e
             min_idx = i
 
-    if min_idx != len(fpath.t) - 1:
-        min_idx += 1
+    if min_idx <= len(fpath.t) - 2:
+        min_idx += 2        # +2 because if next wp gets too close to the ego, lat controller oscillates
 
     s, s_d, s_dd = fpath.s[min_idx], fpath.s_d[min_idx], fpath.s_dd[min_idx]
     d, d_d, d_dd = fpath.d[min_idx], fpath.d_d[min_idx], fpath.d_dd[min_idx]
@@ -169,7 +169,7 @@ class Frenet_path:
 
 
 class FrenetPlanner:
-    def __init__(self, dt):
+    def __init__(self, dt, targetSpeed=30/3.6):
 
         self.dt = dt  # simulation time tick [s]
 
@@ -197,6 +197,8 @@ class FrenetPlanner:
         self.ob = []        # n obstacles [[x1, y1], [x2, y2], ... ,[xn, yn]]
         self.csp = None     # cubic spline for global rout
         self.steps = 0      # planner steps
+
+        self.targetSpeed = targetSpeed
 
     def update_global_route(self, global_route):
         """
@@ -230,7 +232,7 @@ class FrenetPlanner:
             s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
             # f_state[0], f_state[3] = s, d
             f_state = [s, s_d, s_dd, d, d_d, d_dd]
-        f_state[1:3] = ego_state[2:]
+        # f_state[1:3] = ego_state[2:]
         # f_state[1] = ego_state[2]
         return f_state
 
@@ -241,6 +243,7 @@ class FrenetPlanner:
         output: single frenet path
         """
         s, s_d, s_dd, d, d_d, d_dd = f_state
+
         fp = Frenet_path()
         lat_qp = quintic_polynomial(d, d_d, d_dd, df, 0.0, 0.0, Tf)
         lon_qp = quartic_polynomial(s, s_d, s_dd, Vf, 0.0, Tf)
@@ -289,7 +292,7 @@ class FrenetPlanner:
                     fp.d_dd.append(lat_qp.calc_second_derivative(t))
                     fp.d_ddd.append(lat_qp.calc_third_derivative(t))
 
-                # Loongitudinal motion planning (Velocity keeping)
+                # Longitudinal motion planning (Velocity keeping)
                 for tv in np.arange(target_speed - self.D_T_S * self.N_S_SAMPLE, target_speed + self.D_T_S * self.N_S_SAMPLE, self.D_T_S):
                     tfp = copy.deepcopy(fp)
                     tfp.id = path_id
@@ -426,6 +429,7 @@ class FrenetPlanner:
         return bestpath_idx, fplist
 
     def start(self, route):
+        self.steps = 0
         self.update_global_route(route)
         f_state = [0, 0, 0, 0, 0, 0]
         best_path_idx, fplist = self.frenet_optimal_planning(f_state)
@@ -446,7 +450,7 @@ class FrenetPlanner:
         # print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist
 
-    def run_step_single_path(self, ego_state, idx, df_n=0, Tf=4, Vf=30/3.6):
+    def run_step_single_path(self, ego_state, idx, df_n=0, Tf=4, Vf_n=0):
         """
         input: ego states, current frenet path's waypoint index, actions
         output: frenet path
@@ -454,9 +458,12 @@ class FrenetPlanner:
         """
         self.steps += 1
 
-        # convert df value in from range (-1, 1) to the target d value
+        # convert action values from range (-1, 1) to the desired range
         d = self.path.d[idx]
-        df = df_n*self.LANE_WIDTH + d
+        df = np.clip(np.round(df_n)*self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
+
+        speedRange = 10/3.6
+        Vf = Vf_n*speedRange + self.targetSpeed
 
         f_state = self.estimate_frenet_state(ego_state, idx)
 

@@ -15,7 +15,7 @@ ax.plot(cte, r_cte0)
 # ax.plot(cte, r_cte1)
 ax.plot(cte, r_cte2)
 ax.set(xlabel='cte', ylabel='rew',
-       title='Reward functions')
+       title='cte Reward functions')
 ax.grid()
 # plt.show()
 
@@ -32,7 +32,7 @@ ax2.plot(theta, r_theta0)
 # ax2.plot(theta, r_theta1)
 ax2.plot(theta, r_theta2)
 ax2.set(xlabel='theta', ylabel='rew',
-       title='Reward functions')
+       title='THETA Reward functions')
 ax2.grid()
 
 
@@ -48,21 +48,34 @@ ax3.plot(w, r_w0)
 # ax3.plot(w, r_w1)
 ax3.plot(w, r_w2)
 ax3.set(xlabel='w', ylabel='rew',
-       title='Reward functions')
+       title='angular velocity Reward functions')
 ax3.grid()
 
 # speed
 max_v = 150
 e_v = np.arange(0, max_v, 0.01)
 r_v0 = -e_v/max_v # 1 + np.sin(2 * np.pi * t)
-w = 1
-r_v2 = np.exp(-e_v**2/max_v*w)-1
+w = 10
+r_v2 = np.exp(-e_v**2/max_v*w)
 fig, ax4 = plt.subplots()
 ax4.plot(e_v, r_v0)
 # ax3.plot(w, r_w1)
 ax4.plot(e_v, r_v2)
 ax4.set(xlabel='e_v', ylabel='rew',
-       title='Reward functions')
+       title='speed Reward functions')
+ax4.grid()
+
+# acc
+max_acc = 2*24.7608
+acc = np.arange(0, max_acc, 0.01)
+r_a0 = -acc/max_acc
+w = 1/2
+r_a2 = np.exp(-acc**2/max_acc*w)-1
+fig, ax4 = plt.subplots()
+ax4.plot(acc, r_a0)
+ax4.plot(acc, r_a2)
+ax4.set(xlabel='acc', ylabel='rew',
+       title='acc Reward functions')
 ax4.grid()
 plt.show()
 

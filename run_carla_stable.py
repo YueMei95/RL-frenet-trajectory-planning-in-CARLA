@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='mlp')
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
     parser.add_argument('--log_path', help='Directory to save learning curve data.', default=None, type=str)
-    parser.add_argument('--play', default=False, action='store_true')
+    parser.add_argument('--play_mode', type=int, help='Display mode: 0:off, 1:2D, 2:3D ', default=0)
     parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--test_model', help='test model file name', type=str, default='')
     parser.add_argument('--carla_host', metavar='H', default='127.0.0.1',
@@ -51,7 +51,7 @@ def parse_args():
 
     # visualize all test scenarios
     if args.test:
-        args.play = True
+        args.play_mode = True
 
     args.num_timesteps = int(args.num_timesteps)
     return args
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     args = parse_args()
     print('Env is starting')
     env = gym.make(args.env)
-    if args.play:
+    if args.play_mode:
         env.enable_auto_render()
     env.begin_modules(args)
     n_actions = env.action_space.shape[-1]  # the noise objects for DDPG

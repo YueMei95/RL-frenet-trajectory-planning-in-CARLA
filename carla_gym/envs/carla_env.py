@@ -272,7 +272,7 @@ class CarlaGymEnv(gym.Env):
         self.module_manager = ModuleManager()
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager)
         self.module_manager.register_module(self.world_module)
-        if args.play:
+        if args.play_mode:
             width, height = [int(x) for x in args.carla_res.split('x')]
             self.hud_module = ModuleHUD(MODULE_HUD, width, height, module_manager=self.module_manager)
             self.module_manager.register_module(self.hud_module)

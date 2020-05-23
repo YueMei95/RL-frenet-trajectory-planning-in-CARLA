@@ -60,6 +60,8 @@ import weakref
 import math
 import random
 
+from carla import ColorConverter as cc
+
 # from operator import itemgetter
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.low_level_controller.controller import PIDLongitudinalController
@@ -815,19 +817,17 @@ class MapImage:
 class ModuleWorld:
     def __init__(self, name, args, timeout, module_manager):
         self.module_manager = module_manager
-        if args.play:
+        if args.play_mode:
             # Init Pygame
             pygame.init()
-            self.display = pygame.display.set_mode(
-                (1280, 720),
-                pygame.HWSURFACE | pygame.DOUBLEBUF)
+            self.display = pygame.display.set_mode((1280, 720), pygame.HWSURFACE | pygame.DOUBLEBUF)
             pygame.display.set_caption('CARLA No Rendering Mode Visualizer')
 
             font = pygame.font.Font(pygame.font.get_default_font(), 20)
             text_surface = font.render('Rendering map...', True, COLOR_WHITE)
             self.display.blit(text_surface, text_surface.get_rect(center=(1280 / 2, 720 / 2)))
             pygame.display.flip()
-            self.traffic_light_surfaces = TrafficLightSurfaces()
+            self.traffic_light_surfaces = TrafficLightSurfaces() if args.play_mode == 1 else None
             self.clock = pygame.time.Clock()
             self.server_clock = pygame.time.Clock()
 
@@ -926,7 +926,10 @@ class ModuleWorld:
         print('fixed_delta_seconds= ', settings.fixed_delta_seconds)
         print('changed settings to: ', settings)
 
-        if self.args.play:
+        if self.args.play_mode:
+            self.module_hud = self.module_manager.get_module(MODULE_HUD)
+            self.module_input = self.module_manager.get_module(MODULE_INPUT)
+        if self.args.play_mode == 1:
             # Create Surfaces
             self.map_image = MapImage(
                 carla_world=self.world,
@@ -937,9 +940,6 @@ class ModuleWorld:
                 show_spawn_points=False)
 
             # Store necessary modules
-            self.module_hud = self.module_manager.get_module(MODULE_HUD)
-            self.module_input = self.module_manager.get_module(MODULE_INPUT)
-
             self.original_surface_size = min(self.module_hud.dim[0], self.module_hud.dim[1])
             self.surface_size = self.map_image.big_map_surface.get_width()
 
@@ -975,12 +975,12 @@ class ModuleWorld:
         self.select_hero_actor()
         self.hero_actor.set_autopilot(False)
 
-        if self.args.play:
+        if self.args.play_mode:
             self.module_input.wheel_offset = HERO_DEFAULT_SCALE
             self.module_input.control = carla.VehicleControl()
 
         weak_self = weakref.ref(self)
-        if self.args.play:
+        if self.args.play_mode == 1:
             self.world.on_tick(lambda timestamp: ModuleWorld.on_world_tick(weak_self, timestamp))
 
     def select_hero_actor(self):
@@ -1030,12 +1030,17 @@ class ModuleWorld:
         # Save it in order to destroy it when closing program
         self.spawned_hero = self.hero_actor
 
+        # self.camera_manager = CameraManager(self.spawned_hero, self.module_hud.dim[0], self.module_hud.dim[1])
+        if self.args.play_mode == 2:
+            self.camera_manager = CameraManager(self.spawned_hero, 1280, 720)
+            self.camera_manager.set_sensor()
+
     def tick(self):
         actors = self.world.get_actors()
         self.actors_with_transforms = [(actor, actor.get_transform()) for actor in actors]
         if self.hero_actor is not None:
             self.hero_transform = self.hero_actor.get_transform()
-        if self.args.play:
+        if self.args.play_mode:
             self.update_hud_info(self.clock)
         self.world.tick()
         # ts = self.world.wait_for_tick()
@@ -1279,6 +1284,9 @@ class ModuleWorld:
         self.map_image.scale_map(scale_factor)
 
     def render(self, display):
+        if self.args.play_mode == 2:
+            self.camera_manager.render(display)
+            return
         if self.actors_with_transforms is None:
             return
         self.result_surface.fill(COLOR_BLACK)
@@ -1375,7 +1383,88 @@ class ModuleWorld:
 
 
 # ==============================================================================
-# -- Input -----------------------------------------------------------
+# -- Camera Manager -----------------------------------------------------------
+# ==============================================================================
+
+class CameraManager(object):
+    def __init__(self, parent_actor, width, height):
+        self._parent = parent_actor
+        self.width = width
+        self.height = height
+        self.surface = None
+        self.sensor = None
+        self.transform_index = 0
+        self._camera_transforms = [
+            carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
+            carla.Transform(carla.Location(x=1.6, z=1.7))]
+        self.sensors = [['sensor.camera.rgb', cc.Raw, 'Camera RGB']]    # see automatic_control.py for more sensor examples
+        world = self._parent.get_world()
+        bp_library = world.get_blueprint_library()
+        for item in self.sensors:
+            bp = bp_library.find(item[0])
+            if item[0].startswith('sensor.camera'):
+                bp.set_attribute('image_size_x', str(self.width))
+                bp.set_attribute('image_size_y', str(self.height))
+            elif item[0].startswith('sensor.lidar'):
+                bp.set_attribute('range', '5000')
+            item.append(bp)
+        self.index = None
+
+    def set_sensor(self, index=0):
+        index = index % len(self.sensors)
+        needs_respawn = True if self.index is None \
+            else self.sensors[index][0] != self.sensors[self.index][0]
+        if needs_respawn:
+            if self.sensor is not None:
+                self.sensor.destroy()
+                self.surface = None
+            self.sensor = self._parent.get_world().spawn_actor(
+                self.sensors[index][-1],
+                self._camera_transforms[self.transform_index],
+                attach_to=self._parent)
+            # We need to pass the lambda a weak reference to self to avoid
+            # circular reference.
+            weak_self = weakref.ref(self)
+            self.sensor.listen(lambda image: CameraManager._parse_image(weak_self, image))
+
+        self.index = index
+
+    def render(self, display):
+        if self.surface is not None:
+            display.blit(self.surface, (0, 0))
+            pygame.display.flip()
+
+    @staticmethod
+    def _parse_image(weak_self, image):
+        self = weak_self()
+        if not self:
+            return
+        if self.sensors[self.index][0].startswith('sensor.lidar'):
+            points = np.frombuffer(image.raw_data, dtype=np.dtype('f4'))
+            points = np.reshape(points, (int(points.shape[0] / 3), 3))
+            lidar_data = np.array(points[:, :2])
+            lidar_data *= min(self.hud.dim) / 100.0
+            lidar_data += (0.5 * self.hud.dim[0], 0.5 * self.hud.dim[1])
+            lidar_data = np.fabs(lidar_data)  # pylint: disable=E1111
+            lidar_data = lidar_data.astype(np.int32)
+            lidar_data = np.reshape(lidar_data, (-1, 2))
+            lidar_img_size = (self.hud.dim[0], self.hud.dim[1], 3)
+            lidar_img = np.zeros(lidar_img_size)
+            lidar_img[tuple(lidar_data.T)] = (255, 255, 255)
+            self.surface = pygame.surfarray.make_surface(lidar_img)
+        else:
+            image.convert(self.sensors[self.index][1])
+            array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+            array = np.reshape(array, (image.height, image.width, 4))
+            array = array[:, :, :3]
+            array = array[:, :, ::-1]
+            self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
+
+
+
+
+# ==============================================================================
+# -- Input --------------------------------------------------------------------
 # ==============================================================================
 
 

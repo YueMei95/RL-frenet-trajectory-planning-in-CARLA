@@ -191,7 +191,7 @@ class CarlaGymEnv(gym.Env):
             # find the index of the closest point cloud to the ego
             ego_transform = self.world_module.hero_actor.get_transform()
             idx, dist = self.closest_point_cloud_index(ego_transform.location)
-            
+
             # if len(self.point_cloud) - idx <= 50:
             if idx >= self.max_idx:
                 track_finished = True
@@ -280,7 +280,7 @@ class CarlaGymEnv(gym.Env):
         self.module_manager = ModuleManager()
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager)
         self.module_manager.register_module(self.world_module)
-        if args.play:
+        if args.play_mode:
             width, height = [int(x) for x in args.carla_res.split('x')]
             self.hud_module = ModuleHUD(MODULE_HUD, width, height, module_manager=self.module_manager)
             self.module_manager.register_module(self.hud_module)

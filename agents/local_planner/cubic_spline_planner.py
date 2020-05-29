@@ -177,6 +177,65 @@ class Spline2D:
         return yaw
 
 
+class Spline3D:
+    """
+    3D Cubic Spline class
+    """
+
+    def __init__(self, x, y, z):
+        self.s = self.__calc_s(x, y, z)
+        self.sx = Spline(self.s, x)
+        self.sy = Spline(self.s, y)
+        self.sz = Spline(self.s, z)
+
+    def __calc_s(self, x, y, z):
+        dx = np.diff(x)
+        dy = np.diff(y)
+        dz = np.diff(z)
+        self.ds = [math.sqrt(idx ** 2 + idy ** 2 + idz ** 2) for (idx, idy, idz) in zip(dx, dy, dz)]
+        s = [0]
+        s.extend(np.cumsum(self.ds))
+        return s
+
+    def calc_position(self, s):
+        u"""
+        calc position
+        """
+        x = self.sx.calc(s)
+        y = self.sy.calc(s)
+        z = self.sz.calc(s)
+        return x, y, z
+
+    def calc_curvature(self, s):
+        u"""
+        calc curvature
+        """
+        dx = self.sx.calcd(s)
+        ddx = self.sx.calcdd(s)
+        dy = self.sy.calcd(s)
+        ddy = self.sy.calcdd(s)
+        k = (ddy * dx - ddx * dy) / (dx ** 2 + dy ** 2)
+        return k
+
+    def calc_yaw(self, s):
+        u"""
+        calc yaw
+        """
+        dx = self.sx.calcd(s)
+        dy = self.sy.calcd(s)
+        yaw = math.atan2(dy, dx)
+        return yaw
+
+    def calc_pitch(self, s):
+        """
+        calc pitch - this function needs to be double checked
+        """
+        dx = self.sx.calcd(s)
+        dz = self.sz.calcd(s)
+        pitch = math.atan2(dz, dx)
+        return pitch
+
+
 def calc_spline_course(x, y, ds=0.1):
     sp = Spline2D(x, y)
     s = list(np.arange(0, sp.s[-1], ds))

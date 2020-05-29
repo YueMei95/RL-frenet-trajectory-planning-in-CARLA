@@ -13,16 +13,26 @@ Ref:
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import copy
 import math
 from agents.local_planner import cubic_spline_planner
 
-import time
-
-
 def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
+
+
+def frenet_to_inertial(s, d, csp):
+    """
+    transform a point from frenet frame to inertial frame
+    input: frenet s and d variable and the instance of global cubic spline class
+    output: x and y in global frame
+    """
+    ix, iy, iz = csp.calc_position(s)
+    iyaw = csp.calc_yaw(s)
+    x = ix + d * math.cos(iyaw + math.pi / 2.0)
+    y = iy + d * math.sin(iyaw + math.pi / 2.0)
+
+    return x, y, iz, iyaw
 
 
 def update_frenet_coordinate(fpath, loc):
@@ -161,6 +171,7 @@ class Frenet_path:
 
         self.x = []
         self.y = []
+        self.z = []
         self.yaw = []
         self.ds = []
         self.c = []
@@ -206,10 +217,12 @@ class FrenetPlanner:
         """
         wx = []
         wy = []
+        wz = []
         for p in global_route:
             wx.append(p[0])
             wy.append(p[1])
-        self.csp = cubic_spline_planner.Spline2D(wx, wy)
+            wz.append(p[2])
+        self.csp = cubic_spline_planner.Spline3D(wx, wy, wz)
 
     def update_obstacles(self, ob):
         self.ob = ob
@@ -329,15 +342,17 @@ class FrenetPlanner:
 
             # calc global positions
             for i in range(len(fp.s)):
-                ix, iy = self.csp.calc_position(fp.s[i])
+                ix, iy, iz = self.csp.calc_position(fp.s[i])
                 if ix is None:
                     break
                 iyaw = self.csp.calc_yaw(fp.s[i])
                 di = fp.d[i]
                 fx = ix + di * math.cos(iyaw + math.pi / 2.0)
                 fy = iy + di * math.sin(iyaw + math.pi / 2.0)
+                fz = iz
                 fp.x.append(fx)
                 fp.y.append(fy)
+                fp.z.append(fz)
 
             # find curvature
             # source: http://www.kurims.kyoto-u.ac.jp/~kyodo/kokyuroku/contents/pdf/1111-16.pdf
@@ -431,7 +446,10 @@ class FrenetPlanner:
     def start(self, route):
         self.steps = 0
         self.update_global_route(route)
-        f_state = [0, 0, 0, 0, 0, 0]
+
+    def reset(self, s, d):
+        # module_world reset should be executed beforehand to update the initial s and d values
+        f_state = [s, 0, 0, d, 0, 0]
         best_path_idx, fplist = self.frenet_optimal_planning(f_state)
         self.path = fplist[best_path_idx]
 

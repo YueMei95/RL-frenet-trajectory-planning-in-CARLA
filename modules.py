@@ -64,11 +64,7 @@ from carla import ColorConverter as cc
 
 # from operator import itemgetter
 from agents.low_level_controller.controller import VehiclePIDController
-from agents.low_level_controller.controller import PIDLongitudinalController
-from agents.low_level_controller.controller import PIDLateralController
-from agents.low_level_controller.controller import PIDCrossTrackController
-from agents.tools.misc import get_speed
-from collections import deque
+from agents.local_planner.frenet_optimal_trajectory import frenet_to_inertial
 
 try:
     import pygame
@@ -152,6 +148,7 @@ MODULE_WORLD = 'WORLD'
 MODULE_HUD = 'HUD'
 MODULE_CONTROL = 'CONTROL'
 MODULE_INPUT = 'INPUT'
+MODULE_TRAFFIC = 'TRAFFIC'
 
 PIXELS_PER_METER = 12
 
@@ -222,7 +219,8 @@ class ModuleManager:
     def render(self, display):
         display.fill(COLOR_ALUMINIUM_4)
         for module in self.modules:
-            module.render(display)
+            if hasattr(module, 'render'):
+                module.render(display)
         pygame.display.flip()
 
     def get_module(self, name):
@@ -815,8 +813,10 @@ class MapImage:
 
 
 class ModuleWorld:
-    def __init__(self, name, args, timeout, module_manager):
+    def __init__(self, name, args, timeout, module_manager, width, height, max_s, track_length):
         self.module_manager = module_manager
+        self.width = width
+        self.height = height
         if args.play_mode:
             # Init Pygame
             pygame.init()
@@ -842,6 +842,7 @@ class ModuleWorld:
         # World data
         self.world = None
         self.town_map = None
+        self.world, self.town_map = self._get_data_from_carla()
         self.actors_with_transforms = []
         # Store necessary modules
         self.module_hud = None
@@ -852,7 +853,6 @@ class ModuleWorld:
         self.scaled_size = 0
         # Hero actor
         self.hero_actor = None
-        self.spawned_hero = None
         self.hero_transform = None
 
         self.scale_offset = [0, 0]
@@ -872,6 +872,15 @@ class ModuleWorld:
         self.frame = None
 
         self.points_to_draw = {}  # add waypoints to this dictionary to visualize them in Pygame
+        self.global_csp = None
+        self.LANE_WIDTH = 3.5  # lane width [m]
+        self.init_s = 50        # ego initial s location
+        self.init_d = 0         # ego initial lane number - int range: [-1, 2]
+        self.max_s = max_s
+        self.track_length = track_length
+
+    def update_global_route_csp(self, global_route_csp):
+        self.global_csp = global_route_csp
 
     def inertial_to_body_frame(self, xi, yi, psi):
         Xi = np.array([xi, yi])  # inertial frame
@@ -920,7 +929,6 @@ class ModuleWorld:
             self.module_manager.exit_game()
 
     def start(self):
-        self.world, self.town_map = self._get_data_from_carla()
         self.config(synchronous=True, no_rendering=False, time_step=self.dt)
         settings = self.world.get_settings()
         print('fixed_delta_seconds= ', settings.fixed_delta_seconds)
@@ -940,7 +948,7 @@ class ModuleWorld:
                 show_spawn_points=False)
 
             # Store necessary modules
-            self.original_surface_size = min(self.module_hud.dim[0], self.module_hud.dim[1])
+            self.original_surface_size = min(self.width, self.height)
             self.surface_size = self.map_image.big_map_surface.get_width()
 
             self.scaled_size = int(self.surface_size)
@@ -955,15 +963,15 @@ class ModuleWorld:
             self.vehicle_id_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
             self.vehicle_id_surface.set_colorkey(COLOR_BLACK)
 
-            self.border_round_surface = pygame.Surface(self.module_hud.dim, pygame.SRCALPHA).convert()
+            self.border_round_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA).convert()
             self.border_round_surface.set_colorkey(COLOR_WHITE)
             self.border_round_surface.fill(COLOR_BLACK)
 
-            center_offset = (int(self.module_hud.dim[0] / 2), int(self.module_hud.dim[1] / 2))
+            center_offset = (int(self.width / 2), int(self.height / 2))
             pygame.draw.circle(self.border_round_surface, COLOR_ALUMINIUM_1, center_offset,
-                               int(self.module_hud.dim[1] / 2))
+                               int(self.height / 2))
             pygame.draw.circle(self.border_round_surface, COLOR_WHITE, center_offset,
-                               int((self.module_hud.dim[1] - 8) / 2))
+                               int((self.height - 8) / 2))
 
             scaled_original_size = self.original_surface_size * (1.0 / 0.9)
             self.hero_surface = pygame.Surface((scaled_original_size, scaled_original_size)).convert()
@@ -972,7 +980,8 @@ class ModuleWorld:
             self.result_surface.set_colorkey(COLOR_BLACK)
 
         # Start hero mode by default
-        self.select_hero_actor()
+        # self.select_hero_actor()
+        self._spawn_hero()
         self.hero_actor.set_autopilot(False)
 
         if self.args.play_mode:
@@ -983,57 +992,44 @@ class ModuleWorld:
         if self.args.play_mode == 1:
             self.world.on_tick(lambda timestamp: ModuleWorld.on_world_tick(weak_self, timestamp))
 
-    def select_hero_actor(self):
-        hero_vehicles = [actor for actor in self.world.get_actors(
-        ) if 'vehicle' in actor.type_id and actor.attributes['role_name'] == 'hero']
-        if len(hero_vehicles) > 0:
-            self.hero_actor = random.choice(hero_vehicles)
-            self.hero_transform = self.hero_actor.get_transform()
-        else:
-            self._spawn_hero()
-
     def _spawn_hero(self):
-        # Get a random blueprint.
-        # blueprint = random.choice(self.world.get_blueprint_library().filter(self.args.filter))
+
         blueprint = self.world.get_blueprint_library().filter('vehicle.tesla.model3')[0]
         blueprint.set_attribute('role_name', 'hero')
         if blueprint.has_attribute('color'):
-            # color = random.choice(blueprint.get_attribute('color').recommended_values)
-            color = '140,0,0'  # Red
+            color = '10,0,0'  # Red
             blueprint.set_attribute('color', color)
-        # Spawn the player.
-        # while self.hero_actor is None:
-        #    spawn_points = self.world.get_map().get_spawn_points()
-        #    spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-        #    self.hero_actor = self.world.try_spawn_actor(blueprint, spawn_point)
 
-        spawn_points = self.world.get_map().get_spawn_points()
-        v1 = [406, -100, 0]  # spawn the actor to the closes waypoint to this location
-        d = float('inf')
-        spawn_point = spawn_points[0]
-        for p in spawn_points:
-            v2 = [p.location.x, p.location.y, p.location.z]
-            d_ = math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
-            if d_ <= d:
-                spawn_point = p
-                d = d_
+        x, y, z, yaw = frenet_to_inertial(self.init_s, self.init_d, self.global_csp)
+        z += 0.1
 
-        # Replace z = 1.2 with z = 0.1 (~road surface altitude) to spawn hero from small altitude
-        spawn_point.location.z = 0.1
-
-        # print(spawn_point)
+        spawn_point = carla.Transform(location=carla.Location(x=x, y=y, z=z), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
         self.hero_actor = self.world.spawn_actor(blueprint, spawn_point)
-        # use try_spawn_actor in while to find feasible location
+        self.hero_actor.set_autopilot(False)
+        print('Spawned ego in: ', spawn_point)
 
         self.hero_transform = self.hero_actor.get_transform()
 
-        # Save it in order to destroy it when closing program
-        self.spawned_hero = self.hero_actor
-
         # self.camera_manager = CameraManager(self.spawned_hero, self.module_hud.dim[0], self.module_hud.dim[1])
         if self.args.play_mode == 2:
-            self.camera_manager = CameraManager(self.spawned_hero, 1280, 720)
+            self.camera_manager = CameraManager(self.hero_actor, 1280, 720)
             self.camera_manager.set_sensor()
+
+    def reset(self):
+        # Set ego transform
+        self.init_s = np.random.uniform(50, self.max_s - self.track_length)     # ego initial s location
+        #  should be larger than 50. bc other actors will be spawned in range: s = [init_s-50, init_s+100]
+        #  should be smaller than max_s - track_length to have all tracks with the same length
+        init_lane = 0  # ego initial lane number - int range: [-1, 2]
+        self.init_d = init_lane * self.LANE_WIDTH
+        x, y, z, yaw = frenet_to_inertial(self.init_s, self.init_d, self.global_csp)
+        z += 0.1
+
+        transform = carla.Transform(location=carla.Location(x=x, y=y, z=z), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
+
+        self.hero_actor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
+        self.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
+        self.hero_actor.set_transform(transform)
 
     def tick(self):
         actors = self.world.get_actors()
@@ -1043,11 +1039,6 @@ class ModuleWorld:
         if self.args.play_mode:
             self.update_hud_info(self.clock)
         self.world.tick()
-        # ts = self.world.wait_for_tick()
-        # if self.frame is not None:
-        #     if ts.frame_count != self.frame + 1:
-        #         logging.warning('--------------- frame skip! -----------------')
-        # self.frame = ts.frame_count
 
     def update_hud_info(self, clock):
         hero_mode_text = []
@@ -1374,9 +1365,10 @@ class ModuleWorld:
                                                translation_offset[1]))
 
     def destroy(self):
-        if self.spawned_hero is not None:
-            print('destroying actors ...')
-            self.spawned_hero.destroy()
+        print('destroying vehicle actors ...')
+        for actor in self.world.get_actors():
+            if 'vehicle' in actor.type_id:
+                actor.destroy()
         if self.world is not None:
             print('recovering world initial configuration ...')
             self.recoverConfig()
@@ -1397,7 +1389,7 @@ class CameraManager(object):
         self._camera_transforms = [
             carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
             carla.Transform(carla.Location(x=1.6, z=1.7))]
-        self.sensors = [['sensor.camera.rgb', cc.Raw, 'Camera RGB']]    # see automatic_control.py for more sensor examples
+        self.sensors = [['sensor.camera.rgb', cc.Raw, 'Camera RGB']]  # see automatic_control.py for more sensor examples
         world = self._parent.get_world()
         bp_library = world.get_blueprint_library()
         for item in self.sensors:
@@ -1461,8 +1453,6 @@ class CameraManager(object):
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
 
 
-
-
 # ==============================================================================
 # -- Input --------------------------------------------------------------------
 # ==============================================================================
@@ -1481,8 +1471,9 @@ class ModuleInput(object):
         self._autopilot_enabled = False
 
     def start(self):
-        hud = self.module_manager.get_module(MODULE_HUD)
-        hud.notification("Press 'H' or '?' for help.", seconds=4.0)
+        pass
+        # hud = self.module_manager.get_module(MODULE_HUD)
+        # hud.notification("Press 'H' or '?' for help.", seconds=4.0)
 
     def render(self, display):
         pass
@@ -1593,95 +1584,104 @@ class ModuleInput(object):
 
 
 # ==============================================================================
-# -- Control -----------------------------------------------------------
+# -- Traffic manager ----------------------------------------------------------------
 # ==============================================================================
 
-class ModuleControl:
-    def __init__(self, name, module_manager):
-        self.module_manager = module_manager
-        self.world = self.module_manager.get_module(MODULE_WORLD)
+class TrafficManager:
+    def __init__(self, name, module_manager, max_s, track_length):
         self.name = name
-        self.steps = 0
-        self.idx = 0
-        self.wps_to_go = 0
-        self.path = None
-        self.fplist = None
+        self.module_manager = module_manager
+        self.world_module = None
+        self.world = None
+        self.blueprints = None
+        self.ego = None
+        self.global_csp = None  # Global cubic spline used for spawning actors on the main road
+        self.otherActorsBacth = []  # a list of carla instances for each actor
+        self.otherActorsControlBacth = []  # a list of control instances for each actors
 
+        self.MAX_CARS = 10
+        self.N_INIT_CARS = self.MAX_CARS // 2   # number of cars at start
+        self.spawn_pobability = 0.5
+        self.LANE_WIDTH = 3.5  # lane width [m]
+        self.max_s = max_s
+        self.track_length = track_length
+
+    def update_global_route_csp(self, global_route_csp):
+        self.global_csp = global_route_csp
+
+    def spawn_one_actor(self, s, d):
+        """
+        Spawn an actor on the main road based on the frenet s and d values
+        """
+        if self.global_csp is None:
+            return
+        x, y, z, yaw = frenet_to_inertial(s, d, self.global_csp)
+        
+        blueprint = random.choice(self.blueprints)
+        if blueprint.has_attribute('color'):
+            color = random.choice(blueprint.get_attribute('color').recommended_values)
+            blueprint.set_attribute('color', color)
+
+        transform = carla.Transform(location=carla.Location(x=x, y=y, z=z+0.1), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
+
+        otherActor = self.world.try_spawn_actor(blueprint, transform)
+
+        # otherActor.set_transform(transform)
+        if otherActor is not None:
+            otherActor.set_autopilot(False)
+            otherActor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
+            otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
+            self.otherActorsBacth.append(otherActor)
+            self.otherActorsControlBacth.append(CruiseControl(otherActor, self.module_manager, targetSpeed=20))
+        return otherActor
+
+    def start(self):
+        self.world_module = self.module_manager.get_module(MODULE_WORLD)
+        self.world = self.world_module.world
+        self.ego = self.world_module.hero_actor
+        blueprints = self.world.get_blueprint_library().filter('vehicle.*')
+        self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
+
+    def reset(self, init_s, init_d):
+        # self.spawn_one_actor(init_s + 50, init_d + self.LANE_WIDTH)
+        for _ in range(self.N_INIT_CARS):
+            d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
+            discrete_s = np.arange(init_s - 50, init_s + 100, 4)
+            s_idx = np.random.randint(0, len(discrete_s))
+            s = discrete_s[s_idx]
+            self.spawn_one_actor(s, d)
+
+    def tick(self):
+        # if np.random.uniform() <= self.spawn_pobability and len(self.otherActorsBacth) < self.MAX_CARS:
+        #     d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
+        #     self.spawn_one_actor(20, d)
+        for control in self.otherActorsControlBacth:
+            control.tick()
+
+
+# ==============================================================================
+# -- Vehicle Cruise Control ----------------------------------------------------
+# ==============================================================================
+
+
+class CruiseControl:
+    def __init__(self, vehicle, module_manager, targetSpeed=50):
+        self.vehicle = vehicle  # Carla instance for the vehicle
+        self.module_manager = module_manager
+        self.targetSpeed = targetSpeed
+        self.world = self.module_manager.get_module(MODULE_WORLD)
+        self.steps = 0
         if self.world.dt is not None:  # if world in fixed timestep
             self.dt = self.world.dt
         else:  # if world is variable timestep
             self.dt = 0.05
-        self.args_lateral_dict = {
-            'K_P': 1.95,
-            'K_D': 0.01,
-            'K_I': 1.4,
-            'dt': self.dt}
-        self.args_longitudinal_dict = {
-            'K_P': 1.0,
-            'K_D': 0,
-            'K_I': 1,
-            'dt': self.dt}
-        self.world = None
-        self.vehicleController = None
-        self.vehicleLonController = None
-        self.vehicleLatController = None
-        self.acceleration_ = 0
-        self.motionPlanner = None
+        self.vehicleController = VehiclePIDController(self.vehicle)
+        self.location = self.vehicle.get_location()
 
-    def start(self):
-        # hud = self.module_manager.get_module(MODULE_HUD)
-        # hud.notification("Press 'H' or '?' for help.", seconds=4.0)
-        # world has started so update it
-        self.world = self.module_manager.get_module(MODULE_WORLD)
-        self.vehicleController = VehiclePIDController(self.world.hero_actor)
-        self.vehicleLonController = PIDLongitudinalController(self.world.hero_actor, **self.args_longitudinal_dict)
-        self.vehicleLatController = PIDLateralController(self.world.hero_actor, **self.args_lateral_dict)
-
-    def render(self, display):
-        pass
-
-    def tick(self, targetWP=None, targetSpeed=80):
-        """
-        cte: a weak definition for cross track error. i.e. cross track error = |cte|
-        """
-        # Receives waypoint in body frame and follows it using controller
-        # action = [x, y]
-
-        control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
-
-        '''Automatic control'''
-        # if targetWP is None:  # Follow the hardcoded waypoints in town map:
-        #     nextWP = self.world.town_map.get_waypoint(self.world.hero_actor.get_location(),
-        #                                               project_to_road=True).next(distance=10)[0]
-        #
-        #     targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-        #     control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
-        #
-        #     psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-        #
-        #     # print(self.idx, '/', len(self.path.x))
-        #     # print(targetSpeed, speed)
-        #     # s_1 = self.path.s_d[self.idx] * 3.6
-        #     # s_2 = math.sqrt((self.path.s_d[self.idx] * 3.6) ** 2 + (self.path.d_d[self.idx] * 3.6) ** 2)
-        #     # s_3 = self.path.ds[self.idx] * 3.6 / 0.1
-        #     # print(speed, s_1, s_2, s_3)
-        #     # print(100*'--')
-        #     control, speed = self.vehicleController.run_step(targetSpeed, targetWP)
-        # else:  # Follow RL actions
-        #     psi = math.radians(self.world.hero_actor.get_transform().rotation.yaw)
-        #     # targetWP = self.world.body_to_inertial_frame(action[0], action[1], psi)
-        #     targetWP = targetWP
-        #     # print(targetWP)
-        #     throttle, speed = self.vehicleLonController.run_step(target_speed=targetSpeed)
-        #     steering = self.vehicleLatController.run_step(targetWP)
-        #
-        #     control = carla.VehicleControl()
-        #     control.steer = steering
-        #     control.throttle = throttle
-        #     control.brake = 0.0
-        #     control.hand_brake = False
-        #     control.manual_gear_shift = False
-
-        self.world.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
-        self.world.hero_actor.apply_control(control)
+    def tick(self):
         self.steps += 1
+        self.location = self.vehicle.get_location()
+        nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=10)[0]
+        targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+        control = self.vehicleController.run_step(self.targetSpeed, targetWP)
+        self.vehicle.apply_control(control)

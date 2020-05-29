@@ -37,12 +37,9 @@ def parse_args():
     parser.add_argument('--play_mode', type=int, help='Display mode: 0:off, 1:2D, 2:3D ', default=0)
     parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--test_model', help='test model file name', type=str, default='')
-    parser.add_argument('--carla_host', metavar='H', default='127.0.0.1',
-                        help='IP of the host server (default: 127.0.0.1)')
-    parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int,
-                        help='TCP port to listen to (default: 2000)')
-    parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720',
-                        help='window resolution (default: 1280x720)')
+    parser.add_argument('--carla_host', metavar='H', default='127.0.0.1', help='IP of the host server (default: 127.0.0.1)')
+    parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int, help='TCP port to listen to (default: 2000)')
+    parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720', help='window resolution (default: 1280x720)')
     args = parser.parse_args()
 
     # correct default test_model arg
@@ -85,7 +82,7 @@ if __name__ == '__main__':
                 f.close()
         else:
             save_path = 'logs/'
-            env = Monitor(env, 'logs/', info_keywords=('max index',))                                   # logging monitor
+            env = Monitor(env, 'logs/', info_keywords=('reserved',))                                   # logging monitor
         model_dir = save_path + '{}_final_model'.format(args.alg)                                       # model save/load directory
 
         if args.alg == 'ddpg':

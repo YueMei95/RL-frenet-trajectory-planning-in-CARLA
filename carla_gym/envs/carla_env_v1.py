@@ -45,9 +45,9 @@ class CarlaGymEnv(gym.Env):
 
         # frenet
         self.f_idx = 0
-        self.init_s = 0              # initial frenet s value - will be updated in reset function
+        self.init_s = None              # initial frenet s value - will be updated in reset function
         self.max_s = 3000            # max frenet s value available in global route
-        self.track_length = 100      # distance to travel on s axis before terminating the episode
+        self.track_length = 500      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -134,6 +134,7 @@ class CarlaGymEnv(gym.Env):
                     **********************************************************************************************************************
             """
             speed_ = get_speed(self.ego)
+            self.traffic_module.update_ego_s(fpath.s[self.f_idx])
             self.module_manager.tick()  # Update carla world
             if self.auto_render:
                 self.render()
@@ -146,7 +147,7 @@ class CarlaGymEnv(gym.Env):
 
             # print('x:', fpath.x[self.f_idx], 'y:', fpath.y[self.f_idx], 'z:', fpath.z[self.f_idx])
             # print('x:', self.ego.get_location().x, 'y:', self.ego.get_location().y, 'z:', self.ego.get_location().z)
-            print(s)
+            # print(s)
             # print(100*'--')
 
             distance_traveled = s - self.init_s
@@ -223,7 +224,7 @@ class CarlaGymEnv(gym.Env):
         # self.state = np.array([0, 0], ndmin=2)
         self.world_module.reset()
         self.init_s = self.world_module.init_s
-        self.traffic_module.reset(self.init_s, self.world_module.init_d)
+        self.traffic_module.reset(self.init_s)
         self.motionPlanner.reset(self.init_s, self.world_module.init_d)
 
         self.n_step = 0  # initialize episode steps count
@@ -276,7 +277,6 @@ class CarlaGymEnv(gym.Env):
         # self.motionPlanner.reset(self.world_module.init_s, self.world_module.init_d)
 
         self.ego = self.world_module.hero_actor
-
         self.vehicleController = VehiclePIDController(self.ego)
         self.module_manager.tick()  # Update carla world
 

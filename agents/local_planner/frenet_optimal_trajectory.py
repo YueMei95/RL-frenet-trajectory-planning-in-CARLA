@@ -205,7 +205,7 @@ class FrenetPlanner:
         self.KLON = 1.0
 
         self.path = None    # current frenet path
-        self.ob = []        # n obstacles [[x1, y1], [x2, y2], ... ,[xn, yn]]
+        self.ob = []        # n obstacles [[x1, y1, z1], [x2, y2, z2], ... ,[xn, yn, zn]]
         self.csp = None     # cubic spline for global rout
         self.steps = 0      # planner steps
 
@@ -382,10 +382,8 @@ class FrenetPlanner:
         """
         if len(ob) == 0:
             return True
-        for i in range(len(ob[:, 0])):
-            d = [((ix - ob[i, 0]) ** 2 + (iy - ob[i, 1]) ** 2)
-                 for (ix, iy) in zip(fp.x, fp.y)]
-
+        for i in range(len(ob)):
+            d = [euclidean_distance([x, y, z], ob[i]) for (x, y, z) in zip(fp.x, fp.y, fp.z)]
             collision = any([di <= self.ROBOT_RADIUS ** 2 for di in d])
 
             if collision:

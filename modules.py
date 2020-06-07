@@ -875,7 +875,7 @@ class ModuleWorld:
         self.global_csp = None
         self.LANE_WIDTH = 3.5  # lane width [m]
         self.init_s = 50        # ego initial s location
-        self.init_d = 0         # ego initial lane number - int range: [-1, 2]
+        self.init_d = 0 * self.LANE_WIDTH         # ego initial lane number - int range: [-1, 2]  => change in reset function
         self.max_s = max_s
         self.track_length = track_length
 
@@ -1018,10 +1018,10 @@ class ModuleWorld:
     def reset(self):
         # Set ego transform
         self.init_s = np.random.uniform(50, self.max_s - self.track_length)     # ego initial s location
-        #  should be larger than 50. bc other actors will be spawned in range: s = [init_s-50, init_s+100]
+        #  should be larger than 50. bc other actors will be spawned in range: s = [init_s-50, init_s+150]
         #  should be smaller than max_s - track_length to have all tracks with the same length
-        init_lane = 0  # ego initial lane number - int range: [-1, 2]
-        self.init_d = init_lane * self.LANE_WIDTH
+
+        self.init_d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
         x, y, z, yaw = frenet_to_inertial(self.init_s, self.init_d, self.global_csp)
         z += 0.1
 
@@ -1600,7 +1600,7 @@ class TrafficManager:
         self.otherActorsControlBacth = []  # a list of control instances for each actors
 
         self.MAX_CARS = 10
-        self.N_INIT_CARS = self.MAX_CARS // 2   # number of cars at start
+        self.N_INIT_CARS = 10   # number of cars at start
         self.spawn_pobability = 0.5
         self.LANE_WIDTH = 3.5  # lane width [m]
         self.max_s = max_s
@@ -1608,6 +1608,9 @@ class TrafficManager:
 
     def update_global_route_csp(self, global_route_csp):
         self.global_csp = global_route_csp
+
+    def update_ego_s(self, s):
+        self.ego_s = s
 
     def spawn_one_actor(self, s, d):
         """
@@ -1635,6 +1638,9 @@ class TrafficManager:
             self.otherActorsControlBacth.append(CruiseControl(otherActor, self.module_manager, targetSpeed=20))
         return otherActor
 
+    def get_actors_location(self):
+        return [[cc.location.x, cc.location.y, cc.location.z] for cc in self.otherActorsControlBacth]
+
     def start(self):
         self.world_module = self.module_manager.get_module(MODULE_WORLD)
         self.world = self.world_module.world
@@ -1642,19 +1648,34 @@ class TrafficManager:
         blueprints = self.world.get_blueprint_library().filter('vehicle.*')
         self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
 
-    def reset(self, init_s, init_d):
+    def reset(self, ego_s):
         # self.spawn_one_actor(init_s + 50, init_d + self.LANE_WIDTH)
-        for _ in range(self.N_INIT_CARS):
-            d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
-            discrete_s = np.arange(init_s - 50, init_s + 100, 4)
-            s_idx = np.random.randint(0, len(discrete_s))
-            s = discrete_s[s_idx]
+        """
+        indices:
+        row   0   1  2  ... 19      <== col
+              ----------------
+        -1 |  0   4  8  ... 76
+         0 |  1   5  9  ... 77
+         1 |  2   6  10 ... 78
+         2 |  3   7  11 ... 79
+        """
+        rnd_indices = np.random.choice(79, self.N_INIT_CARS, replace=False)
+        for idx in rnd_indices:
+            col = idx // 4          # col number [0, 19]
+            lane = idx - col*4 - 1   # lane number [-1, 2]
+            d = lane * self.LANE_WIDTH
+            s = ego_s + col * 10 - 20   # -20 bc ego is on second column
             self.spawn_one_actor(s, d)
 
     def tick(self):
         # if np.random.uniform() <= self.spawn_pobability and len(self.otherActorsBacth) < self.MAX_CARS:
         #     d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
         #     self.spawn_one_actor(20, d)
+        # if len(self.otherActorsBacth) < self.MAX_CARS:
+        #     d = np.random.randint(-1, 3) * self.LANE_WIDTH
+        #     s = np.random.uniform(self.ego_s - 55, self.ego_s + 155) if self.ego_s + 155 <= self.max_s \
+        #         else np.random.uniform(self.ego_s - 55, self.max_s)
+        #     self.spawn_one_actor(s, d)
         for control in self.otherActorsControlBacth:
             control.tick()
 
@@ -1681,7 +1702,7 @@ class CruiseControl:
     def tick(self):
         self.steps += 1
         self.location = self.vehicle.get_location()
-        nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=10)[0]
+        nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=5)[0]
         targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
         control = self.vehicleController.run_step(self.targetSpeed, targetWP)
         self.vehicle.apply_control(control)

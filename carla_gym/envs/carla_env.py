@@ -4,16 +4,17 @@
 UCSC - ASL
 """
 
-MODULE_WORLD = 'WORLD'
-MODULE_HUD = 'HUD'
-MODULE_INPUT = 'INPUT'
-MODULE_CONTROL = 'CONTROL'
-
+import copy
 from modules import *
 import gym
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed
+
+MODULE_WORLD = 'WORLD'
+MODULE_HUD = 'HUD'
+MODULE_INPUT = 'INPUT'
+MODULE_TRAFFIC = 'TRAFFIC'
 
 
 def euclidean_distance(v1, v2):
@@ -24,34 +25,46 @@ class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
         self.__version__ = "9.6.0"
-        self.auto_render = False    # automatically render the environment
+
+        # simulation
+        self.auto_render = False  # automatically render the environment
         self.n_step = 0
-        self.global_route = []  # race waypoints (center lane)
-        self.min_idx = 0  # keep track of last closest idx in point cloud to reduce search space to find closest idx
-        self.max_idx_achieved = 0
-        self.max_idx = 1400  # max idx to finish the episode
-        self.LOS = 15  # line of sight, i.e. number of cloud points to interpolate road curvature
-        self.poly_deg = 3  # polynomial degree to fit the road curvature points
-        self.targetSpeed = 50  # km/h
+        try:
+            self.global_route = np.load('road_maps/global_route_town04.npy')  # track waypoints (center lane of the second lane from left)
+        except IOError:
+            self.global_route = None
+
+        # constraints
+        self.targetSpeed = 30  # km/h
         self.maxSpeed = 150
+        self.maxAcc = 24.7608  # km/h.s OR 6.878 m/s^2 for Tesla model 3
         self.maxCte = 3
         self.maxTheta = math.pi / 2
         self.maxJerk = 1.5e2
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
 
+        # frenet
         self.f_idx = 0
+        self.init_s = None              # initial frenet s value - will be updated in reset function
+        self.max_s = 3000            # max frenet s value available in global route
+        self.track_length = 500      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
 
-        self.low_state = np.append([-float('inf') for _ in range(self.poly_deg + 1)], [0, 0, -180, -180, -180])
-        self.high_state = np.append([float('inf') for _ in range(self.poly_deg + 1)], [self.maxSpeed, self.maxSpeed, 180, 180, 180])
+        # RL
+        self.low_state = np.array([-1, -1])
+        self.high_state = np.array([1, 1])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
-        action_low = np.array([-1])
-        action_high = np.array([1])
+        action_low = np.array([-1, -1])
+        action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
+
+        # instances
+        self.ego = None
         self.module_manager = None
         self.world_module = None
+        self.traffic_module = None
         self.hud_module = None
         self.input_module = None
         self.control_module = None
@@ -66,158 +79,110 @@ class CarlaGymEnv(gym.Env):
     def seed(self, seed=None):
         pass
 
-    def closest_point_cloud_index(self, ego_pos):
-        # find closest point in point cloud
-        min_dist = None
-        i = max(0, self.min_idx - 5)  # window size = 10
-        j = i + 10
-        min_idx = 0
-        for idx, point in enumerate(self.global_route[i:j]):
-            dist = euclidean_distance([ego_pos.x, ego_pos.y, ego_pos.z], [point.x, point.y, point.z])
-            if min_dist is None:
-                min_dist = dist
-            else:
-                if dist < min_dist:
-                    min_dist = dist
-                    min_idx = idx
-        self.min_idx = i + min_idx
-        if self.min_idx > self.max_idx_achieved:
-            self.max_idx_achieved = self.min_idx
-        return self.min_idx, min_dist
-
-    # This function needs to be optimized in terms of time complexity
-    # remove closest point add new one to end instead of calculation LOS points at every iteration
-    def update_curvature_points(self, ego_transform, close_could_idx, draw_points=False):
-        # transfer could points to body frame
-        psi = math.radians(ego_transform.rotation.yaw)
-        curvature_points = [
-            self.world_module.inertial_to_body_frame(self.global_route[i].x, self.global_route[i].y, psi)
-            for i in range(close_could_idx, close_could_idx + self.LOS)]
-
-        if draw_points:
-            for i, point in enumerate(curvature_points):
-                pi = self.world_module.body_to_inertial_frame(point[0], point[1], psi)
-                self.world_module.points_to_draw['curvature cloud {}'.format(i)] = carla.Location(x=pi[0], y=pi[1])
-
-        return curvature_points
-
-    def interpolate_road_curvature(self, ego_transform, draw_poly=False):
-        # find the index of the closest point cloud to the ego
-        idx, dist = self.closest_point_cloud_index(ego_transform.location)
-
-        # if len(self.point_cloud) - idx <= 50:
-        if idx >= self.max_idx:
-            track_finished = True
-        else:
-            track_finished = False
-
-        # update the curvature points window (points in body frame)
-        curvature_points = self.update_curvature_points(ego_transform, close_could_idx=idx, draw_points=False)
-
-        # fit a polynomial to the curvature points window
-        c = np.polyfit([p[0] for p in curvature_points], [p[1] for p in curvature_points], self.poly_deg)
-        # c: coefficients in decreasing power
-
-        if draw_poly:
-            poly = np.poly1d(c)
-            psi = math.radians(ego_transform.rotation.yaw)
-            for x in range(-15, 50, 1):
-                pi = self.world_module.body_to_inertial_frame(x, poly(x), psi)
-                self.world_module.points_to_draw['poly fit {}'.format(x)] = carla.Location(x=pi[0], y=pi[1])
-
-        return c, track_finished
-
     def step(self, action=None):
+        # self.ego.set_autopilot(enabled=True)
+        action = [0, 0]
         self.n_step += 1
+        track_finished = False
 
         """
                 **********************************************************************************************************************
                 *********************************************** Motion Planner *******************************************************
                 **********************************************************************************************************************
         """
-        target_speed = 30
-        change_lane = 0
-        if 1 <= self.motionPlanner.steps < 4:
-            change_lane = -1
-        elif 4 <= self.motionPlanner.steps < 5:
-            change_lane = 1
-
-        speed = get_speed(self.world_module.hero_actor)
-        acc_vec = self.world_module.hero_actor.get_acceleration()
+        speed = get_speed(self.ego)
+        acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
-
-        ego_state = [self.world_module.hero_actor.get_location().x, self.world_module.hero_actor.get_location().y, speed/3.6, acc]
-        fpath, fplist = self.motionPlanner.run_step(ego_state, self.f_idx, change_lane=change_lane, target_speed=target_speed/3.6)
-        # fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df=0, Tf=5, Vf=30/3.6)
+        psi = math.radians(self.ego.get_transform().rotation.yaw)
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi]
+        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
         wps_to_go = len(fpath.t) - 1
         self.f_idx = 0
 
+        speeds = []
+        accelerations = []
+        """
+                **********************************************************************************************************************
+                ************************************************* Controller *********************************************************
+                **********************************************************************************************************************
+        """
         for _ in range(wps_to_go):
             self.f_idx += 1
-            targetWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
-            targetSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
-            """
-                    **********************************************************************************************************************
-                    ************************************************* Controller *********************************************************
-                    **********************************************************************************************************************
-            """
-            control = self.vehicleController.run_step(targetSpeed, targetWP)  # calculate control
-            self.world_module.hero_actor.apply_control(control)               # apply control
+            cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
+            control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
+            self.ego.apply_control(control)               # apply control
+            # print(fpath.s[self.f_idx], self.ego.get_transform().rotation.yaw)
 
             """
                     **********************************************************************************************************************
                     *********************************************** Draw Waypoints *******************************************************
                     **********************************************************************************************************************
             """
-            # for j, path in enumerate(fplist):
+            # for j, path in enumerate(self.fplist):
             #     for i in range(len(path.t)):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
             for i in range(len(fpath.t)):
                 self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
-            self.world_module.points_to_draw['ego'] = [self.world_module.hero_actor.get_location(), 'COLOR_SCARLET_RED_0']
-            self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=targetWP[0], y=targetWP[1])
+            self.world_module.points_to_draw['ego'] = [self.ego.get_location(), 'COLOR_SCARLET_RED_0']
+            self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
 
             """
                     **********************************************************************************************************************
                     ************************************************ Update Carla ********************************************************
                     **********************************************************************************************************************
             """
+            speed_ = get_speed(self.ego)
+            self.traffic_module.update_ego_s(fpath.s[self.f_idx])
             self.module_manager.tick()  # Update carla world
             if self.auto_render:
                 self.render()
 
+            speed = get_speed(self.ego)
+            acc = (speed - speed_) / self.dt
+            speeds.append(speed)
+            accelerations.append(acc)
+            s, d = fpath.s[self.f_idx], fpath.d[self.f_idx]
+
+            # print('x:', fpath.x[self.f_idx], 'y:', fpath.y[self.f_idx], 'z:', fpath.z[self.f_idx])
+            # print('x:', self.ego.get_location().x, 'y:', self.ego.get_location().y, 'z:', self.ego.get_location().z)
+            # print(s)
+            # print(100*'--')
+
+            distance_traveled = s - self.init_s
+
+            if distance_traveled >= self.track_length:
+                track_finished = True
+                break
+            else:
+                track_finished = False
         """
                 *********************************************************************************************************************
                 *********************************************** RL Observation ******************************************************
                 *********************************************************************************************************************
         """
-        ego_transform = self.world_module.hero_actor.get_transform()
-        c, track_finished = self.interpolate_road_curvature(ego_transform, draw_poly=False)
-        w = self.world_module.hero_actor.get_angular_velocity()  # angular velocity
-        speed = get_speed(self.world_module.hero_actor)
-        self.state = np.append(c, [speed, self.targetSpeed, w.x, w.y, w.z])
+        meanSpeed = np.mean(speeds)
+        meanAcc = np.mean(accelerations)
+        speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
+        acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
+        self.state = np.array([speed_n, acc_n])
         # print(self.state)
-
+        # print(100 * '--')
         """
                 **********************************************************************************************************************
                 ********************************************* RL Reward Function *****************************************************
                 **********************************************************************************************************************
         """
-        cte = abs(c[-1])  # cross track error
-        theta = abs(math.atan(c[-2]))  # heading error wrt road curvature in radians. c[-2] is the slope
-        w_norm = math.sqrt(sum([w.x ** 2 + w.y ** 2 + w.z ** 2]))
-        w_cte = 10
-        r_cte = np.exp(-cte ** 2 / self.maxCte * w_cte) - 1
-        w_theta = 12
-        r_theta = np.exp(-theta ** 2 / self.maxTheta * w_theta) - 1
-        w_angVel = 1 / 5
-        r_angVel = np.exp(-w_norm ** 2 / self.maxAngVelNorm * w_angVel) - 1
-        w_speed = 1
+        w_speed = 10
+        w_acc = 1 / 2
         e_speed = abs(self.targetSpeed - speed)
-        r_speed = np.exp(-e_speed ** 2 / self.maxSpeed * w_speed) - 1
-        reward = (r_cte + r_theta + r_angVel + r_speed) / 4
-        # print(reward)
+        r_speed = np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
+        r_acc = np.exp(-abs(meanAcc) ** 2 / (2 * self.maxAcc) * w_acc) - 1  # -1<= r_acc <= 0
+        r_laneChange = -abs(action[0])  # -1<= r_laneChange <= 0
+        positives = r_speed
+        negatives = (r_acc + r_laneChange) / 2
+        reward = positives + negatives  # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
 
         """
@@ -227,53 +192,57 @@ class CarlaGymEnv(gym.Env):
         """
         done = False
         if track_finished:
-            print('Finished the race')
-            reward = 1000
-            # done = True
+            # print('Finished the race')
+            reward = 10
+            done = True
             self.eps_rew += reward
             # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if cte > self.maxCte:
-            reward = -100
-            # done = True
-            self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if theta > self.maxTheta:
-            reward = -100
-            # done = True
-            self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
-        if w_norm > self.maxAngVelNorm:
-            reward = -100
-            # done = True
-            self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
-            return self.state, reward, done, {'max index': self.max_idx_achieved}
+            return self.state, reward, done, {'reserved': 0}
+        # if cte > self.maxCte:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if theta > self.maxTheta:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if w_norm > self.maxAngVelNorm:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
-        return self.state, reward, done, {'max index': self.max_idx_achieved}
+        return self.state, reward, done, {'reserved': 0}
 
     def reset(self):
         # self.state = np.array([0, 0], ndmin=2)
-        # Set ego transform to its initial form
-        self.world_module.hero_actor.set_velocity(carla.Vector3D(x=0, y=-1, z=0))
-        self.world_module.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
-        self.world_module.hero_actor.set_transform(self.init_transform)
+        self.world_module.reset()
+        self.init_s = self.world_module.init_s
+        self.traffic_module.reset(self.init_s)
+        self.motionPlanner.reset(self.init_s, self.world_module.init_d)
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
-        self.min_idx = 0
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
+        self.module_manager.tick()
         return np.array(self.state)
 
     def begin_modules(self, args):
+        # define and register module instances
         self.module_manager = ModuleManager()
-        self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager)
+        width, height = [int(x) for x in args.carla_res.split('x')]
+        self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager,
+                                        width=width, height=height, max_s=self.max_s, track_length=self.track_length)
+        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, max_s=self.max_s, track_length=self.track_length)
         self.module_manager.register_module(self.world_module)
+        self.module_manager.register_module(self.traffic_module)
         if args.play_mode:
-            width, height = [int(x) for x in args.carla_res.split('x')]
             self.hud_module = ModuleHUD(MODULE_HUD, width, height, module_manager=self.module_manager)
             self.module_manager.register_module(self.hud_module)
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
@@ -284,27 +253,34 @@ class CarlaGymEnv(gym.Env):
         else:
             self.dt = 0.05
 
+        # generate and save global route if it does not exist in the road_maps folder
+        if self.global_route is None:
+            self.global_route = np.empty((0, 3))
+            distance = 1
+            for i in range(1520):
+                wp = self.world_module.town_map.get_waypoint(carla.Location(x=406, y=-100, z=0.1),
+                                                             project_to_road=True).next(distance=distance)[0]
+                distance += 2
+                self.global_route = np.append(self.global_route,
+                                              [[wp.transform.location.x, wp.transform.location.y, wp.transform.location.z]], axis=0)
+                # To visualize point clouds
+                self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
+            np.save('road_maps/global_route_town04', self.global_route)
+
+        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed / 3.6)
+
         # Start Modules
+        self.motionPlanner.start(self.global_route)
+        self.world_module.update_global_route_csp(self.motionPlanner.csp)
+        self.traffic_module.update_global_route_csp(self.motionPlanner.csp)
         self.module_manager.start_modules()
-        self.motionPlanner = MotionPlanner(dt=self.dt)
-        self.vehicleController = VehiclePIDController(self.world_module.hero_actor)
+        # self.motionPlanner.reset(self.world_module.init_s, self.world_module.init_d)
+
+        self.ego = self.world_module.hero_actor
+        self.vehicleController = VehiclePIDController(self.ego)
         self.module_manager.tick()  # Update carla world
 
-        self.init_transform = self.world_module.hero_actor.get_transform()
-
-        distance = 1
-        print('Spawn the actor in: ', self.world_module.hero_actor.get_location())
-
-        for i in range(1520):
-            wp = self.world_module.town_map.get_waypoint(self.world_module.hero_actor.get_location(),
-                                                         project_to_road=True).next(distance=distance)[0]
-            distance += 2
-            self.global_route.append(wp.transform.location)
-
-            # To visualize point clouds
-            # self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
-
-        self.motionPlanner.start([[p.x, p.y] for p in self.global_route])
+        self.init_transform = self.ego.get_transform()
 
     def enable_auto_render(self):
         self.auto_render = True

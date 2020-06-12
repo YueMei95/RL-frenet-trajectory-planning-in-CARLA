@@ -17,6 +17,7 @@ import copy
 import math
 from agents.local_planner import cubic_spline_planner
 
+
 def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
 
@@ -49,7 +50,7 @@ def update_frenet_coordinate(fpath, loc):
             min_idx = i
 
     if min_idx <= len(fpath.t) - 2:
-        min_idx += 2        # +2 because if next wp gets too close to the ego, lat controller oscillates
+        min_idx += 2  # +2 because if next wp gets too close to the ego, lat controller oscillates
 
     s, s_d, s_dd = fpath.s[min_idx], fpath.s_d[min_idx], fpath.s_dd[min_idx]
     d, d_d, d_dd = fpath.d[min_idx], fpath.d_d[min_idx], fpath.d_dd[min_idx]
@@ -180,7 +181,7 @@ class Frenet_path:
 
 
 class FrenetPlanner:
-    def __init__(self, dt, targetSpeed=30/3.6):
+    def __init__(self, dt, targetSpeed=30 / 3.6):
 
         self.dt = dt  # simulation time tick [s]
 
@@ -204,10 +205,10 @@ class FrenetPlanner:
         self.KLAT = 1.0
         self.KLON = 1.0
 
-        self.path = None    # current frenet path
-        self.ob = []        # n obstacles [[x1, y1, z1], [x2, y2, z2], ... ,[xn, yn, zn]]
-        self.csp = None     # cubic spline for global rout
-        self.steps = 0      # planner steps
+        self.path = None  # current frenet path
+        self.ob = []  # n obstacles [[x1, y1, z1], [x2, y2, z2], ... ,[xn, yn, zn]]
+        self.csp = None  # cubic spline for global rout
+        self.steps = 0  # planner steps
 
         self.targetSpeed = targetSpeed
 
@@ -374,6 +375,34 @@ class FrenetPlanner:
 
         return fplist
 
+    def calc_curvature_paths(self, fplist):
+        """
+        transform paths from frenet frame to inertial frame
+        input: path list
+        output: path list
+        """
+        for fp in fplist:
+
+            # find curvature
+            # source: http://www.kurims.kyoto-u.ac.jp/~kyodo/kokyuroku/contents/pdf/1111-16.pdf
+            # and https://math.stackexchange.com/questions/2507540/numerical-way-to-solve-for-the-curvature-of-a-curve
+            fp.c.append(0.0)
+            for i in range(1, len(fp.t) - 1):
+                a = np.hypot(fp.x[i - 1] - fp.x[i], fp.y[i - 1] - fp.y[i])
+                b = np.hypot(fp.x[i] - fp.x[i + 1], fp.y[i] - fp.y[i + 1])
+                c = np.hypot(fp.x[i + 1] - fp.x[i - 1], fp.y[i + 1] - fp.y[i - 1])
+
+                # Compute inverse radius of circle using surface of triangle (for which Heron's formula is used)
+                k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))) / 4  # Heron's formula for triangle's surface
+                den = a * b * c  # Denumerator; make sure there is no division by zero.
+                if den == 0.0:  # Very unlikely, but just to be sure
+                    fp.c.append(0.0)
+                else:
+                    fp.c.append(4 * k / den)
+            fp.c.append(0.0)
+
+        return fplist
+
     def check_collision(self, fp, ob):
         """
         check if a frenet path makes collision with obstacles
@@ -429,6 +458,7 @@ class FrenetPlanner:
 
         fplist = self.calc_frenet_paths(f_state, change_lane=change_lane, target_speed=target_speed)
         fplist = self.calc_global_paths(fplist)
+        fplist = self.calc_curvature_paths(fplist)
         fplist = self.check_paths(fplist)
 
         # find minimum cost path
@@ -445,11 +475,21 @@ class FrenetPlanner:
         self.steps = 0
         self.update_global_route(route)
 
-    def reset(self, s, d):
+    def reset(self, s, d, df_n=0, Tf=4, Vf_n=0, optimal_path=True):
         # module_world reset should be executed beforehand to update the initial s and d values
         f_state = [s, 0, 0, d, 0, 0]
-        best_path_idx, fplist = self.frenet_optimal_planning(f_state)
-        self.path = fplist[best_path_idx]
+
+        if optimal_path:
+            best_path_idx, fplist = self.frenet_optimal_planning(f_state)
+            self.path = fplist[best_path_idx]
+        else:
+            # convert action values from range (-1, 1) to the desired range
+            df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
+
+            speedRange = 10 / 3.6
+            Vf = Vf_n * speedRange + self.targetSpeed
+
+            self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)
 
     def run_step(self, ego_state, idx, change_lane=0, target_speed=30 / 3.6):
         """
@@ -476,10 +516,10 @@ class FrenetPlanner:
 
         # convert action values from range (-1, 1) to the desired range
         d = self.path.d[idx]
-        df = np.clip(np.round(df_n)*self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
+        df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
 
-        speedRange = 10/3.6
-        Vf = Vf_n*speedRange + self.targetSpeed
+        speedRange = 10 / 3.6
+        Vf = Vf_n * speedRange + self.targetSpeed
 
         f_state = self.estimate_frenet_state(ego_state, idx)
 

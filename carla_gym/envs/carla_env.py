@@ -81,7 +81,7 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         # self.ego.set_autopilot(enabled=True)
-        action = [0, 0]
+        print(action)
         self.n_step += 1
         track_finished = False
 
@@ -225,7 +225,7 @@ class CarlaGymEnv(gym.Env):
         self.world_module.reset()
         self.init_s = self.world_module.init_s
         self.traffic_module.reset(self.init_s)
-        self.motionPlanner.reset(self.init_s, self.world_module.init_d)
+        self.motionPlanner.reset(self.init_s, self.world_module.init_d, df_n=0, Tf=4, Vf_n=0, optimal_path=False)
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0

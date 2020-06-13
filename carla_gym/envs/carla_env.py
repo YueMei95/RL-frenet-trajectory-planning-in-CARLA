@@ -47,7 +47,7 @@ class CarlaGymEnv(gym.Env):
         self.f_idx = 0
         self.init_s = None              # initial frenet s value - will be updated in reset function
         self.max_s = 3000            # max frenet s value available in global route
-        self.track_length = 500      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
+        self.track_length = 100      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -81,7 +81,6 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         # self.ego.set_autopilot(enabled=True)
-        print(action)
         self.n_step += 1
         track_finished = False
 
@@ -226,6 +225,7 @@ class CarlaGymEnv(gym.Env):
         self.init_s = self.world_module.init_s
         self.traffic_module.reset(self.init_s)
         self.motionPlanner.reset(self.init_s, self.world_module.init_d, df_n=0, Tf=4, Vf_n=0, optimal_path=False)
+        self.f_idx = 0
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0

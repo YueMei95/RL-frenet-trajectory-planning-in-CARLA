@@ -1612,7 +1612,7 @@ class TrafficManager:
     def update_ego_s(self, s):
         self.ego_s = s
 
-    def spawn_one_actor(self, s, d):
+    def spawn_one_actor(self, s, d, lane):
         """
         Spawn an actor on the main road based on the frenet s and d values
         """
@@ -1635,7 +1635,7 @@ class TrafficManager:
             otherActor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
             otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
             self.otherActorsBacth.append(otherActor)
-            self.otherActorsControlBacth.append(CruiseControl(otherActor, self.module_manager, targetSpeed=20))
+            self.otherActorsControlBacth.append(CruiseControl(otherActor, lane, self.module_manager, targetSpeed=20))
         return otherActor
 
     def get_actors_location(self):
@@ -1649,7 +1649,6 @@ class TrafficManager:
         self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
 
     def reset(self, ego_s):
-        # self.spawn_one_actor(init_s + 50, init_d + self.LANE_WIDTH)
         """
         indices:
         row   0   1  2  ... 19      <== col
@@ -1658,14 +1657,29 @@ class TrafficManager:
          0 |  1   5  9  ... 77
          1 |  2   6  10 ... 78
          2 |  3   7  11 ... 79
+         grid width = Lane width = 3.5 (m)
+         grid length = 10 (m)
+         ego col = 2
+         ego row/lane = randomly initialized
         """
+
+        # remove actors
+        for actor in self.otherActorsBacth:
+            actor.destroy()
+
+        # delete class instances and re-initialize lists
+        del self.otherActorsBacth[:]
+        del self.otherActorsControlBacth[:]
+
+        # re-spawn N_INIT_CARS of actors
+        # It's possible for an actor to be be spawned at the ego location, in that case, try_spawn_actor will skip this actor.
         rnd_indices = np.random.choice(79, self.N_INIT_CARS, replace=False)
         for idx in rnd_indices:
             col = idx // 4          # col number [0, 19]
             lane = idx - col*4 - 1   # lane number [-1, 2]
             d = lane * self.LANE_WIDTH
             s = ego_s + col * 10 - 20   # -20 bc ego is on second column
-            self.spawn_one_actor(s, d)
+            self.spawn_one_actor(s, d, lane)
 
     def tick(self):
         # if np.random.uniform() <= self.spawn_pobability and len(self.otherActorsBacth) < self.MAX_CARS:
@@ -1686,8 +1700,9 @@ class TrafficManager:
 
 
 class CruiseControl:
-    def __init__(self, vehicle, module_manager, targetSpeed=50):
+    def __init__(self, vehicle, lane, module_manager, targetSpeed=50):
         self.vehicle = vehicle  # Carla instance for the vehicle
+        self.lane = lane
         self.module_manager = module_manager
         self.targetSpeed = targetSpeed
         self.world = self.module_manager.get_module(MODULE_WORLD)

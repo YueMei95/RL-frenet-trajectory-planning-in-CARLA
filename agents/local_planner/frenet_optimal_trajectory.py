@@ -355,24 +355,6 @@ class FrenetPlanner:
                 fp.y.append(fy)
                 fp.z.append(fz)
 
-            # find curvature
-            # source: http://www.kurims.kyoto-u.ac.jp/~kyodo/kokyuroku/contents/pdf/1111-16.pdf
-            # and https://math.stackexchange.com/questions/2507540/numerical-way-to-solve-for-the-curvature-of-a-curve
-            fp.c.append(0.0)
-            for i in range(1, len(fp.t) - 1):
-                a = np.hypot(fp.x[i - 1] - fp.x[i], fp.y[i - 1] - fp.y[i])
-                b = np.hypot(fp.x[i] - fp.x[i + 1], fp.y[i] - fp.y[i + 1])
-                c = np.hypot(fp.x[i + 1] - fp.x[i - 1], fp.y[i + 1] - fp.y[i - 1])
-
-                # Compute inverse radius of circle using surface of triangle (for which Heron's formula is used)
-                k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))) / 4  # Heron's formula for triangle's surface
-                den = a * b * c  # Denumerator; make sure there is no division by zero.
-                if den == 0.0:  # Very unlikely, but just to be sure
-                    fp.c.append(0.0)
-                else:
-                    fp.c.append(4 * k / den)
-            fp.c.append(0.0)
-
         return fplist
 
     def calc_curvature_paths(self, fplist):

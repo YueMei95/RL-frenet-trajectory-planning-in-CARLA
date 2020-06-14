@@ -31,7 +31,7 @@ Welcome to CARLA No-Rendering Mode Visualizer
 """
 
 # ==============================================================================
-# -- find carla module ---------------------------------------------------------
+# -- imports -------------------------------------------------------------------
 # ==============================================================================
 
 import glob
@@ -46,10 +46,6 @@ try:
 except IndexError:
     pass
 
-# ==============================================================================
-# -- imports -------------------------------------------------------------------
-# ==============================================================================
-
 import carla
 from carla import TrafficLightState as tls
 
@@ -59,6 +55,7 @@ import datetime
 import weakref
 import math
 import random
+import collections
 
 from carla import ColorConverter as cc
 
@@ -855,6 +852,11 @@ class ModuleWorld:
         self.hero_actor = None
         self.hero_transform = None
 
+        # sensors
+        self.camera_manager = None
+        self.collision_sensor = None
+        self.collision_hist = None
+
         self.scale_offset = [0, 0]
 
         self.vehicle_id_surface = None
@@ -881,6 +883,9 @@ class ModuleWorld:
 
     def update_global_route_csp(self, global_route_csp):
         self.global_csp = global_route_csp
+
+    def get_collision_history(self):
+        return self.collision_hist
 
     def inertial_to_body_frame(self, xi, yi, psi):
         Xi = np.array([xi, yi])  # inertial frame
@@ -1010,12 +1015,18 @@ class ModuleWorld:
 
         self.hero_transform = self.hero_actor.get_transform()
 
+        # collision sensor
+        self.collision_sensor = CollisionSensor(self.hero_actor)
+
         # self.camera_manager = CameraManager(self.spawned_hero, self.module_hud.dim[0], self.module_hud.dim[1])
         if self.args.play_mode == 2:
             self.camera_manager = CameraManager(self.hero_actor, 1280, 720)
             self.camera_manager.set_sensor()
 
     def reset(self):
+        # remove collision history
+        self.collision_sensor.reset()
+
         # Set ego transform
         self.init_s = np.random.uniform(50, self.max_s - self.track_length)     # ego initial s location
         #  should be larger than 50. bc other actors will be spawned in range: s = [init_s-50, init_s+150]
@@ -1039,6 +1050,7 @@ class ModuleWorld:
         if self.args.play_mode:
             self.update_hud_info(self.clock)
         self.world.tick()
+        self.collision_hist = self.collision_sensor.get_collision_history()
 
     def update_hud_info(self, clock):
         hero_mode_text = []
@@ -1454,6 +1466,36 @@ class CameraManager(object):
 
 
 # ==============================================================================
+# -- Collision Sensor ----------------------------------------------------------
+# ==============================================================================
+
+class CollisionSensor(object):
+    def __init__(self, parent_actor):
+        self.sensor = None
+        self.history = []
+        self._parent = parent_actor
+        world = self._parent.get_world()
+        bp = world.get_blueprint_library().find('sensor.other.collision')
+        self.sensor = world.spawn_actor(bp, carla.Transform(), attach_to=self._parent)
+        # We need to pass the lambda a weak reference to self to avoid circular
+        # reference.
+        weak_self = weakref.ref(self)
+        self.sensor.listen(lambda event: CollisionSensor._on_collision(weak_self, event))
+
+    def reset(self):
+        self.history = []
+
+    def get_collision_history(self):
+        return self.history
+
+    @staticmethod
+    def _on_collision(weak_self, event):
+        self = weak_self()
+        if not self:
+            return
+        self.history.append(True)
+
+# ==============================================================================
 # -- Input --------------------------------------------------------------------
 # ==============================================================================
 
@@ -1662,7 +1704,6 @@ class TrafficManager:
          ego col = 2
          ego row/lane = randomly initialized
         """
-
         # remove actors
         for actor in self.otherActorsBacth:
             actor.destroy()

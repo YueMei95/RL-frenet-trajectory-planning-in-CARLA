@@ -105,6 +105,8 @@ class CarlaGymEnv(gym.Env):
                 ************************************************* Controller *********************************************************
                 **********************************************************************************************************************
         """
+        # initialize flags
+        collision = track_finished = False
         for _ in range(wps_to_go):
             self.f_idx += 1
             cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
@@ -138,6 +140,8 @@ class CarlaGymEnv(gym.Env):
             if self.auto_render:
                 self.render()
 
+            collision_hist = self.world_module.get_collision_history()
+
             speed = get_speed(self.ego)
             acc = (speed - speed_) / self.dt
             speeds.append(speed)
@@ -149,13 +153,15 @@ class CarlaGymEnv(gym.Env):
             # print(s)
             # print(100*'--')
 
-            distance_traveled = s - self.init_s
+            # loop breakers:
+            if any(collision_hist):
+                collision = True
+                break
 
+            distance_traveled = s - self.init_s
             if distance_traveled >= self.track_length:
                 track_finished = True
                 break
-            else:
-                track_finished = False
         """
                 *********************************************************************************************************************
                 *********************************************** RL Observation ******************************************************
@@ -190,6 +196,13 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         done = False
+        if collision:
+            # print('Collision happened!')
+            reward = -10
+            done = True
+            self.eps_rew += reward
+            # print(self.n_step, self.eps_rew)
+            return self.state, reward, done, {'reserved': 0}
         if track_finished:
             # print('Finished the race')
             reward = 10

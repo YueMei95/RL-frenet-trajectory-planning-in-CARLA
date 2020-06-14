@@ -28,6 +28,16 @@ python3 client_controller.py -s 45 -cont pd -rep log_test
 
 ===================================================================================================
 
+### Use pre-compiled carla versions - Example for CARLA 9.9.2
+1. Download the pre-compiled CARLA simulator from [CARLA releases page](https://github.com/carla-simulator/carla/releases)
+2. Now you can run this version using ./CarlaUE4.sh command
+3. Create a virtual Python environemnt, e.g. using conda create -n carla99, and activate the environment, i.e. conda activate carla99
+4. If easy_install is not installed already, run this: sudo apt-get install python-setuptools
+5. Navigate to PythonAPI/carla/dist
+6. Install carla as a python package into your virtual environment ([get help](https://carla.readthedocs.io/en/latest/build_system/)): easy_install --user --no-deps carla-X.X.X-py3.7-linux-x86_64.egg
+
+Now you may import carla in your python script.
+
 Player:
 https://carla.readthedocs.io/en/latest/python_api_tutorial/#spawning-actors
 

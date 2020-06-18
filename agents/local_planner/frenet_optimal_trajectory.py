@@ -239,7 +239,7 @@ class FrenetPlanner:
         # Frenet state estimation [s, s_d, s_dd, d, d_d, d_dd]
         f_state = [self.path.s[idx], self.path.s_d[idx], self.path.s_dd[idx],
                    self.path.d[idx], self.path.d_d[idx], self.path.d_dd[idx]]
-        return f_state
+
         # update_frenet_coordinate(self.path, ego_state[:2])
 
         def normalize(vector):
@@ -259,21 +259,27 @@ class FrenetPlanner:
         angle = np.arccos(np.dot(s_norm, v1_norm))
         delta_s = -np.sin(angle) * magnitude(v1)
         d = np.cos(angle) * magnitude(v1)
-        #print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
-        #print("d_ego:{}, d:{}".format(f_state[3], d))
+        print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
+        print("d_ego:{}, d:{}".format(f_state[3], d))
 
         s_yaw = self.csp.calc_yaw(f_state[0] + delta_s)
-        s_d = np.cos(ego_yaw - s_yaw) * ego_state[2]
-        d_d = np.sin(ego_yaw - s_yaw) * ego_state[2]
-        angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
-        s_dd = np.cos(angle_acc) * ego_state[3]
-        d_dd = np.sin(angle_acc) * ego_state[3]
+        s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
+        angle_vel = np.arccos(np.dot(normalize([ego_state[5][0].x, ego_state[5][0].y]), s_norm))
+        #s_d = np.cos(ego_yaw - s_yaw) * ego_state[2]
+        #d_d = np.sin(ego_yaw - s_yaw) * ego_state[2]
+        s_d = np.sin(angle_vel) * ego_state[2]
+        d_d = np.cos(angle_vel) * ego_state[2]
 
-        #print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
+        #angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
+        #s_dd = np.sin(angle_acc) * ego_state[3]
+        #d_dd = np.cos(angle_acc) * ego_state[3]
+
+        print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
         #print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
+        #print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
         f_state[0], f_state[3] = f_state[0] + delta_s, d
         f_state[1], f_state[4] = s_d, d_d
-        f_state[2] = s_dd
+        #f_state[2] = s_dd
         #f_state[5] = d_dd
 
         # Update frenet state estimation when distance error gets large (option 2: re-initialize the planner)
@@ -519,7 +525,7 @@ class FrenetPlanner:
         """
         self.steps += 1
         # t0 = time.time()
-        change_lane = 1
+        
         f_state = self.estimate_frenet_state(ego_state, idx)
 
         # Frenet motion planning

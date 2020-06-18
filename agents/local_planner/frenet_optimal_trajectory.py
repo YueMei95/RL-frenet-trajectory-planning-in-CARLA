@@ -239,8 +239,45 @@ class FrenetPlanner:
         # Frenet state estimation [s, s_d, s_dd, d, d_d, d_dd]
         f_state = [self.path.s[idx], self.path.s_d[idx], self.path.s_dd[idx],
                    self.path.d[idx], self.path.d_d[idx], self.path.d_dd[idx]]
+        return f_state
+        # update_frenet_coordinate(self.path, ego_state[:2])
+
+        def normalize(vector):
+            if sum(vector) == 0:
+                return [0 for _ in range(len(vector))]
+            return vector / np.sqrt(sum([n ** 2 for n in vector]))
+
+        def magnitude(vector):
+            return np.sqrt(sum([n ** 2 for n in vector]))
+
+        s_yaw = self.csp.calc_yaw(self.path.s[idx])
+        s_x, s_y, s_z = self.csp.calc_position(self.path.s[idx])
+        ego_yaw = ego_state[4]
+        s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
+        v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
+        v1_norm = normalize(v1)
+        angle = np.arccos(np.dot(s_norm, v1_norm))
+        delta_s = -np.sin(angle) * magnitude(v1)
+        d = np.cos(angle) * magnitude(v1)
+        #print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
+        #print("d_ego:{}, d:{}".format(f_state[3], d))
+
+        s_yaw = self.csp.calc_yaw(f_state[0] + delta_s)
+        s_d = np.cos(ego_yaw - s_yaw) * ego_state[2]
+        d_d = np.sin(ego_yaw - s_yaw) * ego_state[2]
+        angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
+        s_dd = np.cos(angle_acc) * ego_state[3]
+        d_dd = np.sin(angle_acc) * ego_state[3]
+
+        #print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
+        #print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
+        f_state[0], f_state[3] = f_state[0] + delta_s, d
+        f_state[1], f_state[4] = s_d, d_d
+        f_state[2] = s_dd
+        #f_state[5] = d_dd
 
         # Update frenet state estimation when distance error gets large (option 2: re-initialize the planner)
+        """
         e = euclidean_distance(ego_state[0:2], [self.path.x[idx], self.path.y[idx]])
         if e > self.MAX_DIST_ERR:
             s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
@@ -248,6 +285,7 @@ class FrenetPlanner:
             f_state = [s, s_d, s_dd, d, d_d, d_dd]
         # f_state[1:3] = ego_state[2:]
         # f_state[1] = ego_state[2]
+        """
         return f_state
 
     def generate_single_frenet_path(self, f_state, df=0, Tf=4, Vf=30 / 3.6):
@@ -307,7 +345,8 @@ class FrenetPlanner:
                     fp.d_ddd.append(lat_qp.calc_third_derivative(t))
 
                 # Longitudinal motion planning (Velocity keeping)
-                for tv in np.arange(target_speed - self.D_T_S * self.N_S_SAMPLE, target_speed + self.D_T_S * self.N_S_SAMPLE, self.D_T_S):
+                for tv in np.arange(target_speed - self.D_T_S * self.N_S_SAMPLE,
+                                    target_speed + self.D_T_S * self.N_S_SAMPLE, self.D_T_S):
                     tfp = copy.deepcopy(fp)
                     tfp.id = path_id
                     path_id += 1
@@ -375,7 +414,8 @@ class FrenetPlanner:
                 c = np.hypot(fp.x[i + 1] - fp.x[i - 1], fp.y[i + 1] - fp.y[i - 1])
 
                 # Compute inverse radius of circle using surface of triangle (for which Heron's formula is used)
-                k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))) / 4  # Heron's formula for triangle's surface
+                k = np.sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (
+                        a + (b - c))) / 4  # Heron's formula for triangle's surface
                 den = a * b * c  # Denumerator; make sure there is no division by zero.
                 if den == 0.0:  # Very unlikely, but just to be sure
                     fp.c.append(0.0)
@@ -479,11 +519,12 @@ class FrenetPlanner:
         """
         self.steps += 1
         # t0 = time.time()
-
+        change_lane = 1
         f_state = self.estimate_frenet_state(ego_state, idx)
 
         # Frenet motion planning
-        best_path_idx, fplist = self.frenet_optimal_planning(f_state, change_lane=change_lane, target_speed=target_speed)
+        best_path_idx, fplist = self.frenet_optimal_planning(f_state, change_lane=change_lane,
+                                                             target_speed=target_speed)
         self.path = fplist[best_path_idx]
         # print('trajectory planning time: {} s'.format(time.time() - t0))
         return self.path, fplist

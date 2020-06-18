@@ -1183,8 +1183,8 @@ class ModuleWorld:
         self.world.tick()
         self.collision_hist = self.collision_sensor.get_collision_history()
         los_dis = self.los_sensor.get_los_distance()
-        if los_dis is not None:
-            print(los_dis)
+        #if los_dis is not None:
+        #    print(los_dis)
 
     def update_hud_info(self, clock):
         hero_mode_text = []
@@ -1666,7 +1666,7 @@ class TrafficManager:
         if self.global_csp is None:
             return
         x, y, z, yaw = frenet_to_inertial(s, d, self.global_csp)
-        
+
         blueprint = random.choice(self.blueprints)
         if blueprint.has_attribute('color'):
             color = random.choice(blueprint.get_attribute('color').recommended_values)

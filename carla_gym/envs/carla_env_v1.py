@@ -90,14 +90,18 @@ class CarlaGymEnv(gym.Env):
                 *********************************************** Motion Planner *******************************************************
                 **********************************************************************************************************************
         """
+        temp = [self.ego.get_velocity(), self.ego.get_acceleration()]
+
         speed = get_speed(self.ego)
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
-        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi]
-        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
-        wps_to_go = len(fpath.t) - 1
-        self.f_idx = 0
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi,temp]
+        #fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
+
+        fpath = self.motionPlanner.run_step(ego_state, self.f_idx)[0]
+        wps_to_go = len(fpath.t) - 2
+        self.f_idx = 1
 
         speeds = []
         accelerations = []

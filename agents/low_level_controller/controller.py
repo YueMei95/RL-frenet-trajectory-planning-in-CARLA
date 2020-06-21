@@ -18,6 +18,10 @@ import carla
 from agents.tools.misc import get_speed
 
 
+def euclidean_distance(v1, v2):
+    return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
+
+
 class VehiclePIDController:
     """
     VehiclePIDController is the combination of two PID controllers (lateral and longitudinal) to perform the
@@ -216,6 +220,39 @@ class PIDCrossTrackController:
             _de = 0.0
             _ie = 0.0
 
-        print(cte)
         return np.clip((self.params['K_P'] * cte) + (self.params['K_D'] * _de / self.params['dt'])
                        + (self.params['K_I'] * _ie * self.params['dt']), -0.5, 0.5)
+
+
+class IntelligentDriverModel:
+    """
+    Intelligent Driver Model (Cruise Control)
+    https://arxiv.org/pdf/1909.11538.pdf
+    """
+
+    def __init__(self, ego, dt):
+        self.ego = ego
+        self.a_max = 4
+        self.delta = 1
+        self.T = 1.6
+        self.d0 = 2
+        self.b = 1.7
+        self.dt = dt
+
+    def run_step(self, vd, vehicle_ahead):
+        v = get_speed(self.ego)/3.6
+        if vehicle_ahead is None:
+            acc_cmd = self.a_max * (1 - (v / vd)**self.delta)
+            cmdSpeed = get_speed(self.ego) / 3.6 + acc_cmd * self.dt
+        else:
+            loc1 = [vehicle_ahead.get_location().x, vehicle_ahead.get_location().y, vehicle_ahead.get_location().z]
+            loc2 = [self.ego.get_location().x, self.ego.get_location().y, self.ego.get_location().z]
+            d = euclidean_distance(loc1, loc2)
+            v2 = get_speed(vehicle_ahead)/3.6
+            dv = abs(v2-v)
+
+            d_star = self.d0 + v*self.T + v*dv/(2*math.sqrt(self.b*self.a_max))
+
+            acc_cmd = self.a_max * (1 - (v / vd)**self.delta - (d_star/d)**2)
+            cmdSpeed = get_speed(self.ego) / 3.6 + acc_cmd * self.dt
+        return cmdSpeed * 3.6

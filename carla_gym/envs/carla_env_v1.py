@@ -47,7 +47,7 @@ class CarlaGymEnv(gym.Env):
         self.f_idx = 0
         self.init_s = None              # initial frenet s value - will be updated in reset function
         self.max_s = 3000            # max frenet s value available in global route
-        self.track_length = 500      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
+        self.track_length = 100      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -96,7 +96,7 @@ class CarlaGymEnv(gym.Env):
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
-        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi,temp]
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi, temp]
         #fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
 
         fpath = self.motionPlanner.run_step(ego_state, self.f_idx)[0]

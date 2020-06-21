@@ -61,7 +61,9 @@ from carla import ColorConverter as cc
 
 # from operator import itemgetter
 from agents.low_level_controller.controller import VehiclePIDController
+from agents.low_level_controller.controller import IntelligentDriverModel
 from agents.local_planner.frenet_optimal_trajectory import frenet_to_inertial
+from agents.tools.misc import get_speed
 
 try:
     import pygame
@@ -233,6 +235,7 @@ class ModuleManager:
         self.clear_modules()
         pygame.quit()
         sys.exit()
+
 
 # ==============================================================================
 # -- Input --------------------------------------------------------------------
@@ -1005,8 +1008,8 @@ class ModuleWorld:
         self.points_to_draw = {}  # add waypoints to this dictionary to visualize them in Pygame
         self.global_csp = None
         self.LANE_WIDTH = 3.5  # lane width [m]
-        self.init_s = 50        # ego initial s location
-        self.init_d = 0 * self.LANE_WIDTH         # ego initial lane number - int range: [-1, 2]  => change in reset function
+        self.init_s = 50  # ego initial s location
+        self.init_d = 0 * self.LANE_WIDTH  # ego initial lane number - int range: [-1, 2]  => change in reset function
         self.max_s = max_s
         self.track_length = track_length
 
@@ -1159,7 +1162,7 @@ class ModuleWorld:
         self.los_sensor.reset()
 
         # Set ego transform
-        self.init_s = np.random.uniform(50, self.max_s - self.track_length)     # ego initial s location
+        self.init_s = np.random.uniform(50, self.max_s - self.track_length)  # ego initial s location
         #  should be larger than 50. bc other actors will be spawned in range: s = [init_s-50, init_s+150]
         #  should be smaller than max_s - track_length to have all tracks with the same length
 
@@ -1182,9 +1185,6 @@ class ModuleWorld:
             self.update_hud_info(self.clock)
         self.world.tick()
         self.collision_hist = self.collision_sensor.get_collision_history()
-        los_dis = self.los_sensor.get_los_distance()
-        #if los_dis is not None:
-        #    print(los_dis)
 
     def update_hud_info(self, clock):
         hero_mode_text = []
@@ -1647,7 +1647,7 @@ class TrafficManager:
         self.otherActorsControlBacth = []  # a list of control instances for each actors
 
         self.MAX_CARS = 10
-        self.N_INIT_CARS = 10   # number of cars at start
+        self.N_INIT_CARS = 10  # number of cars at start
         self.spawn_pobability = 0.5
         self.LANE_WIDTH = 3.5  # lane width [m]
         self.max_s = max_s
@@ -1659,12 +1659,14 @@ class TrafficManager:
     def update_ego_s(self, s):
         self.ego_s = s
 
-    def spawn_one_actor(self, s, d, lane):
+    def spawn_one_actor(self, s, lane, targetSpeed):
         """
         Spawn an actor on the main road based on the frenet s and d values
         """
         if self.global_csp is None:
             return
+
+        d = lane * self.LANE_WIDTH
         x, y, z, yaw = frenet_to_inertial(s, d, self.global_csp)
 
         blueprint = random.choice(self.blueprints)
@@ -1672,17 +1674,20 @@ class TrafficManager:
             color = random.choice(blueprint.get_attribute('color').recommended_values)
             blueprint.set_attribute('color', color)
 
-        transform = carla.Transform(location=carla.Location(x=x, y=y, z=z+0.1), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
+        transform = carla.Transform(location=carla.Location(x=x, y=y, z=z + 0.3), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
 
         otherActor = self.world.try_spawn_actor(blueprint, transform)
 
         # otherActor.set_transform(transform)
         if otherActor is not None:
+            # create a line of sight sensor attached to the vehicle
+            los_sensor = LineOfSightSensor(otherActor)
             otherActor.set_autopilot(False)
             otherActor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
             otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
-            self.otherActorsBacth.append(otherActor)
-            self.otherActorsControlBacth.append(CruiseControl(otherActor, lane, self.module_manager, targetSpeed=20))
+            # keep actors and sensors to destroy them when an episode is finished
+            self.otherActorsBacth.append([otherActor, los_sensor])
+            self.otherActorsControlBacth.append(CruiseControl(otherActor, los_sensor, lane, self.module_manager, targetSpeed=targetSpeed))
         return otherActor
 
     def get_actors_location(self):
@@ -1709,9 +1714,10 @@ class TrafficManager:
          ego col = 2
          ego row/lane = randomly initialized
         """
-        # remove actors
-        for actor in self.otherActorsBacth:
+        # remove actors and sensors
+        for actor, sensor in self.otherActorsBacth:
             actor.destroy()
+            sensor.destroy()
 
         # delete class instances and re-initialize lists
         del self.otherActorsBacth[:]
@@ -1721,11 +1727,17 @@ class TrafficManager:
         # It's possible for an actor to be be spawned at the ego location, in that case, try_spawn_actor will skip this actor.
         rnd_indices = np.random.choice(79, self.N_INIT_CARS, replace=False)
         for idx in rnd_indices:
-            col = idx // 4          # col number [0, 19]
-            lane = idx - col*4 - 1   # lane number [-1, 2]
-            d = lane * self.LANE_WIDTH
-            s = ego_s + col * 10 - 20   # -20 bc ego is on second column
-            self.spawn_one_actor(s, d, lane)
+            col = idx // 4  # col number [0, 19]
+            lane = idx - col * 4 - 1  # lane number [-1, 2]
+            s = ego_s + col * 10 - 20  # -20 bc ego is on second column
+            targetSpeed = random.uniform(20, 50)
+            self.spawn_one_actor(s, lane, targetSpeed)
+
+    def destroy(self):
+        # remove actors and sensors
+        for actor, sensor in self.otherActorsBacth:
+            actor.destroy()
+            sensor.destroy()
 
     def tick(self):
         # if np.random.uniform() <= self.spawn_pobability and len(self.otherActorsBacth) < self.MAX_CARS:
@@ -1746,7 +1758,7 @@ class LineOfSightSensor(object):
         self.distance = None
         self.vehicle_ahead = None
         self._parent = parent_actor
-        self.sensor_transform = carla.Transform(carla.Location(x=4, z=1.7), carla.Rotation(yaw=0)) # Put this sensor on the windshield of the car.
+        # self.sensor_transform = carla.Transform(carla.Location(x=4, z=1.7), carla.Rotation(yaw=0)) # Put this sensor on the windshield of the car.
         world = self._parent.get_world()
         bp = world.get_blueprint_library().find('sensor.other.obstacle')
         bp.set_attribute('distance', '200')
@@ -1754,7 +1766,7 @@ class LineOfSightSensor(object):
         bp.set_attribute('only_dynamics', 'True')
         bp.set_attribute('debug_linetrace', 'True')
         bp.set_attribute('sensor_tick', '0.0')
-        self.sensor = world.spawn_actor(bp, self.sensor_transform, attach_to=self._parent)
+        self.sensor = world.spawn_actor(bp, carla.Transform(), attach_to=self._parent)
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: LineOfSightSensor._on_los(weak_self, event))
 
@@ -1762,10 +1774,13 @@ class LineOfSightSensor(object):
         self.vehicle_ahead = None
         self.distance = None
 
+    def destroy(self):
+        self.sensor.destroy()
+
     def get_vehicle_ahead(self):
         return self.vehicle_ahead
 
-    # does not work in CARLA 9.5! => this may will get fixed in higher versions, check back then.
+    # Only works for CARLA 9.6 and above!
     def get_los_distance(self):
         return self.distance
 
@@ -1784,8 +1799,9 @@ class LineOfSightSensor(object):
 
 
 class CruiseControl:
-    def __init__(self, vehicle, lane, module_manager, targetSpeed=50):
+    def __init__(self, vehicle, los_sensor, lane, module_manager, targetSpeed=50):
         self.vehicle = vehicle  # Carla instance for the vehicle
+        self.id = self.vehicle.id
         self.lane = lane
         self.module_manager = module_manager
         self.targetSpeed = targetSpeed
@@ -1796,12 +1812,23 @@ class CruiseControl:
         else:  # if world is variable timestep
             self.dt = 0.05
         self.vehicleController = VehiclePIDController(self.vehicle)
+        self.IDM = IntelligentDriverModel(self.vehicle, self.dt)
+
+        self.los_sensor = los_sensor
+
         self.location = self.vehicle.get_location()
+        self.speed = get_speed(self.vehicle)
 
     def tick(self):
         self.steps += 1
         self.location = self.vehicle.get_location()
+        self.speed = get_speed(self.vehicle)
+
         nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=5)[0]
         targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-        control = self.vehicleController.run_step(self.targetSpeed, targetWP)
+
+        vehicle_ahead = self.los_sensor.get_vehicle_ahead()
+        cmdSpeed = self.IDM.run_step(vd=self.targetSpeed / 3.6, vehicle_ahead=vehicle_ahead)
+
+        control = self.vehicleController.run_step(cmdSpeed, targetWP)
         self.vehicle.apply_control(control)

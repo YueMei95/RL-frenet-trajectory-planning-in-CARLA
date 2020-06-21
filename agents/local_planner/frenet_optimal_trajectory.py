@@ -259,8 +259,8 @@ class FrenetPlanner:
         angle = np.arccos(np.dot(s_norm, v1_norm))
         delta_s = -np.sin(angle) * magnitude(v1)
         d = np.cos(angle) * magnitude(v1)
-        print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
-        print("d_ego:{}, d:{}".format(f_state[3], d))
+        # print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
+        # print("d_ego:{}, d:{}".format(f_state[3], d))
 
         s_yaw = self.csp.calc_yaw(f_state[0] + delta_s)
         s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
@@ -274,7 +274,7 @@ class FrenetPlanner:
         #s_dd = np.sin(angle_acc) * ego_state[3]
         #d_dd = np.cos(angle_acc) * ego_state[3]
 
-        print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
+        # print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
         #print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
         #print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
         f_state[0], f_state[3] = f_state[0] + delta_s, d
@@ -399,6 +399,7 @@ class FrenetPlanner:
                 fp.x.append(fx)
                 fp.y.append(fy)
                 fp.z.append(fz)
+                fp.yaw.append(iyaw)
 
         return fplist
 

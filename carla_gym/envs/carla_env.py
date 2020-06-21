@@ -10,6 +10,7 @@ import gym
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed
+from agents.low_level_controller.controller import IntelligentDriverModel
 
 MODULE_WORLD = 'WORLD'
 MODULE_HUD = 'HUD'
@@ -35,7 +36,7 @@ class CarlaGymEnv(gym.Env):
             self.global_route = None
 
         # constraints
-        self.targetSpeed = 30  # km/h
+        self.targetSpeed = 50  # km/h
         self.maxSpeed = 150
         self.maxAcc = 24.7608  # km/h.s OR 6.878 m/s^2 for Tesla model 3
         self.maxCte = 3
@@ -47,7 +48,7 @@ class CarlaGymEnv(gym.Env):
         self.f_idx = 0
         self.init_s = None              # initial frenet s value - will be updated in reset function
         self.max_s = 3000            # max frenet s value available in global route
-        self.track_length = 100      # distance to travel on s axis before terminating the episode. Must be <max_s-init_s.
+        self.track_length = 300      # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -89,11 +90,12 @@ class CarlaGymEnv(gym.Env):
                 *********************************************** Motion Planner *******************************************************
                 **********************************************************************************************************************
         """
+        temp = [self.ego.get_velocity(), self.ego.get_acceleration()]
         speed = get_speed(self.ego)
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
-        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi]
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi, temp]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
         wps_to_go = len(fpath.t) - 1
         self.f_idx = 0
@@ -109,8 +111,14 @@ class CarlaGymEnv(gym.Env):
         collision = track_finished = False
         for _ in range(wps_to_go):
             self.f_idx += 1
-            cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            # cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            nextWP = self.world_module.town_map.get_waypoint(self.ego.get_location(), project_to_road=True).next(distance=10)[0]
+            cmdWP = [nextWP.transform.location.x, nextWP.transform.location.y]
             cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
+
+            vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()
+            cmdSpeed = self.IDM.run_step(vd=self.targetSpeed / 3.6, vehicle_ahead=vehicle_ahead)
+
             control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
             self.ego.apply_control(control)               # apply control
             # print(fpath.s[self.f_idx], self.ego.get_transform().rotation.yaw)
@@ -291,6 +299,7 @@ class CarlaGymEnv(gym.Env):
 
         self.ego = self.world_module.hero_actor
         self.vehicleController = VehiclePIDController(self.ego)
+        self.IDM = IntelligentDriverModel(self.ego, self.dt)
         self.module_manager.tick()  # Update carla world
 
         self.init_transform = self.ego.get_transform()
@@ -305,3 +314,4 @@ class CarlaGymEnv(gym.Env):
         print('Destroying environment...')
         if self.world_module is not None:
             self.world_module.destroy()
+            self.traffic_module.destroy()

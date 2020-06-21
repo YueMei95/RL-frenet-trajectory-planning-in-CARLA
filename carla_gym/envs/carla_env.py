@@ -77,7 +77,6 @@ class CarlaGymEnv(gym.Env):
         pass
 
     def step(self, action=None):
-        # self.ego.set_autopilot(enabled=True)
         self.n_step += 1
         track_finished = False
 
@@ -107,13 +106,14 @@ class CarlaGymEnv(gym.Env):
         collision = track_finished = False
         for _ in range(wps_to_go):
             self.f_idx += 1
-            # cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
-            nextWP = self.world_module.town_map.get_waypoint(self.ego.get_location(), project_to_road=True).next(distance=10)[0]
-            cmdWP = [nextWP.transform.location.x, nextWP.transform.location.y]
-            cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
+            cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2)
+            cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
 
+            # IDM for ego: comment out for RL training.
             vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()
             cmdSpeed = self.IDM.run_step(vd=self.targetSpeed, vehicle_ahead=vehicle_ahead)
+            nextWP = self.world_module.town_map.get_waypoint(self.ego.get_location(), project_to_road=True).next(distance=10)[0]
+            cmdWP = [nextWP.transform.location.x, nextWP.transform.location.y]
 
             control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
             self.ego.apply_control(control)               # apply control
@@ -128,8 +128,8 @@ class CarlaGymEnv(gym.Env):
             #     for i in range(len(path.t)):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
-            for i in range(len(fpath.t)):
-                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
+            # for i in range(len(fpath.t)):
+            #     self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
             self.world_module.points_to_draw['ego'] = [self.ego.get_location(), 'COLOR_SCARLET_RED_0']
             self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
 

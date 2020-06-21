@@ -1703,7 +1703,7 @@ class TrafficManager:
     def reset(self, ego_s):
         """
         indices:
-        row   0   1  2  ... 19      <== col
+        row   0   1  2  ... 19      <== cl
               ----------------
         -1 |  0   4  8  ... 76
          0 |  1   5  9  ... 77

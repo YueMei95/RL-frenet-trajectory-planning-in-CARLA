@@ -39,7 +39,8 @@ def get_speed(vehicle):
     :return: speed as a float in Kmh
     """
     vel = vehicle.get_velocity()
-    return 3.6 * math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)        # 3.6 * meter per seconds = kmh
+    # return 3.6 * math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)        # 3.6 * meter per seconds = kmh
+    return math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)        # meter per seconds
 
 
 def is_within_distance_ahead(target_location, current_location, orientation, max_distance):

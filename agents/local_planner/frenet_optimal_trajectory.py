@@ -548,7 +548,7 @@ class FrenetPlanner:
         d = self.path.d[idx]
         df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
 
-        speedRange = 10 / 3.6
+        speedRange = 10 / 3.6   # m/s
         Vf = Vf_n * speedRange + self.targetSpeed
 
         f_state = self.estimate_frenet_state(ego_state, idx)

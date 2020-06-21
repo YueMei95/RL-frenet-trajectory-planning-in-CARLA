@@ -95,7 +95,7 @@ class PIDLongitudinalController:
         """
         Execute one step of longitudinal control to reach a given target speed.
 
-        :param target_speed: target speed in Km/h
+        :param target_speed: target speed in m/s
         :return: throttle control in the range [0, 1]
         """
         current_speed = get_speed(self._vehicle)
@@ -106,7 +106,7 @@ class PIDLongitudinalController:
         """
         Estimate the throttle of the vehicle based on the PID equations
 
-        :param target_speed:  target speed in Km/h
+        :param target_speed:  target speed in m/s
         :param current_speed: current speed of the vehicle in Km/h
         :return: throttle control in the range [0, 1]
         """
@@ -230,29 +230,33 @@ class IntelligentDriverModel:
     https://arxiv.org/pdf/1909.11538.pdf
     """
 
-    def __init__(self, ego, dt):
-        self.ego = ego
-        self.a_max = 4
-        self.delta = 1
+    def __init__(self, vehicle, dt):
+        self.vehicle = vehicle
+        self.a_max = 15     # need tuning (depending on the vehicle dynamics)
+        self.delta = 4
         self.T = 1.6
         self.d0 = 2
         self.b = 1.7
         self.dt = dt
 
     def run_step(self, vd, vehicle_ahead):
-        v = get_speed(self.ego)/3.6
+        v = get_speed(self.vehicle)
+
         if vehicle_ahead is None:
             acc_cmd = self.a_max * (1 - (v / vd)**self.delta)
-            cmdSpeed = get_speed(self.ego) / 3.6 + acc_cmd * self.dt
         else:
             loc1 = [vehicle_ahead.get_location().x, vehicle_ahead.get_location().y, vehicle_ahead.get_location().z]
-            loc2 = [self.ego.get_location().x, self.ego.get_location().y, self.ego.get_location().z]
+            loc2 = [self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z]
             d = euclidean_distance(loc1, loc2)
-            v2 = get_speed(vehicle_ahead)/3.6
+            v2 = get_speed(vehicle_ahead)
             dv = abs(v2-v)
 
             d_star = self.d0 + v*self.T + v*dv/(2*math.sqrt(self.b*self.a_max))
 
             acc_cmd = self.a_max * (1 - (v / vd)**self.delta - (d_star/d)**2)
-            cmdSpeed = get_speed(self.ego) / 3.6 + acc_cmd * self.dt
-        return cmdSpeed * 3.6
+
+        cmdSpeed = get_speed(self.vehicle) + acc_cmd * self.dt
+
+        # if self.vehicle.attributes['role_name'] == 'hero':
+        #     print([x * 3.6 for x in [cmdSpeed, acc_cmd, v, vd]])
+        return cmdSpeed

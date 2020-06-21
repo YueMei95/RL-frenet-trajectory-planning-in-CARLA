@@ -1697,7 +1697,7 @@ class TrafficManager:
         self.world_module = self.module_manager.get_module(MODULE_WORLD)
         self.world = self.world_module.world
         self.ego = self.world_module.hero_actor
-        blueprints = self.world.get_blueprint_library().filter('vehicle.*')
+        blueprints = self.world.get_blueprint_library().filter('vehicle.mercedes-benz.coupe')
         self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
 
     def reset(self, ego_s):
@@ -1730,7 +1730,7 @@ class TrafficManager:
             col = idx // 4  # col number [0, 19]
             lane = idx - col * 4 - 1  # lane number [-1, 2]
             s = ego_s + col * 10 - 20  # -20 bc ego is on second column
-            targetSpeed = random.uniform(20, 50)
+            targetSpeed = random.uniform(20, 50) / 3.6  # m/s
             self.spawn_one_actor(s, lane, targetSpeed)
 
     def destroy(self):
@@ -1740,14 +1740,6 @@ class TrafficManager:
             sensor.destroy()
 
     def tick(self):
-        # if np.random.uniform() <= self.spawn_pobability and len(self.otherActorsBacth) < self.MAX_CARS:
-        #     d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
-        #     self.spawn_one_actor(20, d)
-        # if len(self.otherActorsBacth) < self.MAX_CARS:
-        #     d = np.random.randint(-1, 3) * self.LANE_WIDTH
-        #     s = np.random.uniform(self.ego_s - 55, self.ego_s + 155) if self.ego_s + 155 <= self.max_s \
-        #         else np.random.uniform(self.ego_s - 55, self.max_s)
-        #     self.spawn_one_actor(s, d)
         for control in self.otherActorsControlBacth:
             control.tick()
 
@@ -1799,7 +1791,7 @@ class LineOfSightSensor(object):
 
 
 class CruiseControl:
-    def __init__(self, vehicle, los_sensor, lane, module_manager, targetSpeed=50):
+    def __init__(self, vehicle, los_sensor, lane, module_manager, targetSpeed=50 / 3.6):
         self.vehicle = vehicle  # Carla instance for the vehicle
         self.id = self.vehicle.id
         self.lane = lane
@@ -1828,7 +1820,7 @@ class CruiseControl:
         targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
 
         vehicle_ahead = self.los_sensor.get_vehicle_ahead()
-        cmdSpeed = self.IDM.run_step(vd=self.targetSpeed / 3.6, vehicle_ahead=vehicle_ahead)
+        cmdSpeed = self.IDM.run_step(vd=self.targetSpeed, vehicle_ahead=vehicle_ahead)
 
         control = self.vehicleController.run_step(cmdSpeed, targetWP)
         self.vehicle.apply_control(control)

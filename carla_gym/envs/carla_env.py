@@ -36,19 +36,15 @@ class CarlaGymEnv(gym.Env):
             self.global_route = None
 
         # constraints
-        self.targetSpeed = 50  # km/h
-        self.maxSpeed = 150
-        self.maxAcc = 24.7608  # km/h.s OR 6.878 m/s^2 for Tesla model 3
-        self.maxCte = 3
-        self.maxTheta = math.pi / 2
-        self.maxJerk = 1.5e2
-        self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
+        self.targetSpeed = 50 / 3.6  # m/s
+        self.maxSpeed = 150 / 3.6    # m/s
+        self.maxAcc = 6.878          # m/s^2 or 24.7608 km/h.s for Tesla model 3
 
         # frenet
         self.f_idx = 0
-        self.init_s = None              # initial frenet s value - will be updated in reset function
-        self.max_s = 3000            # max frenet s value available in global route
-        self.track_length = 300      # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
+        self.init_s = None               # initial frenet s value - will be updated in reset function
+        self.max_s = 3000                # max frenet s value available in global route
+        self.track_length = 300          # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -95,7 +91,7 @@ class CarlaGymEnv(gym.Env):
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
-        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi, temp]
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
         wps_to_go = len(fpath.t) - 1
         self.f_idx = 0
@@ -117,7 +113,7 @@ class CarlaGymEnv(gym.Env):
             cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
 
             vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()
-            cmdSpeed = self.IDM.run_step(vd=self.targetSpeed / 3.6, vehicle_ahead=vehicle_ahead)
+            cmdSpeed = self.IDM.run_step(vd=self.targetSpeed, vehicle_ahead=vehicle_ahead)
 
             control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
             self.ego.apply_control(control)               # apply control
@@ -288,7 +284,7 @@ class CarlaGymEnv(gym.Env):
                 self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
             np.save('road_maps/global_route_town04', self.global_route)
 
-        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed / 3.6)
+        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed)
 
         # Start Modules
         self.motionPlanner.start(self.global_route)

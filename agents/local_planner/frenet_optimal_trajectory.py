@@ -22,6 +22,13 @@ def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
 
 
+def closest(lst, K):
+    """
+    Find closes value in a list
+    """
+    return lst[min(range(len(lst)), key=lambda i: abs(lst[i] - K))]
+
+
 def frenet_to_inertial(s, d, csp):
     """
     transform a point from frenet frame to inertial frame
@@ -544,14 +551,16 @@ class FrenetPlanner:
         """
         self.steps += 1
 
-        # convert action values from range (-1, 1) to the desired range
-        d = self.path.d[idx]
-        df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
-
-        speedRange = 10 / 3.6   # m/s
-        Vf = Vf_n * speedRange + self.targetSpeed
-
+        # estimate frenet state
         f_state = self.estimate_frenet_state(ego_state, idx)
+
+        # convert lateral action value from range (-1, 1) to the desired value in [-3.5, 0.0, 3.0, 7.0]
+        d = self.path.d[idx]        # CHANGE THIS! when f_state estimation works fine. (d = f_state[3])
+        df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
+        df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], df)
+
+        speedRange = 10 / 3.6  # m/s
+        Vf = Vf_n * speedRange + self.targetSpeed
 
         # Frenet motion planning
         self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)

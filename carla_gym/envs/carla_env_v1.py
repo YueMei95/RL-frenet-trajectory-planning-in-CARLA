@@ -42,6 +42,8 @@ class CarlaGymEnv(gym.Env):
         self.maxTheta = math.pi / 2
         self.maxJerk = 1.5e2
         self.maxAngVelNorm = math.sqrt(2 * 180 ** 2) / 4  # maximum 180 deg/s around x and y axes;  /4 to end eps earlier and teach agent faster
+        self.maxtrg_egoWP_dist = 10  #
+        self.mintrg_egoWP_dist = 1.5
 
         # frenet
         self.f_idx = 0
@@ -99,8 +101,8 @@ class CarlaGymEnv(gym.Env):
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed / 3.6, acc, psi, temp]
         #fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
 
-        fpath = self.motionPlanner.run_step(ego_state, self.f_idx)[0]
-        wps_to_go = len(fpath.t) - 2
+        fpath = self.motionPlanner.run_step(ego_state, self.f_idx, self.target_speed / 3.6)[0]
+        wps_to_go = len(fpath.t) - 1
         self.f_idx = 1
 
         speeds = []
@@ -110,9 +112,19 @@ class CarlaGymEnv(gym.Env):
                 ************************************************* Controller *********************************************************
                 **********************************************************************************************************************
         """
-        for _ in range(wps_to_go):
-            self.f_idx += 1
-            cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+        cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+        while self.f_idx != wps_to_go:
+            ego_state = [self.ego.get_location().x, self.ego.get_location().y]
+            if euclidean_distance(cmdWP,
+                                  ego_state) < self.maxtrg_egoWP_dist and self.f_idx < wps_to_go:  # do not let targetWP and ego_location greater than 20m
+                self.f_idx += 1
+                cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+                while euclidean_distance(cmdWP, ego_state) < (self.mintrg_egoWP_dist * self.targetSpeed/30) and self.f_idx < (
+                        wps_to_go - 1):  # do not let targetWP and ego_location less than 1.5m
+                    self.f_idx += 2
+                    cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+                    print("Euclidean_Distance:{}".format(euclidean_distance(cmdWP, ego_state)))
+            # print(wps_to_go - self.f_idx)
             cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2) * 3.6
             control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
             self.ego.apply_control(control)               # apply control

@@ -232,7 +232,7 @@ class IntelligentDriverModel:
 
     def __init__(self, vehicle, dt):
         self.vehicle = vehicle
-        self.a_max = 15     # need tuning (depending on the vehicle dynamics)
+        self.a_max = 3     # need tuning (depending on the vehicle dynamics)
         self.delta = 4
         self.T = 1.6
         self.d0 = 2
@@ -240,6 +240,7 @@ class IntelligentDriverModel:
         self.dt = dt
 
     def run_step(self, vd, vehicle_ahead):
+        print('desired velocity: ', vd)
         v = get_speed(self.vehicle)
 
         if vehicle_ahead is None:
@@ -251,7 +252,7 @@ class IntelligentDriverModel:
             v2 = get_speed(vehicle_ahead)
             dv = abs(v2-v)
 
-            d_star = self.d0 + v*self.T + v*dv/(2*math.sqrt(self.b*self.a_max))
+            d_star = self.d0 + max(0, v*self.T + v*dv/(2*math.sqrt(self.b*self.a_max)))
 
             acc_cmd = self.a_max * (1 - (v / vd)**self.delta - (d_star/d)**2)
 

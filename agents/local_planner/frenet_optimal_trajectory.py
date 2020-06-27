@@ -279,8 +279,8 @@ class FrenetPlanner:
         angle = np.arccos(np.dot(s_norm, v1_norm))
         d = np.cos(angle) * magnitude(v1)
 
-        print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
-        print("d_ego:{}, d:{}".format(f_state[3], d))
+        # print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
+        # print("d_ego:{}, d:{}".format(f_state[3], d))
         # ---------------------- UPDATE S_D D_D --------------------------------------- #
         angle_vel = np.arccos(np.dot(normalize([ego_state[5][0].x, ego_state[5][0].y]), s_norm))
         s_d = np.sin(angle_vel) * ego_state[2]
@@ -290,8 +290,8 @@ class FrenetPlanner:
         s_dd = np.sin(angle_acc) * ego_state[3]
         d_dd = np.cos(angle_acc) * ego_state[3]
 
-        print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
-        print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
+        # print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
+        # print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
         #print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
         f_state[0], f_state[3] = f_state[0] + delta_s, d
         f_state[1], f_state[4] = s_d, d_d

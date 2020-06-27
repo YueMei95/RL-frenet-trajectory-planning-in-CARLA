@@ -44,7 +44,7 @@ class CarlaGymEnv(gym.Env):
         self.f_idx = 0
         self.init_s = None               # initial frenet s value - will be updated in reset function
         self.max_s = 3000                # max frenet s value available in global route
-        self.track_length = 300          # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
+        self.track_length = 200          # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -92,7 +92,7 @@ class CarlaGymEnv(gym.Env):
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
-        wps_to_go = len(fpath.t) - 1
+        wps_to_go = len(fpath.t) - 2
         self.f_idx = 0
 
         speeds = []
@@ -108,14 +108,16 @@ class CarlaGymEnv(gym.Env):
             self.f_idx += 1
             cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2)
             cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            cmdWP2 = [fpath.x[self.f_idx+1], fpath.y[self.f_idx+1]]
 
             # IDM for ego: comment out for RL training.
-            vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()
-            cmdSpeed = self.IDM.run_step(vd=self.targetSpeed, vehicle_ahead=vehicle_ahead)
-            nextWP = self.world_module.town_map.get_waypoint(self.ego.get_location(), project_to_road=True).next(distance=10)[0]
-            cmdWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+            # vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()
+            # cmdSpeed = self.IDM.run_step(vd=self.targetSpeed, vehicle_ahead=vehicle_ahead)
+            # nextWP = self.world_module.town_map.get_waypoint(self.ego.get_location(), project_to_road=True).next(distance=10)[0]
+            # cmdWP = [nextWP.transform.location.x, nextWP.transform.location.y]
 
-            control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
+            # control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
+            control = self.vehicleController.run_step_2_wp(cmdSpeed, cmdWP, cmdWP2)  # calculate control
             self.ego.apply_control(control)               # apply control
             # print(fpath.s[self.f_idx], self.ego.get_transform().rotation.yaw)
 
@@ -128,10 +130,11 @@ class CarlaGymEnv(gym.Env):
             #     for i in range(len(path.t)):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
-            # for i in range(len(fpath.t)):
-            #     self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
+            for i in range(len(fpath.t)):
+                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
             self.world_module.points_to_draw['ego'] = [self.ego.get_location(), 'COLOR_SCARLET_RED_0']
             self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
+            self.world_module.points_to_draw['waypoint ahead 2'] = carla.Location(x=cmdWP2[0], y=cmdWP2[1])
 
             """
                     **********************************************************************************************************************

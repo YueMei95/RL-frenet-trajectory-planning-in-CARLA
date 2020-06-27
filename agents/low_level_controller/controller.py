@@ -44,7 +44,7 @@ class VehiclePIDController:
         if not args_lateral:
             args_lateral = {'K_P': 1.0, 'K_D': 0.0, 'K_I': 0.0}
         if not args_longitudinal:
-            args_longitudinal = {'K_P': 1.0, 'K_D': 0.0, 'K_I': 0.0}
+            args_longitudinal = {'K_P': 40.0, 'K_D': 0.1, 'K_I': 4}
 
         self._vehicle = vehicle
         self._lon_controller = PIDLongitudinalController(self._vehicle, **args_longitudinal)
@@ -61,6 +61,26 @@ class VehiclePIDController:
         """
         throttle, speed = self._lon_controller.run_step(target_speed)
         steering = self._lat_controller.run_step(waypoint)
+        control = carla.VehicleControl()
+        control.steer = steering
+        control.throttle = throttle
+        control.brake = 0.0
+        control.hand_brake = False
+        control.manual_gear_shift = False
+
+        return control
+
+    def run_step_2_wp(self, target_speed, waypoint1, waypoint2):
+        """
+        Execute one step of control invoking both lateral and longitudinal PID controllers to reach a target waypoint
+        at a given target_speed.
+
+        :param target_speed: desired vehicle speed
+        :param waypoint: target location encoded as a waypoint
+        :return: distance (in meters) to the waypoint
+        """
+        throttle, speed = self._lon_controller.run_step(target_speed)
+        steering = self._lat_controller.run_step_2_wp(waypoint1, waypoint2)
         control = carla.VehicleControl()
         control.steer = steering
         control.throttle = throttle
@@ -193,6 +213,50 @@ class PIDLateralController:
         return np.clip((self._K_P * _dot) + (self._K_D * _de /
                                              self._dt) + (self._K_I * _ie * self._dt), -1.0, 1.0)
 
+    def run_step_2_wp(self, waypoint1, waypoint2):
+        """
+        Execute one step of lateral control to steer the vehicle towards a certain waypoin.
+
+        :param waypoint: target waypoint
+        :return: steering control in the range [-1, 1] where:
+            -1 represent maximum steering to left
+            +1 maximum steering to right
+        """
+        return self._pid_control_2_wp(waypoint1, waypoint2, self._vehicle.get_transform())
+
+    def _pid_control_2_wp(self, waypoint1, waypoint2, vehicle_transform):
+        """
+        Estimate the steering angle of the vehicle based on the PID equations
+
+        :param waypoint: target waypoint [x, y]
+        :param vehicle_transform: current transform of the vehicle
+        :return: steering control in the range [-1, 1]
+        """
+        v_begin = vehicle_transform.location
+        v_end = v_begin + carla.Location(x=math.cos(math.radians(vehicle_transform.rotation.yaw)),
+                                         y=math.sin(math.radians(vehicle_transform.rotation.yaw)))
+
+        v_vec = np.array([v_end.x - v_begin.x, v_end.y - v_begin.y, 0.0])
+        w_vec = np.array([waypoint2[0] -
+                          waypoint1[0], waypoint2[1] -
+                          waypoint1[1], 0.0])
+        _dot = math.acos(np.clip(np.dot(w_vec, v_vec) /
+                                 (np.linalg.norm(w_vec) * np.linalg.norm(v_vec)), -1.0, 1.0))
+
+        _cross = np.cross(v_vec, w_vec)
+        if _cross[2] < 0:
+            _dot *= -1.0
+        self._e_buffer.append(_dot)
+        if len(self._e_buffer) >= 2:
+            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self._dt
+            _ie = sum(self._e_buffer) * self._dt
+        else:
+            _de = 0.0
+            _ie = 0.0
+
+        return np.clip((self._K_P * _dot) + (self._K_D * _de /
+                                             self._dt) + (self._K_I * _ie * self._dt), -1.0, 1.0)
+
 
 class PIDCrossTrackController:
     """
@@ -232,7 +296,7 @@ class IntelligentDriverModel:
 
     def __init__(self, vehicle, dt):
         self.vehicle = vehicle
-        self.a_max = 3     # need tuning (depending on the vehicle dynamics)
+        self.a_max = 1     # needs tuning (depending on the vehicle dynamics)
         self.delta = 4
         self.T = 1.6
         self.d0 = 2
@@ -240,7 +304,6 @@ class IntelligentDriverModel:
         self.dt = dt
 
     def run_step(self, vd, vehicle_ahead):
-        print('desired velocity: ', vd)
         v = get_speed(self.vehicle)
 
         if vehicle_ahead is None:
@@ -250,7 +313,7 @@ class IntelligentDriverModel:
             loc2 = [self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z]
             d = euclidean_distance(loc1, loc2)
             v2 = get_speed(vehicle_ahead)
-            dv = abs(v2-v)
+            dv = v - v2
 
             d_star = self.d0 + max(0, v*self.T + v*dv/(2*math.sqrt(self.b*self.a_max)))
 
@@ -259,5 +322,6 @@ class IntelligentDriverModel:
         cmdSpeed = get_speed(self.vehicle) + acc_cmd * self.dt
 
         # if self.vehicle.attributes['role_name'] == 'hero':
+        #     print(v, cmdSpeed, acc_cmd)
         #     print([x * 3.6 for x in [cmdSpeed, acc_cmd, v, vd]])
         return cmdSpeed

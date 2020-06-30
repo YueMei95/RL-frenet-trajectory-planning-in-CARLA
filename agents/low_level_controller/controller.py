@@ -42,13 +42,17 @@ class VehiclePIDController:
                              K_I -- Integral term
         """
         if not args_lateral:
-            args_lateral = {'K_P': 1.0, 'K_D': 0.0, 'K_I': 0.0}
+            args_lateral = {'K_P': 1.5, 'K_D': 0.0, 'K_I': 0.0}
         if not args_longitudinal:
             args_longitudinal = {'K_P': 40.0, 'K_D': 0.1, 'K_I': 4}
 
         self._vehicle = vehicle
         self._lon_controller = PIDLongitudinalController(self._vehicle, **args_longitudinal)
         self._lat_controller = PIDLateralController(self._vehicle, **args_lateral)
+
+    def reset(self):
+        self._lon_controller.reset()
+        self._lat_controller.reset()
 
     def run_step(self, target_speed, waypoint):
         """
@@ -109,7 +113,10 @@ class PIDLongitudinalController:
         self._K_D = K_D
         self._K_I = K_I
         self._dt = dt
-        self._e_buffer = deque(maxlen=30)
+        self._e_buffer = deque(maxlen=10)
+
+    def reset(self):
+        self._e_buffer = deque(maxlen=10)
 
     def run_step(self, target_speed):
         """
@@ -168,6 +175,9 @@ class PIDLateralController:
         self.curr_prop = np.nan
         self.deriv_list = []
         self.deriv_len = 5
+
+    def reset(self):
+        self._e_buffer = deque(maxlen=10)
 
     def run_step(self, waypoint):
         """
@@ -270,6 +280,9 @@ class PIDCrossTrackController:
         """
         self.params = params
         self.e_buffer = deque(maxlen=30)  # error buffer; error: deviation from center lane -/+ value
+
+    def reset(self):
+        self.e_buffer = deque(maxlen=30)
 
     def run_step(self, cte):
         """

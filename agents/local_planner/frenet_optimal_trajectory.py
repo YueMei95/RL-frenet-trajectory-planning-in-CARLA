@@ -247,6 +247,8 @@ class FrenetPlanner:
         f_state = [self.path.s[idx], self.path.s_d[idx], self.path.s_dd[idx],
                    self.path.d[idx], self.path.d_d[idx], self.path.d_dd[idx]]
 
+        if f_state[0] == 0:
+            return f_state
         # update_frenet_coordinate(self.path, ego_state[:2])
 
         def normalize(vector):
@@ -260,20 +262,27 @@ class FrenetPlanner:
 
         # ------------------------ UPDATE S VALUE ------------------------------------ #
         # We calculate normal vector of s line and find error_s based on ego location. Note: This assumes error is small angle
-        s_yaw = self.csp.calc_yaw(self.path.s[idx])
-        s_x, s_y, s_z = self.csp.calc_position(self.path.s[idx])
-        ego_yaw = ego_state[4]
-        s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
-        v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
-        v1_norm = normalize(v1)
-        angle = np.arccos(np.dot(s_norm, v1_norm))
-        delta_s = -np.sin(angle) * magnitude(v1) # Since we use last coordinate of trajectory as possible ego location we know actual location is behind most of the time
+        def update_s(current_s):
+            s_yaw = self.csp.calc_yaw(current_s)
+            s_x, s_y, s_z = self.csp.calc_position(current_s)
+            ego_yaw = ego_state[4]
+            s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
+            v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
+            v1_norm = normalize(v1)
+            angle = np.arccos(np.dot(s_norm, v1_norm))
+            delta_s = np.sin(angle) * magnitude(v1) # Since we use last coordinate of trajectory as possible ego location we know actual location is behind most of the time
+            #print("delta_s:{}".format(delta_s))
+            return delta_s
+
+        estimated_s = self.path.s[idx]
+        estimated_s -= update_s(estimated_s)
+        estimated_s += update_s(estimated_s)
 
         # ------------------------- UPDATING D VALUE -------------------------------- #
         # after we update s value now we can update d value based on new coordinate
-        s_yaw = self.csp.calc_yaw(f_state[0] + delta_s)
+        s_yaw = self.csp.calc_yaw(estimated_s)
         s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
-        s_x, s_y, s_z = self.csp.calc_position(f_state[0] + delta_s)
+        s_x, s_y, s_z = self.csp.calc_position(estimated_s)
         v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
         v1_norm = normalize(v1)
         angle = np.arccos(np.dot(s_norm, v1_norm))
@@ -286,14 +295,14 @@ class FrenetPlanner:
         s_d = np.sin(angle_vel) * ego_state[2]
         d_d = np.cos(angle_vel) * ego_state[2]
         # ---------------------- UPDATE S_DD D__DD -------------------------------------#
-        angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
-        s_dd = np.sin(angle_acc) * ego_state[3]
-        d_dd = np.cos(angle_acc) * ego_state[3]
+        #angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
+        #s_dd = np.sin(angle_acc) * ego_state[3]
+        #d_dd = np.cos(angle_acc) * ego_state[3]
 
         # print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
         # print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
         #print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
-        f_state[0], f_state[3] = f_state[0] + delta_s, d
+        f_state[0], f_state[3] = estimated_s, d
         f_state[1], f_state[4] = s_d, d_d
         #f_state[2] = s_dd
         #f_state[5] = d_dd

@@ -7,6 +7,7 @@ UCSC - ASL
 import copy
 from modules import *
 import gym
+import time
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed
@@ -22,6 +23,34 @@ def euclidean_distance(v1, v2):
     return math.sqrt(sum([(a - b) ** 2 for a, b in zip(v1, v2)]))
 
 
+def inertial_to_body_frame(ego_location, xi, yi, psi):
+    Xi = np.array([xi, yi])  # inertial frame
+    R_psi_T = np.array([[np.cos(psi), np.sin(psi)],  # Rotation matrix transpose
+                        [-np.sin(psi), np.cos(psi)]])
+    Xt = np.array([ego_location[0],  # Translation from inertial to body frame
+                   ego_location[1]])
+    Xb = np.matmul(R_psi_T, Xi - Xt)
+    return Xb
+
+
+def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
+    min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
+    ego_location = [ego_state[0], ego_state[1]]
+    closest_wp_index = 0  # default WP
+    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - 1 - f_idx
+    for i in range(w_size):
+        temp_wp = [fpath.x[f_idx + i], fpath.y[f_idx + i]]
+        temp_dist = euclidean_distance(ego_location, temp_wp)
+        if temp_dist <= min_dist \
+                and inertial_to_body_frame(ego_location, temp_wp[0],temp_wp[1],ego_state[2] )[0] > 0.0:
+            closest_wp_index = i
+            min_dist = temp_dist
+
+
+    #print('{}--{}--{}'.format(f_idx,closest_wp_index,inertial_to_body_frame(ego_location, fpath.x[closest_wp_index+ f_idx],fpath.x[closest_wp_index + f_idx],ego_state[2] )[0]))
+    return f_idx + closest_wp_index
+
+
 class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
@@ -31,20 +60,21 @@ class CarlaGymEnv(gym.Env):
         self.auto_render = False  # automatically render the environment
         self.n_step = 0
         try:
-            self.global_route = np.load('road_maps/global_route_town04.npy')  # track waypoints (center lane of the second lane from left)
+            self.global_route = np.load(
+                'road_maps/global_route_town04.npy')  # track waypoints (center lane of the second lane from left)
         except IOError:
             self.global_route = None
 
         # constraints
         self.targetSpeed = 50 / 3.6  # m/s
-        self.maxSpeed = 150 / 3.6    # m/s
-        self.maxAcc = 6.878          # m/s^2 or 24.7608 km/h.s for Tesla model 3
+        self.maxSpeed = 150 / 3.6  # m/s
+        self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
 
         # frenet
         self.f_idx = 0
-        self.init_s = None               # initial frenet s value - will be updated in reset function
-        self.max_s = 3000                # max frenet s value available in global route
-        self.track_length = 200          # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
+        self.init_s = None  # initial frenet s value - will be updated in reset function
+        self.max_s = 3000  # max frenet s value available in global route
+        self.track_length = 200  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -104,11 +134,21 @@ class CarlaGymEnv(gym.Env):
         """
         # initialize flags
         collision = track_finished = False
-        for _ in range(wps_to_go):
-            self.f_idx += 1
+        elapsed_time = lambda previous_time: time.time() - previous_time
+        path_start_time = time.time()
+
+
+
+        while self.f_idx <= wps_to_go and elapsed_time(
+                path_start_time) < self.motionPlanner.D_T * 1.5:  # follows path until end of WPs for max 1.8seconds
+
+            # for _ in range(wps_to_go):
+            #self.f_idx += 1
+            ego_location = [self.ego.get_location().x, self.ego.get_location().y, math.radians(self.ego.get_transform().rotation.yaw)]
+            self.f_idx = closest_wp_idx(ego_location, fpath, self.f_idx)
             cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2)
             cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
-            cmdWP2 = [fpath.x[self.f_idx+1], fpath.y[self.f_idx+1]]
+            cmdWP2 = [fpath.x[self.f_idx + 1], fpath.y[self.f_idx + 1]]
 
             # IDM for ego: comment out for RL training.
             # vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()
@@ -118,7 +158,7 @@ class CarlaGymEnv(gym.Env):
 
             # control = self.vehicleController.run_step(cmdSpeed, cmdWP)  # calculate control
             control = self.vehicleController.run_step_2_wp(cmdSpeed, cmdWP, cmdWP2)  # calculate control
-            self.ego.apply_control(control)               # apply control
+            self.ego.apply_control(control)  # apply control
             # print(fpath.s[self.f_idx], self.ego.get_transform().rotation.yaw)
 
             """
@@ -131,7 +171,8 @@ class CarlaGymEnv(gym.Env):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
 
             for i in range(len(fpath.t)):
-                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]), 'COLOR_ALUMINIUM_0']
+                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]),
+                                                                            'COLOR_ALUMINIUM_0']
             self.world_module.points_to_draw['ego'] = [self.ego.get_location(), 'COLOR_SCARLET_RED_0']
             self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
             self.world_module.points_to_draw['waypoint ahead 2'] = carla.Location(x=cmdWP2[0], y=cmdWP2[1])
@@ -240,7 +281,7 @@ class CarlaGymEnv(gym.Env):
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):
-        print(200*'--')
+        print(200 * '--')
         self.vehicleController.reset()
         self.world_module.reset()
         self.init_s = self.world_module.init_s
@@ -268,7 +309,8 @@ class CarlaGymEnv(gym.Env):
         width, height = [int(x) for x in args.carla_res.split('x')]
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager,
                                         width=width, height=height, max_s=self.max_s, track_length=self.track_length)
-        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, max_s=self.max_s, track_length=self.track_length)
+        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, max_s=self.max_s,
+                                             track_length=self.track_length)
         self.module_manager.register_module(self.world_module)
         self.module_manager.register_module(self.traffic_module)
         if args.play_mode:
@@ -291,7 +333,8 @@ class CarlaGymEnv(gym.Env):
                                                              project_to_road=True).next(distance=distance)[0]
                 distance += 2
                 self.global_route = np.append(self.global_route,
-                                              [[wp.transform.location.x, wp.transform.location.y, wp.transform.location.z]], axis=0)
+                                              [[wp.transform.location.x, wp.transform.location.y,
+                                                wp.transform.location.z]], axis=0)
                 # To visualize point clouds
                 self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
             np.save('road_maps/global_route_town04', self.global_route)

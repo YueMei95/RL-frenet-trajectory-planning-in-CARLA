@@ -240,7 +240,8 @@ class CarlaGymEnv(gym.Env):
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):
-        # self.state = np.array([0, 0], ndmin=2)
+        print(200*'--')
+        self.vehicleController.reset()
         self.world_module.reset()
         self.init_s = self.world_module.init_s
         self.traffic_module.reset(self.init_s)
@@ -250,7 +251,15 @@ class CarlaGymEnv(gym.Env):
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
         self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
-        self.module_manager.tick()
+
+        # ---
+        # Ego starts to move slightly after being relocated when a new episode starts. Probably, ego keeps a fraction of previous acceleration after
+        # being relocated. To solve this, the following procedure is needed.
+        self.ego.set_simulate_physics(enabled=False)
+        for _ in range(5):
+            self.module_manager.tick()
+        self.ego.set_simulate_physics(enabled=True)
+        # ----
         return np.array(self.state)
 
     def begin_modules(self, args):
@@ -299,6 +308,7 @@ class CarlaGymEnv(gym.Env):
         self.ego = self.world_module.hero_actor
         self.vehicleController = VehiclePIDController(self.ego)
         self.IDM = IntelligentDriverModel(self.ego, self.dt)
+
         self.module_manager.tick()  # Update carla world
 
         self.init_transform = self.ego.get_transform()

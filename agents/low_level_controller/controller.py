@@ -53,6 +53,13 @@ class VehiclePIDController:
     def reset(self):
         self._lon_controller.reset()
         self._lat_controller.reset()
+        control = carla.VehicleControl()
+        control.steer = 0.0
+        control.throttle = 0.0
+        control.brake = 1.0
+        control.hand_brake = True
+        control.manual_gear_shift = False
+        self._vehicle.apply_control(control)
 
     def run_step(self, target_speed, waypoint):
         """

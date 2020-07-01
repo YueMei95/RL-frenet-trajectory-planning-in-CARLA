@@ -1167,13 +1167,13 @@ class ModuleWorld:
         #  should be smaller than max_s - track_length to have all tracks with the same length
 
         self.init_d = np.random.randint(-1, 3) * self.LANE_WIDTH  # -1 and 3 because global route is defined on the second lane from left
+
         x, y, z, yaw = frenet_to_inertial(self.init_s, self.init_d, self.global_csp)
         z += 0.1
 
-        transform = carla.Transform(location=carla.Location(x=x, y=y, z=z), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
-
         self.hero_actor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
         self.hero_actor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
+        transform = carla.Transform(location=carla.Location(x=x, y=y, z=z), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
         self.hero_actor.set_transform(transform)
 
     def tick(self):

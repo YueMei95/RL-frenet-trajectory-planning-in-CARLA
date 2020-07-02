@@ -249,6 +249,7 @@ class FrenetPlanner:
 
         if f_state[0] == 0:
             return f_state
+
         # update_frenet_coordinate(self.path, ego_state[:2])
 
         def normalize(vector):
@@ -258,7 +259,6 @@ class FrenetPlanner:
 
         def magnitude(vector):
             return np.sqrt(sum([n ** 2 for n in vector]))
-
 
         # ------------------------ UPDATE S VALUE ------------------------------------ #
         # We calculate normal vector of s line and find error_s based on ego location. Note: This assumes error is small angle
@@ -270,8 +270,9 @@ class FrenetPlanner:
             v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
             v1_norm = normalize(v1)
             angle = np.arccos(np.dot(s_norm, v1_norm))
-            delta_s = np.sin(angle) * magnitude(v1) # Since we use last coordinate of trajectory as possible ego location we know actual location is behind most of the time
-            #print("delta_s:{}".format(delta_s))
+            delta_s = np.sin(angle) * magnitude(
+                v1)  # Since we use last coordinate of trajectory as possible ego location we know actual location is behind most of the time
+            # print("delta_s:{}".format(delta_s))
             return delta_s
 
         estimated_s = self.path.s[idx]
@@ -295,17 +296,20 @@ class FrenetPlanner:
         s_d = np.sin(angle_vel) * ego_state[2]
         d_d = np.cos(angle_vel) * ego_state[2]
         # ---------------------- UPDATE S_DD D__DD -------------------------------------#
-        #angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
-        #s_dd = np.sin(angle_acc) * ego_state[3]
-        #d_dd = np.cos(angle_acc) * ego_state[3]
+        # angle_acc = np.arccos(np.dot(normalize([ego_state[5][1].x, ego_state[5][1].y]), s_norm))
+        # s_dd = np.sin(angle_acc) * ego_state[3]
+        # d_dd = np.cos(angle_acc) * ego_state[3]
 
         # print("ego_d:{}, cal_d:{}".format([f_state[1], f_state[4]], [s_d, d_d]))
         # print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
-        #print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
-        f_state[0], f_state[3] = estimated_s, d
-        f_state[1], f_state[4] = s_d, d_d
-        #f_state[2] = s_dd
-        #f_state[5] = d_dd
+        # print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
+
+        f_state[0] = estimated_s if estimated_s != None else 0
+        f_state[3] = d if d != None else 0
+        f_state[1] = s_d if s_d != None else 0
+        f_state[4] = d_d if d_d != None else 0
+        # f_state[2] = s_dd
+        # f_state[5] = d_dd
 
         # Update frenet state estimation when distance error gets large (option 2: re-initialize the planner)
         """
@@ -551,7 +555,7 @@ class FrenetPlanner:
         """
         self.steps += 1
         # t0 = time.time()
-        
+
         f_state = self.estimate_frenet_state(ego_state, idx)
 
         # Frenet motion planning
@@ -573,7 +577,7 @@ class FrenetPlanner:
         f_state = self.estimate_frenet_state(ego_state, idx)
 
         # convert lateral action value from range (-1, 1) to the desired value in [-3.5, 0.0, 3.0, 7.0]
-        d = self.path.d[idx]        # CHANGE THIS! when f_state estimation works fine. (d = f_state[3])
+        d = self.path.d[idx]  # CHANGE THIS! when f_state estimation works fine. (d = f_state[3])
         df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
         df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], df)
 

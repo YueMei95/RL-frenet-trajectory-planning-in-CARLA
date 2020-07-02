@@ -107,7 +107,7 @@ class PIDLongitudinalController:
     PIDLongitudinalController implements longitudinal control using a PID.
     """
 
-    def __init__(self, vehicle, K_P=1.0, K_D=0.0, K_I=0.0, dt=0.03):
+    def __init__(self, vehicle, K_P=10.0, K_D=0.0, K_I=0.0, dt=0.03):
         """
         :param vehicle: actor to apply to local planner logic onto
         :param K_P: Proportional term
@@ -162,7 +162,7 @@ class PIDLateralController:
     PIDLateralController implements lateral control using a PID.
     """
 
-    def __init__(self, vehicle, K_P=1.0, K_D=0.0, K_I=0.0, dt=0.03):
+    def __init__(self, vehicle, K_P=0.2, K_D=0.0, K_I=0.0, dt=0.03):
         """
         :param vehicle: actor to apply to local planner logic onto
         :param K_P: Proportional term

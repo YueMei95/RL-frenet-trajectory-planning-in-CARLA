@@ -286,13 +286,14 @@ class FrenetPlanner:
         s_x, s_y, s_z = self.csp.calc_position(estimated_s)
         v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
         v1_norm = normalize(v1)
-        angle = np.arccos(np.dot(s_norm, v1_norm))
+        angle = np.arccos(np.clip(np.dot(s_norm, v1_norm),-1.0, 1.0))
         d = np.cos(angle) * magnitude(v1)
 
         # print("S_ego:{},S:{},angle:{}".format(f_state[0], f_state[0] + delta_s, angle))
         # print("d_ego:{}, d:{}".format(f_state[3], d))
         # ---------------------- UPDATE S_D D_D --------------------------------------- #
-        angle_vel = np.arccos(np.dot(normalize([ego_state[5][0].x, ego_state[5][0].y]), s_norm))
+        a_v_norm = normalize([ego_state[5][0].x, ego_state[5][0].y])
+        angle_vel = np.arccos(np.clip(np.dot(a_v_norm, s_norm),-1.0,1.0))
         s_d = np.sin(angle_vel) * ego_state[2]
         d_d = np.cos(angle_vel) * ego_state[2]
         # ---------------------- UPDATE S_DD D__DD -------------------------------------#
@@ -304,10 +305,10 @@ class FrenetPlanner:
         # print("ego_dd:{}, cal_dd:{}".format([f_state[2], f_state[5]], [s_dd, d_dd]))
         # print("{}---{}".format(ego_yaw-s_yaw,angle_vel))
 
-        f_state[0] = estimated_s if estimated_s != None else 0
-        f_state[3] = d if d != None else 0
-        f_state[1] = s_d if s_d != None else 0
-        f_state[4] = d_d if d_d != None else 0
+        f_state[0] = estimated_s #if estimated_s != None else 0
+        f_state[3] = d #if d != None else 0
+        f_state[1] = s_d #if s_d != None else 0
+        f_state[4] = d_d #if d_d != None else 0
         # f_state[2] = s_dd
         # f_state[5] = d_dd
 

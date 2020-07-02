@@ -37,7 +37,7 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
     min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
     ego_location = [ego_state[0], ego_state[1]]
     closest_wp_index = 0  # default WP
-    w_size = w_size if w_size <= len(fpath.t) - 2 - f_idx else len(fpath.t) - 2 - f_idx
+    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - 1 - f_idx
     for i in range(w_size):
         temp_wp = [fpath.x[f_idx + i], fpath.y[f_idx + i]]
         temp_dist = euclidean_distance(ego_location, temp_wp)
@@ -145,9 +145,9 @@ class CarlaGymEnv(gym.Env):
             #self.f_idx += 1
             ego_location = [self.ego.get_location().x, self.ego.get_location().y, math.radians(self.ego.get_transform().rotation.yaw)]
             self.f_idx = closest_wp_idx(ego_location, fpath, self.f_idx)
-            cmdSpeed = math.sqrt((fpath.s_d[self.f_idx + 1]) ** 2 + (fpath.d_d[self.f_idx + 1]) ** 2)
-            cmdWP = [fpath.x[self.f_idx + 1], fpath.y[self.f_idx + 1]]
-            cmdWP2 = [fpath.x[self.f_idx + 2], fpath.y[self.f_idx + 2]]
+            cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2)
+            cmdWP = [fpath.x[self.f_idx], fpath.y[self.f_idx]]
+            cmdWP2 = [fpath.x[self.f_idx + 1], fpath.y[self.f_idx + 1]]
 
             # IDM for ego: comment out for RL training.
             # vehicle_ahead = self.world_module.los_sensor.get_vehicle_ahead()

@@ -66,6 +66,7 @@ class CarlaGymEnv(gym.Env):
 
         # constraints
         self.targetSpeed = 50 / 3.6  # m/s
+        self.planner_speed_range = [40/3.6, 60/3.6]  # m/s
         self.maxSpeed = 150 / 3.6  # m/s
         self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
 
@@ -334,7 +335,8 @@ class CarlaGymEnv(gym.Env):
                 self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
             np.save('road_maps/global_route_town04', self.global_route)
 
-        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed)
+        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed,
+                                           speed_min=self.planner_speed_range[0], speed_max=self.planner_speed_range[1])
 
         # Start Modules
         self.motionPlanner.start(self.global_route)

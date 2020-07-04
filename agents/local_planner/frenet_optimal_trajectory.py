@@ -188,7 +188,7 @@ class Frenet_path:
 
 
 class FrenetPlanner:
-    def __init__(self, dt, targetSpeed=30 / 3.6):
+    def __init__(self, dt, targetSpeed=30/3.6, speed_min=40/3.6, speed_max=60/3.6):
 
         self.dt = dt  # simulation time tick [s]
 
@@ -218,6 +218,8 @@ class FrenetPlanner:
         self.steps = 0  # planner steps
 
         self.targetSpeed = targetSpeed
+        self.speed_center = (speed_max + speed_min) / 2
+        self.speed_radius = (speed_max - speed_min) / 2
 
     def update_global_route(self, global_route):
         """
@@ -582,8 +584,8 @@ class FrenetPlanner:
         df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
         df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], df)
 
-        speedRange = 10 / 3.6  # m/s
-        Vf = Vf_n * speedRange + self.targetSpeed
+        Vf = self.speed_radius * Vf_n + self.speed_center
+        print(Vf_n, Vf*3.6)
 
         # Frenet motion planning
         self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)

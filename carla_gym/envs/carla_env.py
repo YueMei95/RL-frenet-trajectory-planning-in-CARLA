@@ -37,16 +37,16 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
     min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
     ego_location = [ego_state[0], ego_state[1]]
     closest_wp_index = 0  # default WP
-    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - 1 - f_idx
+    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - f_idx
     for i in range(w_size):
         temp_wp = [fpath.x[f_idx + i], fpath.y[f_idx + i]]
         temp_dist = euclidean_distance(ego_location, temp_wp)
         if temp_dist <= min_dist \
-                and inertial_to_body_frame(ego_location, temp_wp[0],temp_wp[1],ego_state[2] )[0] > 0.0:
+                and inertial_to_body_frame(ego_location, temp_wp[0], temp_wp[1], ego_state[2])[0] > 0.0:
             closest_wp_index = i
             min_dist = temp_dist
 
-    #print('{}--{}--{}'.format(f_idx,closest_wp_index,inertial_to_body_frame(ego_location, fpath.x[closest_wp_index+ f_idx],fpath.x[closest_wp_index + f_idx],ego_state[2] )[0]))
+    # print('{}--{}--{}'.format(f_idx,closest_wp_index,inertial_to_body_frame(ego_location, fpath.x[closest_wp_index+ f_idx],fpath.x[closest_wp_index + f_idx],ego_state[2] )[0]))
     return f_idx + closest_wp_index
 
 
@@ -121,7 +121,7 @@ class CarlaGymEnv(gym.Env):
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
-        wps_to_go = len(fpath.t) - 2
+        wps_to_go = len(fpath.t) - 2    # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 0
 
         speeds = []
@@ -136,13 +136,10 @@ class CarlaGymEnv(gym.Env):
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
 
-
-
-        while self.f_idx <= wps_to_go and elapsed_time(
-                path_start_time) < self.motionPlanner.D_T * 1.5:  # follows path until end of WPs for max 1.8seconds
-
+        # follows path until end of WPs for max 1.8seconds
+        while self.f_idx < wps_to_go and elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5:
             # for _ in range(wps_to_go):
-            #self.f_idx += 1
+            # self.f_idx += 1
             ego_location = [self.ego.get_location().x, self.ego.get_location().y, math.radians(self.ego.get_transform().rotation.yaw)]
             self.f_idx = closest_wp_idx(ego_location, fpath, self.f_idx)
             cmdSpeed = math.sqrt((fpath.s_d[self.f_idx]) ** 2 + (fpath.d_d[self.f_idx]) ** 2)
@@ -280,7 +277,6 @@ class CarlaGymEnv(gym.Env):
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):
-        print(200 * '--')
         self.vehicleController.reset()
         self.world_module.reset()
         self.init_s = self.world_module.init_s

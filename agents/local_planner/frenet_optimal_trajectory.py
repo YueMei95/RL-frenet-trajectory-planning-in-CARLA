@@ -585,7 +585,6 @@ class FrenetPlanner:
         df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], df)
 
         Vf = self.speed_radius * Vf_n + self.speed_center
-        print(Vf_n, Vf*3.6)
 
         # Frenet motion planning
         self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)

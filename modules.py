@@ -1635,7 +1635,7 @@ class CollisionSensor(object):
 # ==============================================================================
 
 class TrafficManager:
-    def __init__(self, name, module_manager, max_s, track_length):
+    def __init__(self, name, module_manager, max_s, track_length, min_speed=20/3.6, max_speed=60/3.6):
         self.name = name
         self.module_manager = module_manager
         self.world_module = None
@@ -1646,9 +1646,10 @@ class TrafficManager:
         self.otherActorsBacth = []  # a list of carla instances for each actor
         self.otherActorsControlBacth = []  # a list of control instances for each actors
 
-        self.MAX_CARS = 10
+        self.MAX_CARS = 15
         self.N_INIT_CARS = 15  # number of cars at start
-        self.spawn_pobability = 0.5
+        self.min_speed = min_speed
+        self.max_speed = max_speed
         self.LANE_WIDTH = 3.5  # lane width [m]
         self.max_s = max_s
         self.track_length = track_length
@@ -1730,7 +1731,7 @@ class TrafficManager:
             col = idx // 4  # col number [0, 19]
             lane = idx - col * 4 - 1  # lane number [-1, 2]
             s = ego_s + col * 10 - 20  # -20 bc ego is on second column
-            targetSpeed = random.uniform(20, 50) / 3.6  # m/s
+            targetSpeed = random.uniform(self.min_speed, self.max_speed)    # m/s
             self.spawn_one_actor(s, lane, targetSpeed)
 
     def destroy(self):

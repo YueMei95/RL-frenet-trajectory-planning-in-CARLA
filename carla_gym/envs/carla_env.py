@@ -37,7 +37,7 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
     min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
     ego_location = [ego_state[0], ego_state[1]]
     closest_wp_index = 0  # default WP
-    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - f_idx
+    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - 1 - f_idx
     for i in range(w_size):
         temp_wp = [fpath.x[f_idx + i], fpath.y[f_idx + i]]
         temp_dist = euclidean_distance(ego_location, temp_wp)
@@ -66,7 +66,8 @@ class CarlaGymEnv(gym.Env):
 
         # constraints
         self.targetSpeed = 50 / 3.6  # m/s
-        self.planner_speed_range = [40/3.6, 60/3.6]  # m/s
+        self.planner_speed_range = [20/3.6, 60/3.6]
+        self.traffic_speed_range = [30/3.6, 40/3.6]
         self.maxSpeed = 150 / 3.6  # m/s
         self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
 
@@ -74,7 +75,7 @@ class CarlaGymEnv(gym.Env):
         self.f_idx = 0
         self.init_s = None  # initial frenet s value - will be updated in reset function
         self.max_s = 3000  # max frenet s value available in global route
-        self.track_length = 200  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
+        self.track_length = 500  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
 
         # RL
         self.low_state = np.array([-1, -1])
@@ -293,8 +294,8 @@ class CarlaGymEnv(gym.Env):
         # Ego starts to move slightly after being relocated when a new episode starts. Probably, ego keeps a fraction of previous acceleration after
         # being relocated. To solve this, the following procedure is needed.
         self.ego.set_simulate_physics(enabled=False)
-        for _ in range(5):
-            self.module_manager.tick()
+        # for _ in range(5):
+        self.module_manager.tick()
         self.ego.set_simulate_physics(enabled=True)
         # ----
         return np.array(self.state)
@@ -306,7 +307,8 @@ class CarlaGymEnv(gym.Env):
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager,
                                         width=width, height=height, max_s=self.max_s, track_length=self.track_length)
         self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, max_s=self.max_s,
-                                             track_length=self.track_length)
+                                             track_length=self.track_length,
+                                             min_speed=self.traffic_speed_range[0], max_speed=self.traffic_speed_range[1])
         self.module_manager.register_module(self.world_module)
         self.module_manager.register_module(self.traffic_module)
         if args.play_mode:

@@ -53,7 +53,7 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
 class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
-        self.__version__ = "9.6.0"
+        self.__version__ = "9.9.2"
 
         # simulation
         self.auto_render = False  # automatically render the environment
@@ -76,17 +76,17 @@ class CarlaGymEnv(gym.Env):
         self.init_s = None  # initial frenet s value - will be updated in reset function
         self.max_s = 3000  # max frenet s value available in global route
         self.track_length = 500  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
-
+        self.lookback = 30
         # RL
-        self.low_state = np.array([-1, -1])
-        self.high_state = np.array([1, 1])
+        self.low_state = np.array([[-1 for _ in range(self.lookback)], [-1 for _ in range(self.lookback)]])
+        self.high_state = np.array([[1 for _ in range(self.lookback)], [1 for _ in range(self.lookback)]])
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-1, -1])
         action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
-        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])
+        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])], [0 for _ in range(self.observation_space.shape[1])]])
 
         # instances
         self.ego = None
@@ -220,6 +220,11 @@ class CarlaGymEnv(gym.Env):
         speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
         acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
         self.state = np.array([speed_n, acc_n])
+        speeds_vec = (np.array(speeds) - self.targetSpeed)/self.targetSpeed
+        accelerations_vec = np.array(accelerations)/(2*self.maxAcc)
+        speeds_acc = np.concatenate((speeds_vec, accelerations_vec), axis=0)
+        speeds_acc = speeds_acc.reshape(2, -1)
+        self.state = speeds_acc[:, -self.lookback:]                                                          
         # print(self.state)
         # print(100 * '--')
         """
@@ -290,8 +295,8 @@ class CarlaGymEnv(gym.Env):
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
-        self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
-
+        # self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
+        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])], [0 for _ in range(self.observation_space.shape[1])]]) 
         # ---
         # Ego starts to move slightly after being relocated when a new episode starts. Probably, ego keeps a fraction of previous acceleration after
         # being relocated. To solve this, the following procedure is needed.

@@ -12,6 +12,7 @@ sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 from stable_baselines.bench import Monitor
 from stable_baselines.ddpg.policies import MlpPolicy as DDPGPolicy
 from stable_baselines.common.policies import MlpPolicy as CommonMlpPolicy
+from stable_baselines.common.policies import MlpLstmPolicy as CommonMlpLstmPolicy
 from stable_baselines.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec
 from stable_baselines import DDPG
 from stable_baselines import PPO2
@@ -25,13 +26,13 @@ import git
 def parse_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v95')
-    parser.add_argument('--alg', help='RL algorithm', type=str, default='ddpg')
+    parser.add_argument('--alg', help='RL algorithm', type=str, default='ppo2')
     parser.add_argument('--action_noise', help='Action noise', type=float, default=0.5)
     parser.add_argument('--param_noise_stddev', help='Param noise', type=float, default=0.0)
     parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
     parser.add_argument('--agent_id', type=int, default=None),
     parser.add_argument('--num_timesteps', type=float, default=1e6),
-    parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='mlp')
+    parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='lstm')
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
     parser.add_argument('--log_path', help='Directory to save learning curve data.', default=None, type=str)
     parser.add_argument('--play_mode', type=int, help='Display mode: 0:off, 1:2D, 2:3D ', default=0)
@@ -93,11 +94,11 @@ if __name__ == '__main__':
                                                  desired_action_stddev=float(args.param_noise_stddev))
             model = DDPG(DDPGPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise)
         elif args.alg == 'ppo2':
-            model = PPO2(CommonMlpPolicy, env, verbose=1)
+            model = PPO2(CommonMlpLstmPolicy, env, verbose=1)
         elif args.alg == 'trpo':
-            model = TRPO(CommonMlpPolicy, env, verbose=1, model_dir=save_path)
+            model = TRPO(CommonMlpLstmPolicy, env, verbose=1, model_dir=save_path)
         elif args.alg =='a2c':
-            model = A2C(CommonMlpPolicy, env, verbose=1)
+            model = A2C(CommonMlpLstmPolicy, env, verbose=1)
         else:
             print(args.alg)
             raise Exception('Algorithm name is not defined!')

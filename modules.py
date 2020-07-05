@@ -1648,7 +1648,7 @@ class TrafficManager:
         self.otherActorsControlBacth = []  # a list of control instances for each actors
 
         self.MAX_CARS = 15
-        self.N_INIT_CARS = 15  # number of cars at start
+        self.N_INIT_CARS = 0  # number of cars at start
         self.min_speed = min_speed
         self.max_speed = max_speed
         self.LANE_WIDTH = 3.5  # lane width [m]

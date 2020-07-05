@@ -37,7 +37,7 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
     min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
     ego_location = [ego_state[0], ego_state[1]]
     closest_wp_index = 0  # default WP
-    w_size = w_size if w_size <= len(fpath.t) - 1 - f_idx else len(fpath.t) - 1 - f_idx
+    w_size = w_size if w_size <= len(fpath.t) - 2 - f_idx else len(fpath.t) - 2 - f_idx
     for i in range(w_size):
         temp_wp = [fpath.x[f_idx + i], fpath.y[f_idx + i]]
         temp_dist = euclidean_distance(ego_location, temp_wp)
@@ -121,10 +121,10 @@ class CarlaGymEnv(gym.Env):
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
-        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp]
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp,self.max_s]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
         wps_to_go = len(fpath.t) - 2    # -2 bc len gives # of items not the idx of last item + 2wp controller is used
-        self.f_idx = 0
+        self.f_idx = 1
 
         speeds = []
         accelerations = []
@@ -167,13 +167,13 @@ class CarlaGymEnv(gym.Env):
             # for j, path in enumerate(self.fplist):
             #     for i in range(len(path.t)):
             #         self.world_module.points_to_draw['path {} wp {}'.format(j, i)] = [carla.Location(x=path.x[i], y=path.y[i]), 'COLOR_SKY_BLUE_0']
-
-            for i in range(len(fpath.t)):
-                self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]),
-                                                                            'COLOR_ALUMINIUM_0']
-            self.world_module.points_to_draw['ego'] = [self.ego.get_location(), 'COLOR_SCARLET_RED_0']
-            self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
-            self.world_module.points_to_draw['waypoint ahead 2'] = carla.Location(x=cmdWP2[0], y=cmdWP2[1])
+            if self.world_module.args.play_mode != 0:
+                for i in range(len(fpath.t)):
+                    self.world_module.points_to_draw['path wp {}'.format(i)] = [carla.Location(x=fpath.x[i], y=fpath.y[i]),
+                                                                                'COLOR_ALUMINIUM_0']
+                self.world_module.points_to_draw['ego'] = [self.ego.get_location(), 'COLOR_SCARLET_RED_0']
+                self.world_module.points_to_draw['waypoint ahead'] = carla.Location(x=cmdWP[0], y=cmdWP[1])
+                self.world_module.points_to_draw['waypoint ahead 2'] = carla.Location(x=cmdWP2[0], y=cmdWP2[1])
 
             """
                     **********************************************************************************************************************
@@ -205,6 +205,8 @@ class CarlaGymEnv(gym.Env):
                 break
 
             distance_traveled = s - self.init_s
+            if distance_traveled < -5:
+                distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
                 track_finished = True
                 break

@@ -1162,7 +1162,8 @@ class ModuleWorld:
         self.los_sensor.reset()
 
         # Set ego transform
-        self.init_s = np.random.uniform(50, self.max_s - self.track_length)  # ego initial s location
+
+        self.init_s = np.random.uniform(50, self.max_s - self.track_length - 50)  # ego initial s location
         #  should be larger than 50. bc other actors will be spawned in range: s = [init_s-50, init_s+150]
         #  should be smaller than max_s - track_length to have all tracks with the same length
 

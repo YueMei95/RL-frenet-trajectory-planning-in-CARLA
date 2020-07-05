@@ -271,18 +271,22 @@ class FrenetPlanner:
             s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
             v1 = [ego_state[0] - s_x, ego_state[1] - s_y]
             v1_norm = normalize(v1)
-            angle = np.arccos(np.dot(s_norm, v1_norm))
+            angle = np.arccos(np.clip(np.dot(s_norm, v1_norm),-1.0, 1.0))
             delta_s = np.sin(angle) * magnitude(
                 v1)  # Since we use last coordinate of trajectory as possible ego location we know actual location is behind most of the time
             # print("delta_s:{}".format(delta_s))
             return delta_s
 
-        estimated_s = self.path.s[idx]
-        estimated_s -= update_s(estimated_s)
-        estimated_s += update_s(estimated_s)
 
+        estimated_s = self.path.s[idx] % ego_state[6]
+        estimated_s -= update_s(estimated_s)
+        estimated_s = estimated_s  % ego_state[6]
+        estimated_s += update_s(estimated_s)
+        estimated_s = estimated_s % ego_state[6]
+        print("Initial :{} Estimated:{}".format(self.path.s[idx], estimated_s))
         # ------------------------- UPDATING D VALUE -------------------------------- #
         # after we update s value now we can update d value based on new coordinate
+
         s_yaw = self.csp.calc_yaw(estimated_s)
         s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
         s_x, s_y, s_z = self.csp.calc_position(estimated_s)

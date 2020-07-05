@@ -283,7 +283,7 @@ class FrenetPlanner:
         estimated_s = estimated_s  % ego_state[6]
         estimated_s += update_s(estimated_s)
         estimated_s = estimated_s % ego_state[6]
-        print("Initial :{} Estimated:{}".format(self.path.s[idx], estimated_s))
+        #print("Initial :{} Estimated:{}".format(self.path.s[idx], estimated_s))
         # ------------------------- UPDATING D VALUE -------------------------------- #
         # after we update s value now we can update d value based on new coordinate
 

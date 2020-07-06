@@ -1643,9 +1643,13 @@ class TrafficManager:
         self.world = None
         self.blueprints = None
         self.ego = None
+        self.ego_s = None
         self.global_csp = None  # Global cubic spline used for spawning actors on the main road
-        self.otherActorsBacth = []  # a list of carla instances for each actor
-        self.otherActorsControlBacth = []  # a list of control instances for each actors
+
+        # a list of dictionaries, each for an actor.
+        # Dictionary keys:
+        # actor: carla actor instance | sensor: range sensor | control: CruiseControl instance | Frenet State: [s, d]
+        self.actorsBatch = []
 
         self.N_INIT_CARS = 15  # number of cars at start
         self.min_speed = min_speed
@@ -1659,6 +1663,42 @@ class TrafficManager:
 
     def update_ego_s(self, s):
         self.ego_s = s
+
+    def estimate_s(self, s, x, y, yaw):
+        """
+        receive last s value and current state then estimate current s value
+        """
+
+        def normalize(vector):
+            if sum(vector) == 0:
+                return [0 for _ in range(len(vector))]
+            return vector / np.sqrt(sum([n ** 2 for n in vector]))
+
+        def magnitude(vector):
+            return np.sqrt(sum([n ** 2 for n in vector]))
+
+        # ------------------------ UPDATE S VALUE ------------------------------------ #
+        # We calculate normal vector of s line and find error_s based on ego location. Note: This assumes error is small angle
+        def update_s(current_s):
+            s_yaw = self.global_csp.calc_yaw(current_s)
+            s_x, s_y, s_z = self.global_csp.calc_position(current_s)
+            ego_yaw = yaw
+            s_norm = normalize([-np.sin(s_yaw), np.cos(s_yaw)])
+            v1 = [x - s_x, y - s_y]
+            v1_norm = normalize(v1)
+            angle = np.arccos(np.clip(np.dot(s_norm, v1_norm), -1.0, 1.0))
+            delta_s = np.sin(angle) * magnitude(
+                v1)  # Since we use last coordinate of trajectory as possible ego location we know actual location is behind most of the time
+            # print("delta_s:{}".format(delta_s))
+            return delta_s
+
+        estimated_s = s % self.max_s
+        estimated_s -= update_s(estimated_s)
+        estimated_s = estimated_s % self.max_s
+        estimated_s += update_s(estimated_s)
+        estimated_s = estimated_s % self.max_s
+
+        return estimated_s
 
     def spawn_one_actor(self, s, lane, targetSpeed):
         """
@@ -1687,12 +1727,9 @@ class TrafficManager:
             otherActor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
             otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
             # keep actors and sensors to destroy them when an episode is finished
-            self.otherActorsBacth.append([otherActor, los_sensor])
-            self.otherActorsControlBacth.append(CruiseControl(otherActor, los_sensor, lane, self.module_manager, targetSpeed=targetSpeed))
+            cruiseControl = CruiseControl(otherActor, los_sensor, s, d, self.module_manager, targetSpeed=targetSpeed)
+            self.actorsBatch.append({'Actor': otherActor, 'Sensor': los_sensor, 'Cruise Control': cruiseControl, 'Frenet State': [s, d]})
         return otherActor
-
-    def get_actors_location(self):
-        return [[cc.location.x, cc.location.y, cc.location.z] for cc in self.otherActorsControlBacth]
 
     def start(self):
         self.world_module = self.module_manager.get_module(MODULE_WORLD)
@@ -1720,13 +1757,12 @@ class TrafficManager:
          ego row/lane = randomly initialized
         """
         # remove actors and sensors
-        for actor, sensor in self.otherActorsBacth:
-            actor.destroy()
-            sensor.destroy()
+        for actor_dic in self.actorsBatch:
+            actor_dic['Actor'].destroy()
+            actor_dic['Sensor'].destroy()
 
         # delete class instances and re-initialize lists
-        del self.otherActorsBacth[:]
-        del self.otherActorsControlBacth[:]
+        del self.actorsBatch[:]
 
         # re-spawn N_INIT_CARS of actors
         ego_lane = int(ego_d / self.LANE_WIDTH)
@@ -1743,13 +1779,16 @@ class TrafficManager:
 
     def destroy(self):
         # remove actors and sensors
-        for actor, sensor in self.otherActorsBacth:
-            actor.destroy()
-            sensor.destroy()
+        for actor_dic in self.actorsBatch:
+            actor_dic['Actor'].destroy()
+            actor_dic['Sensor'].destroy()
 
     def tick(self):
-        for control in self.otherActorsControlBacth:
-            control.tick()
+        for actor_dic in self.actorsBatch:
+            control = actor_dic['Cruise Control']
+            state = control.tick()
+            s = self.estimate_s(control.s, state[0], state[1], state[3])
+            control.update_s(s)
 
 
 class LineOfSightSensor(object):
@@ -1799,10 +1838,11 @@ class LineOfSightSensor(object):
 
 
 class CruiseControl:
-    def __init__(self, vehicle, los_sensor, lane, module_manager, targetSpeed=50 / 3.6):
+    def __init__(self, vehicle, los_sensor, s, d, module_manager, targetSpeed=50 / 3.6):
         self.vehicle = vehicle  # Carla instance for the vehicle
         self.id = self.vehicle.id
-        self.lane = lane
+        self.s = s
+        self.d = d  # actor won't change lane so d is constant
         self.module_manager = module_manager
         self.targetSpeed = targetSpeed
         self.world = self.module_manager.get_module(MODULE_WORLD)
@@ -1818,11 +1858,16 @@ class CruiseControl:
 
         self.location = self.vehicle.get_location()
         self.speed = get_speed(self.vehicle)
+        self.yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
+
+    def update_s(self, s):
+        self.s = s
 
     def tick(self):
         self.steps += 1
         self.location = self.vehicle.get_location()
         self.speed = get_speed(self.vehicle)
+        self.yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
 
         nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=5)[0]
         targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
@@ -1832,3 +1877,5 @@ class CruiseControl:
 
         control = self.vehicleController.run_step(cmdSpeed, targetWP)
         self.vehicle.apply_control(control)
+
+        return [self.location.x, self.location.y, self.location.z, self.speed, self.yaw]

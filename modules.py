@@ -1636,22 +1636,20 @@ class CollisionSensor(object):
 # ==============================================================================
 
 class TrafficManager:
-    def __init__(self, name, module_manager, max_s, track_length, min_speed=20/3.6, max_speed=60/3.6):
+    def __init__(self, name, module_manager, N_INIT_CARS, max_s, track_length, min_speed=20/3.6, max_speed=60/3.6):
         self.name = name
         self.module_manager = module_manager
         self.world_module = None
         self.world = None
         self.blueprints = None
-        self.ego = None
-        self.ego_s = None
         self.global_csp = None  # Global cubic spline used for spawning actors on the main road
 
         # a list of dictionaries, each for an actor.
         # Dictionary keys:
         # actor: carla actor instance | sensor: range sensor | control: CruiseControl instance | Frenet State: [s, d]
-        self.actorsBatch = []
+        self.actors_batch = []
 
-        self.N_INIT_CARS = 15  # number of cars at start
+        self.N_INIT_CARS = N_INIT_CARS  # number of cars at start
         self.min_speed = min_speed
         self.max_speed = max_speed
         self.LANE_WIDTH = 3.5  # lane width [m]
@@ -1660,9 +1658,6 @@ class TrafficManager:
 
     def update_global_route_csp(self, global_route_csp):
         self.global_csp = global_route_csp
-
-    def update_ego_s(self, s):
-        self.ego_s = s
 
     def estimate_s(self, s, x, y, yaw):
         """
@@ -1728,13 +1723,12 @@ class TrafficManager:
             otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
             # keep actors and sensors to destroy them when an episode is finished
             cruiseControl = CruiseControl(otherActor, los_sensor, s, d, self.module_manager, targetSpeed=targetSpeed)
-            self.actorsBatch.append({'Actor': otherActor, 'Sensor': los_sensor, 'Cruise Control': cruiseControl, 'Frenet State': [s, d]})
+            self.actors_batch.append({'Actor': otherActor, 'Sensor': los_sensor, 'Cruise Control': cruiseControl, 'Frenet State': [s, d]})
         return otherActor
 
     def start(self):
         self.world_module = self.module_manager.get_module(MODULE_WORLD)
         self.world = self.world_module.world
-        self.ego = self.world_module.hero_actor
         blueprints = self.world.get_blueprint_library().filter('vehicle.mercedes-benz.coupe')
         self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
 
@@ -1757,12 +1751,12 @@ class TrafficManager:
          ego row/lane = randomly initialized
         """
         # remove actors and sensors
-        for actor_dic in self.actorsBatch:
+        for actor_dic in self.actors_batch:
             actor_dic['Actor'].destroy()
             actor_dic['Sensor'].destroy()
 
         # delete class instances and re-initialize lists
-        del self.actorsBatch[:]
+        del self.actors_batch[:]
 
         # re-spawn N_INIT_CARS of actors
         ego_lane = int(ego_d / self.LANE_WIDTH)
@@ -1779,15 +1773,15 @@ class TrafficManager:
 
     def destroy(self):
         # remove actors and sensors
-        for actor_dic in self.actorsBatch:
+        for actor_dic in self.actors_batch:
             actor_dic['Actor'].destroy()
             actor_dic['Sensor'].destroy()
 
     def tick(self):
-        for actor_dic in self.actorsBatch:
+        for actor_dic in self.actors_batch:
             control = actor_dic['Cruise Control']
             state = control.tick()
-            s = self.estimate_s(control.s, state[0], state[1], state[3])
+            s = self.estimate_s(control.s, state[0], state[1], state[-1])
             control.update_s(s)
 
 
@@ -1858,6 +1852,7 @@ class CruiseControl:
 
         self.location = self.vehicle.get_location()
         self.speed = get_speed(self.vehicle)
+        self.acceleration = 0
         self.yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
 
     def update_s(self, s):
@@ -1866,7 +1861,9 @@ class CruiseControl:
     def tick(self):
         self.steps += 1
         self.location = self.vehicle.get_location()
+        speed_ = self.speed # speed in previous tick
         self.speed = get_speed(self.vehicle)
+        self.acceleration = (self.speed - speed_) / self.dt
         self.yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
 
         nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=5)[0]
@@ -1878,4 +1875,4 @@ class CruiseControl:
         control = self.vehicleController.run_step(cmdSpeed, targetWP)
         self.vehicle.apply_control(control)
 
-        return [self.location.x, self.location.y, self.location.z, self.speed, self.yaw]
+        return [self.location.x, self.location.y, self.location.z, self.speed, self.acceleration, self.yaw]

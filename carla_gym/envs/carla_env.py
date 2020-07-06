@@ -70,6 +70,8 @@ class CarlaGymEnv(gym.Env):
         self.traffic_speed_range = [30/3.6, 40/3.6]
         self.maxSpeed = 150 / 3.6  # m/s
         self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
+        self.LANE_WIDTH = 3.5  # lane width [m]
+        self.N_INIT_CARS = 15   # number of other actors
 
         # frenet
         self.f_idx = 0
@@ -130,6 +132,8 @@ class CarlaGymEnv(gym.Env):
 
         speeds = []
         accelerations = []
+        actors_norm_s = []    # relative frenet s value wrt ego
+        actors_norm_d = []    # relative frenet d value wrt ego
         """
                 **********************************************************************************************************************
                 ************************************************* Controller *********************************************************
@@ -184,8 +188,7 @@ class CarlaGymEnv(gym.Env):
                     ************************************************ Update Carla ********************************************************
                     **********************************************************************************************************************
             """
-            speed_ = get_speed(self.ego)
-            self.traffic_module.update_ego_s(fpath.s[self.f_idx])
+            speed_ = get_speed(self.ego)    # speed in previous tick
             self.module_manager.tick()  # Update carla world
             if self.auto_render:
                 self.render()
@@ -196,19 +199,22 @@ class CarlaGymEnv(gym.Env):
             acc = (speed - speed_) / self.dt
             speeds.append(speed)
             accelerations.append(acc)
-            s, d = fpath.s[self.f_idx], fpath.d[self.f_idx]
-
-            # print('x:', fpath.x[self.f_idx], 'y:', fpath.y[self.f_idx], 'z:', fpath.z[self.f_idx])
-            # print('x:', self.ego.get_location().x, 'y:', self.ego.get_location().y, 'z:', self.ego.get_location().z)
-            # print(s)
-            # print(100*'--')
+            ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
+            norm_s = [0 for _ in range(self.N_INIT_CARS)]
+            norm_d = [0 for _ in range(self.N_INIT_CARS)]
+            for i, actor in enumerate(self.traffic_module.actors_batch):
+                act_s, act_d = actor['Frenet State']
+                norm_s[i] = (act_s - ego_s) / self.max_s
+                norm_d[i] = (act_d / (2*self.LANE_WIDTH))
+            actors_norm_s.append(norm_s)
+            actors_norm_d.append(norm_d)
 
             # loop breakers:
             if any(collision_hist):
                 collision = True
                 break
 
-            distance_traveled = s - self.init_s
+            distance_traveled = ego_s - self.init_s
             if distance_traveled < -5:
                 distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
@@ -320,7 +326,7 @@ class CarlaGymEnv(gym.Env):
         width, height = [int(x) for x in args.carla_res.split('x')]
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager,
                                         width=width, height=height, max_s=self.max_s, track_length=self.track_length)
-        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, max_s=self.max_s,
+        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, N_INIT_CARS=self.N_INIT_CARS, max_s=self.max_s,
                                              track_length=self.track_length,
                                              min_speed=self.traffic_speed_range[0], max_speed=self.traffic_speed_range[1])
         self.module_manager.register_module(self.world_module)

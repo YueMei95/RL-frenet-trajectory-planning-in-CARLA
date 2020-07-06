@@ -52,7 +52,7 @@ ax3.set(xlabel='w', ylabel='rew',
 ax3.grid()
 
 # speed
-max_v = 150
+max_v = 90
 e_v = np.arange(0, max_v, 0.01)
 r_v0 = -e_v/max_v # 1 + np.sin(2 * np.pi * t)
 w = 10

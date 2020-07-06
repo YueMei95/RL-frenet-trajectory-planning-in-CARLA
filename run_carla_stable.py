@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument('--param_noise_stddev', help='Param noise', type=float, default=0.0)
     parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
     parser.add_argument('--agent_id', type=int, default=None),
-    parser.add_argument('--num_timesteps', type=float, default=1e6),
+    parser.add_argument('--num_timesteps', type=float, default=1e7),
     parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='lstm')
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
     parser.add_argument('--log_path', help='Directory to save learning curve data.', default=None, type=str)

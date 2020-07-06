@@ -68,7 +68,7 @@ class CarlaGymEnv(gym.Env):
         self.targetSpeed = 50 / 3.6  # m/s
         self.planner_speed_range = [20/3.6, 55/3.6]
         self.traffic_speed_range = [30/3.6, 40/3.6]
-        self.maxSpeed = 150 / 3.6  # m/s
+        self.maxSpeed = 90 / 3.6  # m/s
         self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
         self.LANE_WIDTH = 3.5  # lane width [m]
         self.N_INIT_CARS = 15   # number of other actors
@@ -82,15 +82,16 @@ class CarlaGymEnv(gym.Env):
         self.loop_break = 50    # must be greater than loop_break
 
         # RL
-        self.low_state = np.array([[-1 for _ in range(self.lookback)], [-1 for _ in range(self.lookback)]])
-        self.high_state = np.array([[1 for _ in range(self.lookback)], [1 for _ in range(self.lookback)]])
+        self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+        self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
         action_low = np.array([-1, -1])
         action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
-        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])], [0 for _ in range(self.observation_space.shape[1])]])
+        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
 
         # instances
         self.ego = None
@@ -132,8 +133,11 @@ class CarlaGymEnv(gym.Env):
 
         speeds = []
         accelerations = []
-        actors_norm_s = []    # relative frenet s value wrt ego
-        actors_norm_d = []    # relative frenet d value wrt ego
+        # actors_norm_s = []    # relative frenet s value wrt ego
+        # actors_norm_d = []    # relative frenet d value wrt ego
+        actors_norm_s_d = []    # relative frenet consecutive s and d values wrt ego
+        ego_norm_s = []
+        ego_norm_d = []
         """
                 **********************************************************************************************************************
                 ************************************************* Controller *********************************************************
@@ -200,14 +204,26 @@ class CarlaGymEnv(gym.Env):
             speeds.append(speed)
             accelerations.append(acc)
             ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
+            ego_norm_s.append(ego_s / self.max_s)
+            ego_norm_d.append(ego_d / (2*self.LANE_WIDTH))
+
+            # norm_s = [0 for _ in range(self.N_INIT_CARS)]
+            # norm_d = [0 for _ in range(self.N_INIT_CARS)]
+            # for i, actor in enumerate(self.traffic_module.actors_batch):
+            #     act_s, act_d = actor['Frenet State']
+            #     norm_s[i] = (act_s - ego_s) / self.max_s
+            #     norm_d[i] = (act_d / (2*self.LANE_WIDTH))
+            # actors_norm_s.append(norm_s)
+            # actors_norm_d.append(norm_d)
+
             norm_s = [0 for _ in range(self.N_INIT_CARS)]
             norm_d = [0 for _ in range(self.N_INIT_CARS)]
             for i, actor in enumerate(self.traffic_module.actors_batch):
                 act_s, act_d = actor['Frenet State']
                 norm_s[i] = (act_s - ego_s) / self.max_s
-                norm_d[i] = (act_d / (2*self.LANE_WIDTH))
-            actors_norm_s.append(norm_s)
-            actors_norm_d.append(norm_d)
+                norm_d[i] = (act_d - ego_d) / (3*self.LANE_WIDTH)
+            actors_norm_s_d.append(norm_s)
+            actors_norm_s_d.append(norm_d)
 
             # loop breakers:
             if any(collision_hist):
@@ -231,12 +247,20 @@ class CarlaGymEnv(gym.Env):
         meanAcc = np.mean(accelerations)
         speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
         acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
-        self.state = np.array([speed_n, acc_n])
-        speeds_vec = (np.array(speeds) - self.targetSpeed)/self.targetSpeed
-        accelerations_vec = np.array(accelerations)/(2*self.maxAcc)
-        speeds_acc = np.concatenate((speeds_vec, accelerations_vec), axis=0)
-        speeds_acc = speeds_acc.reshape(2, -1)
-        self.state = speeds_acc[:, -self.lookback:]                                                          
+
+        # pad the feature lists to recover from the cases where the length of path is less than lookback time
+        speeds.extend(0 for _ in range(self.lookback - len(speeds)))
+        ego_norm_s.extend(0 for _ in range(self.lookback - len(ego_norm_s)))
+        ego_norm_d.extend(0 for _ in range(self.lookback - len(ego_norm_d)))
+        actors_norm_s_d.extend([0 for _ in range(self.N_INIT_CARS)]
+                                 for _ in range(self.lookback*2 - len(actors_norm_s_d)))
+
+        # LSTM input                         
+        speeds_vec = (np.array(speeds) - self.maxSpeed)/self.maxSpeed
+        actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
+        lstm_obs = np.concatenate((np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
+        lstm_obs = lstm_obs.reshape((self.N_INIT_CARS+1)*2+1, -1)
+        self.state = lstm_obs[:, -self.lookback:]                                                          
         # print(self.state)
         # print(100 * '--')
         """
@@ -308,8 +332,7 @@ class CarlaGymEnv(gym.Env):
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
-        # self.state = np.array([0 for _ in range(self.observation_space.shape[0])])  # initialize state vector
-        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])], [0 for _ in range(self.observation_space.shape[1])]]) 
+        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
         # ---
         # Ego starts to move slightly after being relocated when a new episode starts. Probably, ego keeps a fraction of previous acceleration after
         # being relocated. To solve this, the following procedure is needed.

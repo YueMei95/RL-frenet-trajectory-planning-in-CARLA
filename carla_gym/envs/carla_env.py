@@ -77,6 +77,8 @@ class CarlaGymEnv(gym.Env):
         self.max_s = 3000  # max frenet s value available in global route
         self.track_length = 500  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
         self.lookback = 30
+        self.loop_break = 50    # must be greater than loop_break
+
         # RL
         self.low_state = np.array([[-1 for _ in range(self.lookback)], [-1 for _ in range(self.lookback)]])
         self.high_state = np.array([[1 for _ in range(self.lookback)], [1 for _ in range(self.lookback)]])
@@ -139,7 +141,9 @@ class CarlaGymEnv(gym.Env):
         path_start_time = time.time()
 
         # follows path until end of WPs for max 1.8seconds
+        loop_counter = 0
         while self.f_idx < wps_to_go and elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5:
+            loop_counter += 1
             # for _ in range(wps_to_go):
             # self.f_idx += 1
             ego_location = [self.ego.get_location().x, self.ego.get_location().y, math.radians(self.ego.get_transform().rotation.yaw)]
@@ -209,6 +213,8 @@ class CarlaGymEnv(gym.Env):
                 distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
                 track_finished = True
+                break
+            if loop_counter >= self.loop_break:
                 break
         """
                 *********************************************************************************************************************

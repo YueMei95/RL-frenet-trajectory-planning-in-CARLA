@@ -66,7 +66,7 @@ class CarlaGymEnv(gym.Env):
 
         # constraints
         self.targetSpeed = 50 / 3.6  # m/s
-        self.planner_speed_range = [20/3.6, 60/3.6]
+        self.planner_speed_range = [20/3.6, 55/3.6]
         self.traffic_speed_range = [30/3.6, 40/3.6]
         self.maxSpeed = 150 / 3.6  # m/s
         self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
@@ -123,7 +123,7 @@ class CarlaGymEnv(gym.Env):
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp,self.max_s]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
-        wps_to_go = len(fpath.t) - 2    # -2 bc len gives # of items not the idx of last item + 2wp controller is used
+        wps_to_go = len(fpath.t) - 3    # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 1
 
         speeds = []
@@ -289,7 +289,8 @@ class CarlaGymEnv(gym.Env):
         self.vehicleController.reset()
         self.world_module.reset()
         self.init_s = self.world_module.init_s
-        self.traffic_module.reset(self.init_s)
+        init_d = self.world_module.init_d
+        self.traffic_module.reset(self.init_s, init_d)
         self.motionPlanner.reset(self.init_s, self.world_module.init_d, df_n=0, Tf=4, Vf_n=0, optimal_path=False)
         self.f_idx = 0
 

@@ -1647,8 +1647,7 @@ class TrafficManager:
         self.otherActorsBacth = []  # a list of carla instances for each actor
         self.otherActorsControlBacth = []  # a list of control instances for each actors
 
-        self.MAX_CARS = 15
-        self.N_INIT_CARS = 0  # number of cars at start
+        self.N_INIT_CARS = 15  # number of cars at start
         self.min_speed = min_speed
         self.max_speed = max_speed
         self.LANE_WIDTH = 3.5  # lane width [m]
@@ -1702,10 +1701,14 @@ class TrafficManager:
         blueprints = self.world.get_blueprint_library().filter('vehicle.mercedes-benz.coupe')
         self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
 
-    def reset(self, ego_s):
+    def reset(self, ego_s, ego_d):
         """
-        indices:
-        row   0   1  2  ... 19      <== cl
+        Spawn random N_INIT_CARS in random blocks of a grid world
+        Grid locations: from s = egos_s - 20 to s = egos_s + 170 in frenet frame
+        Grid numbers are in range [0, 79]. Each actor will be spawned in a random grid
+        It's possible for an actor to be be spawned at the ego location, so we remove the ego grid number from the grid choices.
+        Grid world indices:
+        row   0   1  2  ... 19      <== column
               ----------------
         -1 |  0   4  8  ... 76
          0 |  1   5  9  ... 77
@@ -1726,13 +1729,16 @@ class TrafficManager:
         del self.otherActorsControlBacth[:]
 
         # re-spawn N_INIT_CARS of actors
-        # It's possible for an actor to be be spawned at the ego location, in that case, try_spawn_actor will skip this actor.
-        rnd_indices = np.random.choice(79, self.N_INIT_CARS, replace=False)
+        ego_lane = int(ego_d / self.LANE_WIDTH)
+        ego_grid_n = ego_lane + 9  # in Grid world (see notes above), ego is in column 2 so its grid number will be based on its lane number
+        grid_choices = np.arange(80)
+        grid_choices = np.delete(grid_choices, ego_grid_n)
+        rnd_indices = np.random.choice(grid_choices, self.N_INIT_CARS, replace=False)
         for idx in rnd_indices:
             col = idx // 4  # col number [0, 19]
             lane = idx - col * 4 - 1  # lane number [-1, 2]
             s = ego_s + col * 10 - 20  # -20 bc ego is on second column
-            targetSpeed = random.uniform(self.min_speed, self.max_speed)    # m/s
+            targetSpeed = random.uniform(self.min_speed, self.max_speed)  # m/s
             self.spawn_one_actor(s, lane, targetSpeed)
 
     def destroy(self):

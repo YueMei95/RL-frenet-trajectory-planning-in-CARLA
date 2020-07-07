@@ -73,7 +73,7 @@ if __name__ == '__main__':
             os.mkdir(currentPath + '/logs/agent_{}/'.format(args.agent_id))                             # create agent_id folder
             os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
             save_path = 'logs/agent_{}/models/'.format(args.agent_id)
-            env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id), info_keywords=('max index',))    # logging monitor
+            env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id))    # logging monitor
 
             repo = git.Repo(search_parent_directories=False)
             commit_id = repo.head.object.hexsha

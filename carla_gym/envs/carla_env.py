@@ -391,7 +391,7 @@ class CarlaGymEnv(gym.Env):
         # self.motionPlanner.reset(self.world_module.init_s, self.world_module.init_d)
 
         self.ego = self.world_module.hero_actor
-        self.vehicleController = VehiclePIDController(self.ego)
+        self.vehicleController = VehiclePIDController(self.ego, args_lateral={'K_P': 1.5, 'K_D': 0.0, 'K_I': 0.0})
         self.IDM = IntelligentDriverModel(self.ego, self.dt)
 
         self.module_manager.tick()  # Update carla world

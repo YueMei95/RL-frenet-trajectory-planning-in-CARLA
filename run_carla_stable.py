@@ -94,7 +94,7 @@ if __name__ == '__main__':
                                                  desired_action_stddev=float(args.param_noise_stddev))
             model = DDPG(DDPGPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise)
         elif args.alg == 'ppo2':
-            model = PPO2(CommonMlpLstmPolicy, env, verbose=1)
+            model = PPO2(CommonMlpLstmPolicy, env, verbose=1, model_dir=save_path)
         elif args.alg == 'trpo':
             model = TRPO(CommonMlpLstmPolicy, env, verbose=1, model_dir=save_path)
         elif args.alg =='a2c':

@@ -42,7 +42,7 @@ class VehiclePIDController:
                              K_I -- Integral term
         """
         if not args_lateral:
-            args_lateral = {'K_P': 1.0, 'K_D': 0.0, 'K_I': 0.0}
+            args_lateral = {'K_P': 0.3, 'K_D': 0.0, 'K_I': 0.0}
         if not args_longitudinal:
             args_longitudinal = {'K_P': 40.0, 'K_D': 0.1, 'K_I': 4}
 

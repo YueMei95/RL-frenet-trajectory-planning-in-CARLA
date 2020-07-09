@@ -1722,7 +1722,7 @@ class TrafficManager:
             otherActor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
             otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
             # keep actors and sensors to destroy them when an episode is finished
-            cruiseControl = CruiseControl(otherActor, los_sensor, s, d, self.module_manager, targetSpeed=targetSpeed)
+            cruiseControl = CruiseControl(otherActor, los_sensor, s, d, lane, self.module_manager, targetSpeed=targetSpeed)
             self.actors_batch.append({'Actor': otherActor, 'Sensor': los_sensor, 'Cruise Control': cruiseControl, 'Frenet State': [s, d]})
         return otherActor
 
@@ -1832,11 +1832,12 @@ class LineOfSightSensor(object):
 
 
 class CruiseControl:
-    def __init__(self, vehicle, los_sensor, s, d, module_manager, targetSpeed=50 / 3.6):
+    def __init__(self, vehicle, los_sensor, s, d, lane, module_manager, targetSpeed=50 / 3.6):
         self.vehicle = vehicle  # Carla instance for the vehicle
         self.id = self.vehicle.id
         self.s = s
         self.d = d  # actor won't change lane so d is constant
+        self.lane = lane
         self.module_manager = module_manager
         self.targetSpeed = targetSpeed
         self.world = self.module_manager.get_module(MODULE_WORLD)
@@ -1854,9 +1855,28 @@ class CruiseControl:
         self.speed = get_speed(self.vehicle)
         self.acceleration = 0
         self.yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
+        self.LANE_WIDTH = 3.5
 
     def update_s(self, s):
         self.s = s
+
+    def inertial_to_body_frame(self, xi, yi):
+        Xi = np.array([xi, yi])  # inertial frame
+        R_psi_T = np.array([[np.cos(self.yaw), np.sin(self.yaw)],  # Rotation matrix transpose
+                            [-np.sin(self.yaw), np.cos(self.yaw)]])
+        Xt = np.array([self.location.x,  # Translation from inertial to body frame
+                       self.location.y])
+        Xb = np.matmul(R_psi_T, Xi - Xt)
+        return Xb
+
+    def body_to_inertial_frame(self, xb, yb):
+        Xb = np.array([xb, yb])  # inertial frame
+        R_psi = np.array([[np.cos(self.yaw), -np.sin(self.yaw)],  # Rotation matrix
+                          [np.sin(self.yaw), np.cos(self.yaw)]])
+        Xt = np.array([self.location.x,  # Translation from inertial to body frame
+                       self.location.y])
+        Xi = np.matmul(R_psi, Xb) + Xt
+        return Xi
 
     def tick(self):
         self.steps += 1
@@ -1868,6 +1888,12 @@ class CruiseControl:
 
         nextWP = self.world.town_map.get_waypoint(self.location, project_to_road=True).next(distance=5)[0]
         targetWP = [nextWP.transform.location.x, nextWP.transform.location.y]
+
+        if self.lane == 2 and nextWP.is_junction:  # only if in right most lane
+            temploc = self.body_to_inertial_frame(xb=0, yb=-self.LANE_WIDTH)
+            tempWP = self.world.town_map.get_waypoint(carla.Location(x=temploc[0], y=temploc[1]), project_to_road=True).next(distance=10)[0]
+            tempWPb = self.inertial_to_body_frame(xi=tempWP.transform.location.x, yi=tempWP.transform.location.y)
+            targetWP = self.body_to_inertial_frame(xb=tempWPb[0], yb=tempWPb[1] + self.LANE_WIDTH)
 
         vehicle_ahead = self.los_sensor.get_vehicle_ahead()
         cmdSpeed = self.IDM.run_step(vd=self.targetSpeed, vehicle_ahead=vehicle_ahead)

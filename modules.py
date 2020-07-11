@@ -961,6 +961,7 @@ class ModuleWorld:
             self.server_clock = pygame.time.Clock()
 
         self.client = None
+        self.tm_port = None
         self.name = name
         self.args = args
         self.timeout = timeout
@@ -1053,6 +1054,7 @@ class ModuleWorld:
     def _get_data_from_carla(self):
         try:
             self.client = carla.Client(self.args.carla_host, self.args.carla_port)
+            self.tm_port = self.client.get_trafficmanager(self.args.tm_port).get_port()
             self.client.set_timeout(self.timeout)
             # world = self.client.get_world()
             world = self.client.load_world('Town04')
@@ -1119,7 +1121,7 @@ class ModuleWorld:
         # Start hero mode by default
         # self.select_hero_actor()
         self._spawn_hero()
-        self.hero_actor.set_autopilot(False)
+        self.hero_actor.set_autopilot(False,self.tm_port)
 
         if self.args.play_mode:
             self.module_input.wheel_offset = HERO_DEFAULT_SCALE
@@ -1142,7 +1144,7 @@ class ModuleWorld:
 
         spawn_point = carla.Transform(location=carla.Location(x=x, y=y, z=z), rotation=carla.Rotation(pitch=0.0, yaw=math.degrees(yaw), roll=0.0))
         self.hero_actor = self.world.spawn_actor(blueprint, spawn_point)
-        self.hero_actor.set_autopilot(False)
+        self.hero_actor.set_autopilot(False,self.tm_port)
         print('Spawned ego in: ', spawn_point)
 
         self.hero_transform = self.hero_actor.get_transform()

@@ -82,8 +82,8 @@ class CarlaGymEnv(gym.Env):
         self.loop_break = 50    # must be greater than loop_break
 
         # RL
-        self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
-        self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+        self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)]).T
+        self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)]).T
 
         self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
                                                 dtype=np.float32)
@@ -91,7 +91,7 @@ class CarlaGymEnv(gym.Env):
         action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
-        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+        self.state = np.zeros_like(self.observation_space.sample()) #np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
 
         # instances
         self.ego = None
@@ -260,7 +260,8 @@ class CarlaGymEnv(gym.Env):
         actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
         lstm_obs = np.concatenate((np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
         lstm_obs = lstm_obs.reshape((self.N_INIT_CARS+1)*2+1, -1)
-        self.state = lstm_obs[:, -self.lookback:]                                                          
+        self.state = lstm_obs[:, -self.lookback:].T  
+        
         # print(self.state)
         # print(100 * '--')
         """
@@ -332,7 +333,7 @@ class CarlaGymEnv(gym.Env):
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
-        self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+        self.state = self.state = np.zeros_like(self.observation_space.sample()) # np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
         # ---
         # Ego starts to move slightly after being relocated when a new episode starts. Probably, ego keeps a fraction of previous acceleration after
         # being relocated. To solve this, the following procedure is needed.

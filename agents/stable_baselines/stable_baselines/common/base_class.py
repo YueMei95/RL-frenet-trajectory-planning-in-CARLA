@@ -810,8 +810,8 @@ class ActorCriticRLModel(BaseRLModel):
             clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
         if not vectorized_env:
-        #    if state is not None:
-        #        raise ValueError("Error: The environment must be vectorized when using recurrent policies.")
+            if state is not None:
+                raise ValueError("Error: The environment must be vectorized when using recurrent policies.")
             clipped_actions = clipped_actions[0]
 
         return clipped_actions, states

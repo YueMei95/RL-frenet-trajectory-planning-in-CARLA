@@ -9,7 +9,7 @@ sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 
 from stable_baselines.bench.monitor import load_results
 
-agent_id = 20
+agent_id = 25
 n_smooth = 100
 col = 'r'       # 'r', 'l', 'max index'
 

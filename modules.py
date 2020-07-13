@@ -253,11 +253,14 @@ class ModuleInput(object):
         self._steer_cache = 0.0
         self.control = None
         self._autopilot_enabled = False
+        self.tm_port = None
 
     def start(self):
         pass
         # hud = self.module_manager.get_module(MODULE_HUD)
         # hud.notification("Press 'H' or '?' for help.", seconds=4.0)
+        self.tm_port = self.module_manager.get_module(MODULE_WORLD).tm_port
+
 
     def render(self, display):
         pass
@@ -316,7 +319,7 @@ class ModuleInput(object):
                         world = self.module_manager.get_module(MODULE_WORLD)
                         if world.hero_actor is not None:
                             self._autopilot_enabled = not self._autopilot_enabled
-                            world.hero_actor.set_autopilot(self._autopilot_enabled)
+                            world.hero_actor.set_autopilot(self._autopilot_enabled, self.tm_port)
                             module_hud = self.module_manager.get_module(MODULE_HUD)
                             module_hud.notification('Autopilot %s' % ('On' if self._autopilot_enabled else 'Off'))
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -1645,7 +1648,7 @@ class TrafficManager:
         self.world = None
         self.blueprints = None
         self.global_csp = None  # Global cubic spline used for spawning actors on the main road
-
+        self.tm_port = None
         # a list of dictionaries, each for an actor.
         # Dictionary keys:
         # actor: carla actor instance | sensor: range sensor | control: CruiseControl instance | Frenet State: [s, d]
@@ -1720,7 +1723,7 @@ class TrafficManager:
         if otherActor is not None:
             # create a line of sight sensor attached to the vehicle
             los_sensor = LineOfSightSensor(otherActor)
-            otherActor.set_autopilot(False)
+            otherActor.set_autopilot(False, self.tm_port)
             otherActor.set_velocity(carla.Vector3D(x=0, y=0, z=0))
             otherActor.set_angular_velocity(carla.Vector3D(x=0, y=0, z=0))
             # keep actors and sensors to destroy them when an episode is finished
@@ -1731,6 +1734,7 @@ class TrafficManager:
     def start(self):
         self.world_module = self.module_manager.get_module(MODULE_WORLD)
         self.world = self.world_module.world
+        self.tm_port = self.world_module.tm_port
         blueprints = self.world.get_blueprint_library().filter('vehicle.mercedes-benz.coupe')
         self.blueprints = [bp for bp in blueprints if int(bp.get_attribute('number_of_wheels')) == 4]
 

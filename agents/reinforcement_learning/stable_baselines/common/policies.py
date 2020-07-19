@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from gym.spaces import Discrete
 
-from stable_baselines.a2c.utils import conv, linear, conv_to_fc, batch_to_seq, seq_to_batch, lstm
+from stable_baselines.a2c.utils import conv, linear, conv_to_fc, batch_to_seq, seq_to_batch, lstm, conv1d
 from stable_baselines.common.distributions import make_proba_dist_type, CategoricalProbabilityDistribution, \
     MultiCategoricalProbabilityDistribution, DiagGaussianProbabilityDistribution, BernoulliProbabilityDistribution
 from stable_baselines.common.input import observation_input
@@ -26,6 +26,22 @@ def nature_cnn(scaled_images, **kwargs):
     layer_3 = activ(conv(layer_2, 'c3', n_filters=64, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     layer_3 = conv_to_fc(layer_3)
     return activ(linear(layer_3, 'fc1', n_hidden=512, init_scale=np.sqrt(2)))
+
+
+def sequence_1d_cnn(scaled_sequence, **kwargs):
+    """
+    CNN for sequence.
+
+    :param scaled_sequence: (TensorFlow Tensor) Image input placeholder
+    :param kwargs: (dict) Extra keywords parameters for the convolutional layers of the CNN
+    :return: (TensorFlow Tensor) The CNN output layer
+    """
+    activ = tf.nn.relu
+    layer_1 = activ(conv1d(scaled_sequence, 'c1', n_filters=64, filter_size=4, stride=2, init_scale=np.sqrt(2), **kwargs))
+    layer_2 = activ(conv1d(layer_1, 'c2', n_filters=128, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3 = activ(conv1d(layer_2, 'c3', n_filters=128, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3 = conv_to_fc(layer_3)
+    return activ(linear(layer_3, 'fc1', n_hidden=256, init_scale=np.sqrt(2)))
 
 
 def mlp_extractor(flat_observations, net_arch, act_fun):

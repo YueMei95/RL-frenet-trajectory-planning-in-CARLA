@@ -7,10 +7,11 @@ import inspect
 import sys
 
 currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
-sys.path.insert(1, currentPath + '/agents/stable_baselines/')
+# sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 
 from stable_baselines.bench import Monitor
-from stable_baselines.ddpg.policies import MlpPolicy as DDPGPolicy
+from stable_baselines.ddpg.policies import MlpPolicy as DDPGMlpPolicy
+from stable_baselines.ddpg.policies import CnnPolicy as DDPGCnnPolicy
 from stable_baselines.common.policies import MlpPolicy as CommonMlpPolicy
 from stable_baselines.common.policies import MlpLstmPolicy as CommonMlpLstmPolicy
 from stable_baselines.common.policies import CnnPolicy as CommonCnnPolicy
@@ -19,7 +20,7 @@ from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
 from stable_baselines import A2C
-
+from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn
 import argparse
 import git
 
@@ -70,8 +71,11 @@ if __name__ == '__main__':
     # --------------------------------------------------------------------------------------------------------------------
     # --------------------------------------------------Training----------------------------------------------------------
     # --------------------------------------------------------------------------------------------------------------------
-    
-    policy = {'mlp': CommonMlpPolicy, 'lstm': CommonMlpLstmPolicy, 'cnn': CommonCnnPolicy}
+
+    if args.alg == 'ddpg':
+        policy = {'mlp': DDPGMlpPolicy, 'cnn': DDPGCnnPolicy}   # DDPG does not have LSTM policy
+    else:
+        policy = {'mlp': CommonMlpPolicy, 'lstm': CommonMlpLstmPolicy, 'cnn': CommonCnnPolicy}
 
     if not args.test:  # training
         if args.agent_id is not None:
@@ -97,7 +101,8 @@ if __name__ == '__main__':
 
             param_noise = AdaptiveParamNoiseSpec(initial_stddev=float(args.param_noise_stddev),
                                                  desired_action_stddev=float(args.param_noise_stddev))
-            model = DDPG(DDPGPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise)
+            model = DDPG(policy[args.network], env, verbose=1, param_noise=param_noise, action_noise=action_noise,
+                         policy_kwargs={'cnn_extractor': sequence_1d_cnn})
         elif args.alg == 'ppo2':
             model = PPO2(policy[args.network], env, verbose=1, model_dir=save_path)
         elif args.alg == 'trpo':

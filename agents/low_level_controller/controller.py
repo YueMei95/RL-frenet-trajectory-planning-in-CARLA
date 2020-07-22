@@ -16,6 +16,7 @@ import pandas as pd
 
 import carla
 from agents.tools.misc import get_speed
+from config import cfg
 
 
 def euclidean_distance(v1, v2):
@@ -107,7 +108,7 @@ class PIDLongitudinalController:
     PIDLongitudinalController implements longitudinal control using a PID.
     """
 
-    def __init__(self, vehicle, K_P=10.0, K_D=0.0, K_I=0.0, dt=0.03):
+    def __init__(self, vehicle, K_P=10.0, K_D=0.0, K_I=0.0):
         """
         :param vehicle: actor to apply to local planner logic onto
         :param K_P: Proportional term
@@ -119,7 +120,10 @@ class PIDLongitudinalController:
         self._K_P = K_P
         self._K_D = K_D
         self._K_I = K_I
-        self._dt = dt
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
         self._e_buffer = deque(maxlen=10)
 
     def reset(self):
@@ -148,13 +152,13 @@ class PIDLongitudinalController:
         self._e_buffer.append(_e)
 
         if len(self._e_buffer) >= 2:
-            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self._dt
-            _ie = sum(self._e_buffer) * self._dt
+            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self.dt
+            _ie = sum(self._e_buffer) * self.dt
         else:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._K_P * _e) + (self._K_D * _de / self._dt) + (self._K_I * _ie * self._dt), 0.0, 1.0)
+        return np.clip((self._K_P * _e) + (self._K_D * _de / self.dt) + (self._K_I * _ie * self.dt), 0.0, 1.0)
 
 
 class PIDLateralController:
@@ -162,7 +166,7 @@ class PIDLateralController:
     PIDLateralController implements lateral control using a PID.
     """
 
-    def __init__(self, vehicle, K_P=0.2, K_D=0.0, K_I=0.0, dt=0.03):
+    def __init__(self, vehicle, K_P=0.2, K_D=0.0, K_I=0.0):
         """
         :param vehicle: actor to apply to local planner logic onto
         :param K_P: Proportional term
@@ -174,7 +178,10 @@ class PIDLateralController:
         self._K_P = K_P
         self._K_D = K_D
         self._K_I = K_I
-        self._dt = dt
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
         self._e_buffer = deque(maxlen=10)
 
         self.prev_prop = np.nan
@@ -221,14 +228,14 @@ class PIDLateralController:
             _dot *= -1.0
         self._e_buffer.append(_dot)
         if len(self._e_buffer) >= 2:
-            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self._dt
-            _ie = sum(self._e_buffer) * self._dt
+            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self.dt
+            _ie = sum(self._e_buffer) * self.dt
         else:
             _de = 0.0
             _ie = 0.0
 
         return np.clip((self._K_P * _dot) + (self._K_D * _de /
-                                             self._dt) + (self._K_I * _ie * self._dt), -1.0, 1.0)
+                                             self.dt) + (self._K_I * _ie * self.dt), -1.0, 1.0)
 
     def run_step_2_wp(self, waypoint1, waypoint2):
         """
@@ -265,14 +272,14 @@ class PIDLateralController:
             _dot *= -1.0
         self._e_buffer.append(_dot)
         if len(self._e_buffer) >= 2:
-            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self._dt
-            _ie = sum(self._e_buffer) * self._dt
+            _de = (self._e_buffer[-1] - self._e_buffer[-2]) / self.dt
+            _ie = sum(self._e_buffer) * self.dt
         else:
             _de = 0.0
             _ie = 0.0
 
         return np.clip((self._K_P * _dot) + (self._K_D * _de /
-                                             self._dt) + (self._K_I * _ie * self._dt), -1.0, 1.0)
+                                             self.dt) + (self._K_I * _ie * self.dt), -1.0, 1.0)
 
 
 class PIDCrossTrackController:
@@ -281,10 +288,14 @@ class PIDCrossTrackController:
     Acceptable performance: 'K_P': 0.01, 'K_D': 0.01, 'K_I': 0.15,
     """
 
-    def __init__(self, params, dt=0.05):
+    def __init__(self, params):
         """
         params: dictionary of PID coefficients
         """
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
         self.params = params
         self.e_buffer = deque(maxlen=30)  # error buffer; error: deviation from center lane -/+ value
 
@@ -298,14 +309,14 @@ class PIDCrossTrackController:
         """
         self.e_buffer.append(cte)
         if len(self.e_buffer) >= 2:
-            _de = (self.e_buffer[-1] - self.e_buffer[-2]) / self.params['dt']
-            _ie = sum(self.e_buffer) * self.params['dt']
+            _de = (self.e_buffer[-1] - self.e_buffer[-2]) / self.dt
+            _ie = sum(self.e_buffer) * self.dt
         else:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self.params['K_P'] * cte) + (self.params['K_D'] * _de / self.params['dt'])
-                       + (self.params['K_I'] * _ie * self.params['dt']), -0.5, 0.5)
+        return np.clip((self.params['K_P'] * cte) + (self.params['K_D'] * _de / self.dt)
+                       + (self.params['K_I'] * _ie * self.dt), -0.5, 0.5)
 
 
 class IntelligentDriverModel:
@@ -314,14 +325,17 @@ class IntelligentDriverModel:
     https://arxiv.org/pdf/1909.11538.pdf
     """
 
-    def __init__(self, vehicle, dt):
+    def __init__(self, vehicle):
         self.vehicle = vehicle
         self.a_max = 1     # needs tuning (depending on the vehicle dynamics)
         self.delta = 4
         self.T = 1.6
         self.d0 = 2
         self.b = 1.7
-        self.dt = dt
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
 
     def run_step(self, vd, vehicle_ahead):
         v = get_speed(self.vehicle)

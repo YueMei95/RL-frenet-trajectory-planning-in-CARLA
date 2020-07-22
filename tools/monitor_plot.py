@@ -4,8 +4,8 @@ import inspect
 import sys
 import matplotlib.pyplot as plt
 
-currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
-sys.path.insert(1, currentPath + '/agents/stable_baselines/')
+# currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
+# sys.path.insert(1, currentPath + '/agents/stable_baselines/')
 
 from stable_baselines.bench.monitor import load_results
 

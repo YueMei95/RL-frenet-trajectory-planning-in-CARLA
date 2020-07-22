@@ -4,15 +4,15 @@
 UCSC - ASL
 """
 
-import copy
-from modules import *
 import gym
 import time
+from tools.modules import *
+from config import cfg
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed
 from agents.low_level_controller.controller import IntelligentDriverModel
-
+import yaml
 MODULE_WORLD = 'WORLD'
 MODULE_HUD = 'HUD'
 MODULE_INPUT = 'INPUT'
@@ -45,8 +45,8 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
                 and inertial_to_body_frame(ego_location, temp_wp[0], temp_wp[1], ego_state[2])[0] > 0.0:
             closest_wp_index = i
             min_dist = temp_dist
-
-    # print('{}--{}--{}'.format(f_idx,closest_wp_index,inertial_to_body_frame(ego_location, fpath.x[closest_wp_index+ f_idx],fpath.x[closest_wp_index + f_idx],ego_state[2] )[0]))
+    # print('{}--{}--{}'.format(f_idx,closest_wp_index,inertial_to_body_frame(ego_location, fpath.x[closest_wp_index+ f_idx],
+    #                                                                         fpath.x[closest_wp_index + f_idx],ego_state[2] )[0]))
     return f_idx + closest_wp_index
 
 
@@ -54,7 +54,6 @@ class CarlaGymEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
     def __init__(self):
         self.__version__ = "9.9.2"
-
         # simulation
         self.auto_render = False  # automatically render the environment
         self.n_step = 0
@@ -65,35 +64,29 @@ class CarlaGymEnv(gym.Env):
             self.global_route = None
 
         # constraints
-        self.targetSpeed = 50 / 3.6  # m/s
-        self.planner_speed_range = [20/3.6, 55/3.6]
-        self.traffic_speed_range = [30/3.6, 40/3.6]
-        self.maxSpeed = 90 / 3.6  # m/s
-        self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
-        self.LANE_WIDTH = 3.5  # lane width [m]
-        self.N_INIT_CARS = 15   # number of other actors
+        self.targetSpeed = float(cfg.GYM_ENV.TARGET_SPEED)
+        self.maxSpeed = float(cfg.GYM_ENV.MAX_SPEED)
+        self.maxAcc = float(cfg.GYM_ENV.MAX_ACC)
+        self.LANE_WIDTH = float(cfg.CARLA.LANE_WIDTH)
+        self.N_SPAWN_CARS = int(cfg.TRAFFIC_MANAGER.N_SPAWN_CARS)
 
         # frenet
         self.f_idx = 0
         self.init_s = None  # initial frenet s value - will be updated in reset function
-        self.max_s = 3000  # max frenet s value available in global route
-        self.track_length = 500  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
-        self.lookback = 30
-        self.loop_break = 50    # must be greater than loop_break
+        self.max_s = int(cfg.CARLA.MAX_S)
+        self.track_length = int(cfg.GYM_ENV.TRACK_LENGTH)
+        self.look_back = int(cfg.GYM_ENV.LOOK_BACK)
+        self.loop_break = int(cfg.GYM_ENV.LOOP_BREAK)
 
         # RL
-        self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
-        self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
-
-        # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state, dtype=np.float32)
         # observation dim: (Width, Channel) => (Time, Features)
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(30, 33), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.look_back, 33), dtype=np.float32)
 
         action_low = np.array([-1, -1])
         action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
-        # self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+        # self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_SPAWN_CARS+1)*2+1)])
         self.state = np.zeros_like(self.observation_space.sample())
 
         # instances
@@ -105,12 +98,16 @@ class CarlaGymEnv(gym.Env):
         self.input_module = None
         self.control_module = None
         self.init_transform = None  # ego initial transform to recover at each episode
-        self.dt = 0.05
         self.acceleration_ = 0
         self.eps_rew = 0
 
         self.motionPlanner = None
         self.vehicleController = None
+
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
 
     def seed(self, seed=None):
         pass
@@ -210,8 +207,8 @@ class CarlaGymEnv(gym.Env):
             ego_norm_s.append(ego_s / self.max_s)
             ego_norm_d.append(ego_d / (2*self.LANE_WIDTH))
 
-            # norm_s = [0 for _ in range(self.N_INIT_CARS)]
-            # norm_d = [0 for _ in range(self.N_INIT_CARS)]
+            # norm_s = [0 for _ in range(self.N_SPAWN_CARS)]
+            # norm_d = [0 for _ in range(self.N_SPAWN_CARS)]
             # for i, actor in enumerate(self.traffic_module.actors_batch):
             #     act_s, act_d = actor['Frenet State']
             #     norm_s[i] = (act_s - ego_s) / self.max_s
@@ -219,8 +216,8 @@ class CarlaGymEnv(gym.Env):
             # actors_norm_s.append(norm_s)
             # actors_norm_d.append(norm_d)
 
-            norm_s = [0 for _ in range(self.N_INIT_CARS)]
-            norm_d = [0 for _ in range(self.N_INIT_CARS)]
+            norm_s = [0 for _ in range(self.N_SPAWN_CARS)]
+            norm_d = [0 for _ in range(self.N_SPAWN_CARS)]
             for i, actor in enumerate(self.traffic_module.actors_batch):
                 act_s, act_d = actor['Frenet State']
                 norm_s[i] = (act_s - ego_s) / self.max_s
@@ -252,17 +249,17 @@ class CarlaGymEnv(gym.Env):
         acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
 
         # pad the feature lists to recover from the cases where the length of path is less than lookback time
-        speeds.extend(0 for _ in range(self.lookback - len(speeds)))
-        ego_norm_s.extend(0 for _ in range(self.lookback - len(ego_norm_s)))
-        ego_norm_d.extend(0 for _ in range(self.lookback - len(ego_norm_d)))
-        actors_norm_s_d.extend([0 for _ in range(self.N_INIT_CARS)]
-                                 for _ in range(self.lookback*2 - len(actors_norm_s_d)))
+        speeds.extend(0 for _ in range(self.look_back - len(speeds)))
+        ego_norm_s.extend(0 for _ in range(self.look_back - len(ego_norm_s)))
+        ego_norm_d.extend(0 for _ in range(self.look_back - len(ego_norm_d)))
+        actors_norm_s_d.extend([0 for _ in range(self.N_SPAWN_CARS)]
+                                 for _ in range(self.look_back * 2 - len(actors_norm_s_d)))
 
         # LSTM input                         
         speeds_vec = (np.array(speeds) - self.maxSpeed)/self.maxSpeed
         actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
         lstm_obs = np.concatenate((np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
-        lstm_obs = lstm_obs.reshape((self.N_INIT_CARS+1)*2+1, -1)
+        lstm_obs = lstm_obs.reshape((self.N_SPAWN_CARS+1)*2+1, -1)
         # self.state = lstm_obs[:, -self.lookback:]
         self.state = np.zeros_like(self.observation_space.sample())
 
@@ -337,7 +334,7 @@ class CarlaGymEnv(gym.Env):
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
-        # self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+        # self.state = np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_SPAWN_CARS+1)*2+1)])
         self.state = np.zeros_like(self.observation_space.sample())
 
         # ---
@@ -355,10 +352,8 @@ class CarlaGymEnv(gym.Env):
         self.module_manager = ModuleManager()
         width, height = [int(x) for x in args.carla_res.split('x')]
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager,
-                                        width=width, height=height, max_s=self.max_s, track_length=self.track_length)
-        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, N_INIT_CARS=self.N_INIT_CARS, max_s=self.max_s,
-                                             track_length=self.track_length,
-                                             min_speed=self.traffic_speed_range[0], max_speed=self.traffic_speed_range[1])
+                                        width=width, height=height)
+        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager)
         self.module_manager.register_module(self.world_module)
         self.module_manager.register_module(self.traffic_module)
         if args.play_mode:
@@ -366,11 +361,6 @@ class CarlaGymEnv(gym.Env):
             self.module_manager.register_module(self.hud_module)
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
-
-        if self.world_module.dt is not None:
-            self.dt = self.world_module.dt
-        else:
-            self.dt = 0.05
 
         # generate and save global route if it does not exist in the road_maps folder
         if self.global_route is None:
@@ -387,8 +377,7 @@ class CarlaGymEnv(gym.Env):
                 self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
             np.save('road_maps/global_route_town04', self.global_route)
 
-        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed,
-                                           speed_min=self.planner_speed_range[0], speed_max=self.planner_speed_range[1])
+        self.motionPlanner = MotionPlanner()
 
         # Start Modules
         self.motionPlanner.start(self.global_route)
@@ -399,7 +388,7 @@ class CarlaGymEnv(gym.Env):
 
         self.ego = self.world_module.hero_actor
         self.vehicleController = VehiclePIDController(self.ego, args_lateral={'K_P': 1.5, 'K_D': 0.0, 'K_I': 0.0})
-        self.IDM = IntelligentDriverModel(self.ego, self.dt)
+        self.IDM = IntelligentDriverModel(self.ego)
 
         self.module_manager.tick()  # Update carla world
 

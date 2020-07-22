@@ -4,10 +4,9 @@
 UCSC - ASL
 """
 
-import copy
-from modules import *
 import gym
 import time
+from tools.modules import *
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed

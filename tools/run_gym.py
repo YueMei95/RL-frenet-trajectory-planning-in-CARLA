@@ -1,49 +1,48 @@
+import os
 import gym
+import git
+import argparse
+import inspect
 import carla_gym
 import numpy as np
 import os.path as osp
-import os
-import inspect
-import sys
-
-currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
-# sys.path.insert(1, currentPath + '/agents/stable_baselines/')
+from pathlib import Path
 
 from stable_baselines.bench import Monitor
-from stable_baselines.ddpg.policies import MlpPolicy as DDPGMlpPolicy
-from stable_baselines.ddpg.policies import CnnPolicy as DDPGCnnPolicy
+from stable_baselines.ddpg.policies import MlpPolicy as DDPGPolicy
 from stable_baselines.common.policies import MlpPolicy as CommonMlpPolicy
-from stable_baselines.common.policies import MlpLstmPolicy as CommonMlpLstmPolicy
-from stable_baselines.common.policies import CnnPolicy as CommonCnnPolicy
 from stable_baselines.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise, AdaptiveParamNoiseSpec
 from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
 from stable_baselines import A2C
-from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn
-import argparse
-import git
 
+from config import cfg, log_config_to_file, cfg_from_list, cfg_from_yaml_file
 
-def parse_args():
+currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
+
+def parse_args_config():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--cfg', type=str, default=None, help='specify the config for training')
     parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v95')
     parser.add_argument('--alg', help='RL algorithm', type=str, default='ddpg')
     parser.add_argument('--action_noise', help='Action noise', type=float, default=0.5)
     parser.add_argument('--param_noise_stddev', help='Param noise', type=float, default=0.0)
     parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
     parser.add_argument('--agent_id', type=int, default=None),
-    parser.add_argument('--num_timesteps', type=float, default=1e7),
+    parser.add_argument('--num_timesteps', type=float, default=1e6),
     parser.add_argument('--network', help='network type (mlp, cnn, lstm, cnn_lstm, conv_only)', default='mlp')
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
     parser.add_argument('--log_path', help='Directory to save learning curve data.', default=None, type=str)
-    parser.add_argument('--play_mode', type=int, help='Display mode: 0:off, 1:2D, 2:3D ', default=0)
+    parser.add_argument('--play', default=False, action='store_true')
     parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--test_model', help='test model file name', type=str, default='')
-    parser.add_argument('--carla_host', metavar='H', default='127.0.0.1', help='IP of the host server (default: 127.0.0.1)')
-    parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int, help='TCP port to listen to (default: 2000)')
-    parser.add_argument('--tm_port', default=8000, type=int, help='Traffic Manager TCP port to listen to (default: 8000)')
-    parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720', help='window resolution (default: 1280x720)')
+    parser.add_argument('--carla_host', metavar='H', default='127.0.0.1',
+                        help='IP of the host server (default: 127.0.0.1)')
+    parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int,
+                        help='TCP port to listen to (default: 2000)')
+    parser.add_argument('--carla_res', metavar='WIDTHxHEIGHT', default='1280x720',
+                        help='window resolution (default: 1280x720)')
     args = parser.parse_args()
 
     # correct default test_model arg
@@ -52,30 +51,27 @@ def parse_args():
 
     # visualize all test scenarios
     if args.test:
-        args.play_mode = True
+        args.play = True
 
     args.num_timesteps = int(args.num_timesteps)
-    return args
 
+    cfg_from_yaml_file(args.cfg_file, cfg)
+    cfg.TAG = Path(args.cfg_file).stem
+    cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
+
+    return args, cfg
 
 
 if __name__ == '__main__':
-    args = parse_args()
+    args, cfg = parse_args_config()
     print('Env is starting')
     env = gym.make(args.env)
-    if args.play_mode:
-        env.enable_auto_render()
-    env.begin_modules(args)
+    # env.begin_modules(args)
     n_actions = env.action_space.shape[-1]  # the noise objects for DDPG
 
     # --------------------------------------------------------------------------------------------------------------------
     # --------------------------------------------------Training----------------------------------------------------------
     # --------------------------------------------------------------------------------------------------------------------
-
-    if args.alg == 'ddpg':
-        policy = {'mlp': DDPGMlpPolicy, 'cnn': DDPGCnnPolicy}   # DDPG does not have LSTM policy
-    else:
-        policy = {'mlp': CommonMlpPolicy, 'lstm': CommonMlpLstmPolicy, 'cnn': CommonCnnPolicy}
 
     if not args.test:  # training
         if args.agent_id is not None:
@@ -91,8 +87,8 @@ if __name__ == '__main__':
                 f.write('Program arguments:\n\n{}'.format(args))
                 f.close()
         else:
-            save_path = 'logs/'
-            env = Monitor(env, 'logs/', info_keywords=('reserved',))                                   # logging monitor
+            save_path = '../logs/'
+            env = Monitor(env, '../logs/')                                   # logging monitor
         model_dir = save_path + '{}_final_model'.format(args.alg)                                       # model save/load directory
 
         if args.alg == 'ddpg':
@@ -101,14 +97,14 @@ if __name__ == '__main__':
 
             param_noise = AdaptiveParamNoiseSpec(initial_stddev=float(args.param_noise_stddev),
                                                  desired_action_stddev=float(args.param_noise_stddev))
-            model = DDPG(policy[args.network], env, verbose=1, param_noise=param_noise, action_noise=action_noise,
-                         policy_kwargs={'cnn_extractor': sequence_1d_cnn})
+            model = DDPG(DDPGPolicy, env, verbose=1, param_noise=param_noise, action_noise=action_noise,
+                         render=args.play)
         elif args.alg == 'ppo2':
-            model = PPO2(policy[args.network], env, verbose=1, model_dir=save_path)
+            model = PPO2(CommonMlpPolicy, env, verbose=1)
         elif args.alg == 'trpo':
-            model = TRPO(policy[args.network], env, verbose=1, model_dir=save_path)
+            model = TRPO(CommonMlpPolicy, env, verbose=1, model_dir=save_path)
         elif args.alg =='a2c':
-            model = A2C(policy[args.network], env, verbose=1)
+            model = A2C(CommonMlpPolicy, env, verbose=1)
         else:
             print(args.alg)
             raise Exception('Algorithm name is not defined!')
@@ -126,7 +122,7 @@ if __name__ == '__main__':
             print(100 * '*')
             # save model even if training fails because of an error
             model.save(model_dir)
-            env.destroy()
+            # env.destroy()
             print('model has been saved.')
 
     # --------------------------------------------------------------------------------------------------------------------"""
@@ -137,7 +133,7 @@ if __name__ == '__main__':
         if args.agent_id is not None:
             save_path = 'logs/agent_{}/models/'.format(args.agent_id)
         else:
-            save_path = 'logs/'
+            save_path = '../logs/'
         model_dir = save_path + args.test_model  # model save/load directory
 
         if args.alg == 'ddpg':
@@ -156,13 +152,10 @@ if __name__ == '__main__':
             raise Exception('Algorithm name is not defined!')
 
         print('Model is loaded')
-        try:
-            obs = env.reset()
-            while True:
-                action, _states = model.predict(obs)
-                obs, rewards, done, info = env.step(action)
-                env.render()
-                if done:
-                    obs = env.reset()
-        finally:
-            env.destroy()
+        obs = env.reset()
+        while True:
+            action, _states = model.predict(obs)
+            obs, rewards, done, info = env.step(action)
+            env.render()
+            if done:
+                obs = env.reset()

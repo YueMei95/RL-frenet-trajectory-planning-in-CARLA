@@ -11,3 +11,5 @@ joblib
 cloudpickle>=0.5.5
 opencv-python
 matplotlib
+easydict
+pyyaml

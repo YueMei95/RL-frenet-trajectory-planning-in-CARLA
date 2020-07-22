@@ -49,13 +49,11 @@ except IndexError:
 import carla
 from carla import TrafficLightState as tls
 
-import argparse
 import logging
 import datetime
 import weakref
 import math
 import random
-import collections
 
 from carla import ColorConverter as cc
 
@@ -64,6 +62,7 @@ from agents.low_level_controller.controller import VehiclePIDController
 from agents.low_level_controller.controller import IntelligentDriverModel
 from agents.local_planner.frenet_optimal_trajectory import frenet_to_inertial
 from agents.tools.misc import get_speed
+from config import cfg
 
 try:
     import pygame
@@ -612,7 +611,7 @@ class MapImage:
 
         # realpath = os.path.realpath(__file__)[0:-10] # remove modules.py from real path
         realpath = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-        map_file_name = realpath + '/road_maps/road_map_' + carla_map.name.lower() + '.png'
+        map_file_name = realpath + '/../road_maps/road_map_' + carla_map.name.lower() + '.png'
         if os.path.exists(map_file_name):
             self.big_map_surface = pygame.image.load(os.path.join(map_file_name))
         else:
@@ -945,7 +944,7 @@ class MapImage:
 
 
 class ModuleWorld:
-    def __init__(self, name, args, timeout, module_manager, width, height, max_s, track_length):
+    def __init__(self, name, args, timeout, module_manager, width, height):
         self.module_manager = module_manager
         self.width = width
         self.height = height
@@ -970,7 +969,11 @@ class ModuleWorld:
         self.timeout = timeout
         self.server_fps = 0.0
         self.simulation_time = 0
-        self.dt = 0.1  # Set to None for variable time-step (real-world simulation)
+
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = None
 
         # World data
         self.world = None
@@ -1011,11 +1014,11 @@ class ModuleWorld:
 
         self.points_to_draw = {}  # add waypoints to this dictionary to visualize them in Pygame
         self.global_csp = None
-        self.LANE_WIDTH = 3.5  # lane width [m]
+        self.LANE_WIDTH = float(cfg.CARLA.LANE_WIDTH)
         self.init_s = 50  # ego initial s location
         self.init_d = 0 * self.LANE_WIDTH  # ego initial lane number - int range: [-1, 2]  => change in reset function
-        self.max_s = max_s
-        self.track_length = track_length
+        self.max_s = int(cfg.CARLA.MAX_S)
+        self.track_length = int(cfg.GYM_ENV.TRACK_LENGTH)
 
     def update_global_route_csp(self, global_route_csp):
         self.global_csp = global_route_csp
@@ -1641,7 +1644,7 @@ class CollisionSensor(object):
 # ==============================================================================
 
 class TrafficManager:
-    def __init__(self, name, module_manager, N_INIT_CARS, max_s, track_length, min_speed=20/3.6, max_speed=60/3.6):
+    def __init__(self, name, module_manager):
         self.name = name
         self.module_manager = module_manager
         self.world_module = None
@@ -1654,12 +1657,12 @@ class TrafficManager:
         # actor: carla actor instance | sensor: range sensor | control: CruiseControl instance | Frenet State: [s, d]
         self.actors_batch = []
 
-        self.N_INIT_CARS = N_INIT_CARS  # number of cars at start
-        self.min_speed = min_speed
-        self.max_speed = max_speed
-        self.LANE_WIDTH = 3.5  # lane width [m]
-        self.max_s = max_s
-        self.track_length = track_length
+        self.N_SPAWN_CARS = int(cfg.TRAFFIC_MANAGER.N_SPAWN_CARS)
+        self.min_speed = float(cfg.TRAFFIC_MANAGER.MIN_SPEED)
+        self.max_speed = float(cfg.TRAFFIC_MANAGER.MAX_SPEED)
+        self.LANE_WIDTH = float(cfg.CARLA.LANE_WIDTH)
+        self.max_s = int(cfg.CARLA.MAX_S)
+        self.track_length = int(cfg.GYM_ENV.TRACK_LENGTH)
 
     def update_global_route_csp(self, global_route_csp):
         self.global_csp = global_route_csp
@@ -1769,7 +1772,7 @@ class TrafficManager:
         ego_grid_n = ego_lane + 9  # in Grid world (see notes above), ego is in column 2 so its grid number will be based on its lane number
         grid_choices = np.arange(80)
         grid_choices = np.delete(grid_choices, ego_grid_n)
-        rnd_indices = np.random.choice(grid_choices, self.N_INIT_CARS, replace=False)
+        rnd_indices = np.random.choice(grid_choices, self.N_SPAWN_CARS, replace=False)
         for idx in rnd_indices:
             col = idx // 4  # col number [0, 19]
             lane = idx - col * 4 - 1  # lane number [-1, 2]
@@ -1848,12 +1851,12 @@ class CruiseControl:
         self.targetSpeed = targetSpeed
         self.world = self.module_manager.get_module(MODULE_WORLD)
         self.steps = 0
-        if self.world.dt is not None:  # if world in fixed timestep
-            self.dt = self.world.dt
-        else:  # if world is variable timestep
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
             self.dt = 0.05
         self.vehicleController = VehiclePIDController(self.vehicle)
-        self.IDM = IntelligentDriverModel(self.vehicle, self.dt)
+        self.IDM = IntelligentDriverModel(self.vehicle)
 
         self.los_sensor = los_sensor
 
@@ -1861,7 +1864,7 @@ class CruiseControl:
         self.speed = get_speed(self.vehicle)
         self.acceleration = 0
         self.yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
-        self.LANE_WIDTH = 3.5
+        self.LANE_WIDTH = float(cfg.CARLA.LANE_WIDTH)
 
     def update_s(self, s):
         self.s = s

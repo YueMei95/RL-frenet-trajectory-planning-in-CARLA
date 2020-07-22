@@ -16,6 +16,7 @@ import numpy as np
 import copy
 import math
 from agents.local_planner import cubic_spline_planner
+from config import cfg
 
 
 def euclidean_distance(v1, v2):
@@ -188,15 +189,18 @@ class Frenet_path:
 
 
 class FrenetPlanner:
-    def __init__(self, dt, targetSpeed=30/3.6, speed_min=40/3.6, speed_max=60/3.6):
+    def __init__(self):
 
-        self.dt = dt  # simulation time tick [s]
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
 
         # Parameters
         self.MAX_SPEED = 150.0 / 3.6  # maximum speed [m/s]
         self.MAX_ACCEL = 4.0  # maximum acceleration [m/ss]  || Tesla model 3: 6.878
         self.MAX_CURVATURE = 1.0  # maximum curvature [1/m]
-        self.LANE_WIDTH = 3.5  # lane width [m]
+        self.LANE_WIDTH = float(cfg.CARLA.LANE_WIDTH)
         self.MAXT = 6.0  # max prediction time [m]
         self.MINT = 3.0  # min prediction time [m]
         self.D_T = 3.0  # prediction timestep length (s)
@@ -217,9 +221,11 @@ class FrenetPlanner:
         self.csp = None  # cubic spline for global rout
         self.steps = 0  # planner steps
 
-        self.targetSpeed = targetSpeed
-        self.speed_center = (speed_max + speed_min) / 2
-        self.speed_radius = (speed_max - speed_min) / 2
+        self.targetSpeed = float(cfg.GYM_ENV.TARGET_SPEED)
+        min_speed = float(cfg.LOCAL_PLANNER.MIN_SPEED)
+        max_speed = float(cfg.LOCAL_PLANNER.MAX_SPEED)
+        self.speed_center = (max_speed + min_speed) / 2
+        self.speed_radius = (max_speed - min_speed) / 2
 
     def update_global_route(self, global_route):
         """

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 @author: Majid Moghadam
 UCSC - ASL
@@ -7,6 +6,7 @@ UCSC - ASL
 import gym
 import time
 from tools.modules import *
+from config import cfg
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed
@@ -64,33 +64,38 @@ class CarlaGymEnv(gym.Env):
             self.global_route = None
 
         # constraints
-        self.targetSpeed = 50 / 3.6  # m/s
-        self.planner_speed_range = [20/3.6, 55/3.6]
-        self.traffic_speed_range = [30/3.6, 40/3.6]
-        self.maxSpeed = 90 / 3.6  # m/s
-        self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
-        self.LANE_WIDTH = 3.5  # lane width [m]
-        self.N_INIT_CARS = 15   # number of other actors
+        self.targetSpeed = float(cfg.GYM_ENV.TARGET_SPEED)
+        self.maxSpeed = float(cfg.GYM_ENV.MAX_SPEED)
+        self.maxAcc = float(cfg.GYM_ENV.MAX_ACC)
+        self.LANE_WIDTH = float(cfg.CARLA.LANE_WIDTH)
+        self.N_SPAWN_CARS = int(cfg.TRAFFIC_MANAGER.N_SPAWN_CARS)
 
         # frenet
         self.f_idx = 0
         self.init_s = None  # initial frenet s value - will be updated in reset function
-        self.max_s = 3000  # max frenet s value available in global route
-        self.track_length = 500  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
-        self.lookback = 30
-        self.loop_break = 50    # must be greater than loop_break
+        self.max_s = int(cfg.CARLA.MAX_S)
+        self.track_length = int(cfg.GYM_ENV.TRACK_LENGTH)
+        self.look_back = int(cfg.GYM_ENV.LOOK_BACK)
+        self.loop_break = int(cfg.GYM_ENV.LOOP_BREAK)
 
         # RL
-        self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)]).flatten() #rehape(-1, self.lookback*self.N_INIT_CARS+1)*2+1))
-        self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)]).flatten()
+        if cfg.GYM_ENV.FIXED_REPRESENTATION:
+            self.low_state = np.array([[-1 for _ in range(self.look_back)] for _ in range(30)])
+            self.high_state = np.array([[1 for _ in range(self.look_back)] for _ in range(30)])
+        else:
+            self.low_state = np.array([[-1 for _ in range(self.look_back)] for _ in range(int(self.N_SPAWN_CARS+1)*2+1)])
+            self.high_state = np.array([[1 for _ in range(self.look_back)] for _ in range(int(self.N_SPAWN_CARS+1)*2+1)])
 
-        self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
+        # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
+        #                                         dtype=np.float32)
+
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.look_back, 30),
                                                 dtype=np.float32)
         action_low = np.array([-1, -1])
         action_high = np.array([1, 1])
         self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
-        self.state = np.zeros_like(self.observation_space.sample()) # np.array([[0 for _ in range(self.observation_space.shape[1])] for _ in range(int(self.N_INIT_CARS+1)*2+1)]).flatten()
+        self.state = np.zeros_like(self.observation_space.sample())
 
         # instances
         self.ego = None
@@ -101,12 +106,16 @@ class CarlaGymEnv(gym.Env):
         self.input_module = None
         self.control_module = None
         self.init_transform = None  # ego initial transform to recover at each episode
-        self.dt = 0.05
         self.acceleration_ = 0
         self.eps_rew = 0
 
         self.motionPlanner = None
         self.vehicleController = None
+
+        if float(cfg.CARLA.DT) > 0:
+            self.dt = float(cfg.CARLA.DT)
+        else:
+            self.dt = 0.05
 
     def seed(self, seed=None):
         pass
@@ -137,6 +146,39 @@ class CarlaGymEnv(gym.Env):
         actors_norm_s_d = []    # relative frenet consecutive s and d values wrt ego
         ego_norm_s = []
         ego_norm_d = []
+        leading_s = []
+        leading_d = []
+        following_s = []
+        following_d = []
+        left_s = []
+        left_d = []
+        leftUp_s = []
+        leftUp_d = []
+        leftDown_s = []
+        leftDown_d = []
+        lleft_s = []
+        lleft_d = []
+        lleftUp_s = []
+        lleftUp_d = []
+        lleftDown_s = []
+        lleftDown_d = []
+        right_s = []
+        right_d = []
+        rightUp_s = []
+        rightUp_d = []
+        rightDown_s = []
+        rightDown_d = []
+        rright_s = []
+        rright_d = []
+        rrightUp_s = []
+        rrightUp_d = []
+        rrightDown_s = []
+        rrightDown_d = []
+
+        side_window = 5 # times 2 to make adjacent window
+
+        # dictionary={'ego...':egos, ...}
+
         """
                 **********************************************************************************************************************
                 ************************************************* Controller *********************************************************
@@ -206,15 +248,151 @@ class CarlaGymEnv(gym.Env):
             ego_norm_s.append(ego_s / self.max_s)
             ego_norm_d.append(ego_d / (2*self.LANE_WIDTH))
 
-            norm_s = [0 for _ in range(self.N_INIT_CARS)]
-            norm_d = [0 for _ in range(self.N_INIT_CARS)]
+            # lstm_state = np.zeros_like(self.observation_space.sample())
+
+            norm_s = [0 for _ in range(self.N_SPAWN_CARS)]
+            norm_d = [0 for _ in range(self.N_SPAWN_CARS)]
+            others_s = [0 for _ in range(self.N_SPAWN_CARS)]
+            others_d = [0 for _ in range(self.N_SPAWN_CARS)]
             for i, actor in enumerate(self.traffic_module.actors_batch):
                 act_s, act_d = actor['Frenet State']
                 norm_s[i] = (act_s - ego_s) / self.max_s
                 norm_d[i] = (act_d - ego_d) / (3*self.LANE_WIDTH)
+                others_s[i] = act_s
+                others_d[i] = act_d
+
+            # --------------------------------------------- ego lane -------------------------------------------------
+            same_lane_d_idx = np.where(abs(np.array(others_d) - ego_d) < 1)[0]
+            if not same_lane_d_idx.any():
+                leading_s.append( -1 )
+                leading_d.append( -1 )
+                following_s.append( -1 )
+                following_d.append( -1 )
+            else:
+                same_lane_d = np.array(others_d)[same_lane_d_idx]
+                same_lane_s = np.array(others_s)[same_lane_d_idx]
+                s_idx = np.concatenate((np.array(same_lane_d_idx).reshape(-1, 1), (same_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                leading_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>0][0])] if (any(sorted_s_idx[:, 1]>0)) else -1)
+                leading_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>0][0])] if (any(sorted_s_idx[:, 1]>0)) else -1)
+                following_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<0][-1])] if (any(sorted_s_idx[:, 1]<0)) else -1)
+                following_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<0][-1])] if (any(sorted_s_idx[:, 1]<0)) else -1)
+
+            # --------------------------------------------- left lane -------------------------------------------------
+            left_lane_d_idx = np.where( ((np.array(others_d) - ego_d)<-3) * ((np.array(others_d) - ego_d)>-4))[0]
+            if not left_lane_d_idx.any():
+                left_s.append( -1 )
+                left_d.append( -1 )
+
+                leftUp_s.append( -1 )
+                leftUp_d.append( -1 )
+
+                leftDown_s.append( -1 )
+                leftDown_d.append( -1 )
+
+            else:
+                left_lane_d = np.array(others_d)[left_lane_d_idx]
+                left_lane_s = np.array(others_s)[left_lane_d_idx]
+                s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                left_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                left_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+
+                leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+
+                leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+
+            # ------------------------------------------- two left lane -----------------------------------------------
+            lleft_lane_d_idx = np.where( ((np.array(others_d) - ego_d)<-6.5) * ((np.array(others_d) - ego_d)>-7.5))[0]
+            if not lleft_lane_d_idx.any():
+                lleft_s.append( -1 )
+                lleft_d.append( -1 )
+
+                lleftUp_s.append( -1 )
+                lleftUp_d.append( -1 )
+
+                lleftDown_s.append( -1 )
+                lleftDown_d.append( -1 )
+
+            else:
+                left_lane_d = np.array(others_d)[left_lane_d_idx]
+                left_lane_s = np.array(others_s)[left_lane_d_idx]
+                s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                left_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                left_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+
+                leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+
+                leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+
+            # ---------------------------------------------- rigth lane --------------------------------------------------
+            right_lane_d_idx = np.where( ((np.array(others_d) - ego_d)>3) * ((np.array(others_d) - ego_d)<4))[0]
+            if not right_lane_d_idx.any():
+                right_s.append( -1 )
+                right_d.append( -1 )
+
+                rightUp_s.append( -1 )
+                rightUp_d.append( -1 )
+
+                rightDown_s.append( -1 )
+                rightDown_d.append( -1 )
+
+            else:
+                right_lane_d = np.array(others_d)[right_lane_d_idx]
+                right_lane_s = np.array(others_s)[right_lane_d_idx]
+                s_idx = np.concatenate((np.array(right_lane_d_idx).reshape(-1, 1), (right_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                right_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                right_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+
+                rightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                rightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+
+                rightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                rightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+
+            # ------------------------------------------- two rigth lane --------------------------------------------------
+            rright_lane_d_idx = np.where( ((np.array(others_d) - ego_d)>6.5) * ((np.array(others_d) - ego_d)<7.5))[0]
+            if not rright_lane_d_idx.any():
+                rright_s.append( -1 )
+                rright_d.append( -1 )
+
+                rrightUp_s.append( -1 )
+                rrightUp_d.append( -1 )
+
+                rrightDown_s.append( -1 )
+                rrightDown_d.append( -1 )
+
+            else:
+                rright_lane_d = np.array(others_d)[rright_lane_d_idx]
+                rright_lane_s = np.array(others_s)[rright_lane_d_idx]
+                s_idx = np.concatenate((np.array(rright_lane_d_idx).reshape(-1, 1), (rright_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                rright_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                rright_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+
+                rrightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                rrightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+
+                rrightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                rrightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+
             actors_norm_s_d.append(norm_s)
             actors_norm_s_d.append(norm_d)
 
+            # norm_s = [0 for _ in range(self.N_SPAWN_CARS)]
+            # norm_d = [0 for _ in range(self.N_SPAWN_CARS)]
+            # for i, actor in enumerate(self.traffic_module.actors_batch):
+            #     act_s, act_d = actor['Frenet State']
+            #     norm_s[i] = (act_s - ego_s) / self.max_s
+            #     norm_d[i] = (act_d - ego_d) / (3*self.LANE_WIDTH)
+            # actors_norm_s_d.append(norm_s)
+            # actors_norm_s_d.append(norm_d)
             # loop breakers:
             if any(collision_hist):
                 collision = True
@@ -228,6 +406,7 @@ class CarlaGymEnv(gym.Env):
                 break
             if loop_counter >= self.loop_break:
                 break
+
         """
                 *********************************************************************************************************************
                 *********************************************** RL Observation ******************************************************
@@ -238,19 +417,63 @@ class CarlaGymEnv(gym.Env):
         speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
         acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
 
-        # pad the feature lists to recover from the cases where the length of path is less than lookback time
-        speeds.extend(0 for _ in range(self.lookback - len(speeds)))
-        ego_norm_s.extend(0 for _ in range(self.lookback - len(ego_norm_s)))
-        ego_norm_d.extend(0 for _ in range(self.lookback - len(ego_norm_d)))
-        actors_norm_s_d.extend([0 for _ in range(self.N_INIT_CARS)]
-                                 for _ in range(self.lookback*2 - len(actors_norm_s_d)))
+        if cfg.GYM_ENV.FIXED_REPRESENTATION:
+            ego_norm_s.extend(0 for _ in range(self.look_back - len(ego_norm_s)))
+            ego_norm_d.extend(0 for _ in range(self.look_back - len(ego_norm_d)))
+            leading_s.extend(0 for _ in range(self.look_back - len(leading_s)))
+            leading_d.extend(0 for _ in range(self.look_back - len(leading_d)))
+            following_s.extend(0 for _ in range(self.look_back - len(following_s)))
+            following_d.extend(0 for _ in range(self.look_back - len(following_d)))
+            left_s.extend(0 for _ in range(self.look_back - len(left_s)))
+            left_d.extend(0 for _ in range(self.look_back - len(left_d)))
+            leftUp_s.extend(0 for _ in range(self.look_back - len(leftUp_s)))
+            leftUp_d.extend(0 for _ in range(self.look_back - len(leftUp_d)))
+            leftDown_s.extend(0 for _ in range(self.look_back - len(leftDown_s)))
+            leftDown_d.extend(0 for _ in range(self.look_back - len(leftDown_d)))
+            lleft_s.extend(0 for _ in range(self.look_back - len(lleft_s)))
+            lleft_d.extend(0 for _ in range(self.look_back - len(lleft_d)))
+            lleftUp_s.extend(0 for _ in range(self.look_back - len(lleftUp_s)))
+            lleftUp_d.extend(0 for _ in range(self.look_back - len(lleftUp_d)))
+            lleftDown_s.extend(0 for _ in range(self.look_back - len(lleftDown_s)))
+            lleftDown_d.extend(0 for _ in range(self.look_back - len(lleftDown_d)))
+            right_s.extend(0 for _ in range(self.look_back - len(right_s)))
+            right_d.extend(0 for _ in range(self.look_back - len(right_d)))
+            rightUp_s.extend(0 for _ in range(self.look_back - len(rightUp_s)))
+            rightUp_d.extend(0 for _ in range(self.look_back - len(rightUp_d)))
+            rightDown_s.extend(0 for _ in range(self.look_back - len(rightDown_s)))
+            rightDown_d.extend(0 for _ in range(self.look_back - len(rightDown_d)))
+            rright_s.extend(0 for _ in range(self.look_back - len(rright_s)))
+            rright_d.extend(0 for _ in range(self.look_back - len(rright_d)))
+            rrightUp_s.extend(0 for _ in range(self.look_back - len(rrightUp_s)))
+            rrightUp_d.extend(0 for _ in range(self.look_back - len(rrightUp_d)))
+            rrightDown_s.extend(0 for _ in range(self.look_back - len(rrightDown_s)))
+            rrightDown_d.extend(0 for _ in range(self.look_back - len(rrightDown_d)))
 
-        # LSTM input                         
-        speeds_vec = (np.array(speeds) - self.maxSpeed)/self.maxSpeed
-        actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
-        obs = np.concatenate((np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
-        obs = obs.reshape((self.N_INIT_CARS+1)*2+1, -1)
-        self.state = np.array(obs[:, -self.lookback:]).flatten()
+            lstm_obs = np.concatenate(( np.array(ego_norm_s)[-self.look_back:], np.array(ego_norm_d)[-self.look_back:], np.array(leading_s)[-self.look_back:], np.array(leading_d)[-self.look_back:], np.array(following_s)[-self.look_back:],
+                                          np.array(following_d)[-self.look_back:], np.array(left_s)[-self.look_back:], np.array(left_d)[-self.look_back:], np.array(leftUp_s)[-self.look_back:], np.array(leftUp_d)[-self.look_back:],
+                                          np.array(leftDown_s)[-self.look_back:], np.array(leftDown_d)[-self.look_back:], np.array(lleft_s)[-self.look_back:], np.array(lleft_d)[-self.look_back:], np.array(lleftUp_s)[-self.look_back:],
+                                          np.array(lleftUp_d)[-self.look_back:], np.array(lleftDown_s)[-self.look_back:], np.array(lleftDown_d)[-self.look_back:], np.array(right_s)[-self.look_back:], np.array(right_d)[-self.look_back:],
+                                          np.array(rightUp_s)[-self.look_back:], np.array(rightUp_d)[-self.look_back:], np.array(rightDown_s)[-self.look_back:], np.array(rightDown_d)[-self.look_back:], np.array(rright_s)[-self.look_back:],
+                                          np.array(rright_d)[-self.look_back:], np.array(rrightUp_s)[-self.look_back:], np.array(rrightUp_d)[-self.look_back:], np.array(rrightDown_s)[-self.look_back:], np.array(rrightDown_d)[-self.look_back:]),
+                                          axis=0)
+
+            self.state = lstm_obs.reshape(self.observation_space.shape[0], -1)
+            # self.state = lstm_obs[:, -self.look_back:]
+        else:
+            # pad the feature lists to recover from the cases where the length of path is less than look_back time
+            speeds.extend(0 for _ in range(self.look_back - len(speeds)))
+            ego_norm_s.extend(0 for _ in range(self.look_back - len(ego_norm_s)))
+            ego_norm_d.extend(0 for _ in range(self.look_back - len(ego_norm_d)))
+            actors_norm_s_d.extend([0 for _ in range(self.N_SPAWN_CARS)]
+                                    for _ in range(self.look_back*2 - len(actors_norm_s_d)))
+
+            # LSTM input
+            speeds_vec = (np.array(speeds) - self.maxSpeed)/self.maxSpeed
+            actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
+            lstm_obs = np.concatenate((np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
+            lstm_obs = lstm_obs.reshape((self.N_SPAWN_CARS+1)*2+1, -1)
+            self.state = lstm_obs[:, -self.look_back:]
+
         # print(self.state)
         # print(100 * '--')
         """
@@ -289,7 +512,24 @@ class CarlaGymEnv(gym.Env):
             self.eps_rew += reward
             # print(self.n_step, self.eps_rew)
             return self.state, reward, done, {'reserved': 0}
-
+        # if cte > self.maxCte:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if theta > self.maxTheta:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+        # if w_norm > self.maxAngVelNorm:
+        #     reward = -100
+        #     # done = True
+        #     self.eps_rew += reward
+        #     # print(self.n_step, self.eps_rew)
+        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
         return self.state, reward, done, {'reserved': 0}
@@ -321,10 +561,8 @@ class CarlaGymEnv(gym.Env):
         self.module_manager = ModuleManager()
         width, height = [int(x) for x in args.carla_res.split('x')]
         self.world_module = ModuleWorld(MODULE_WORLD, args, timeout=10.0, module_manager=self.module_manager,
-                                        width=width, height=height, max_s=self.max_s, track_length=self.track_length)
-        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager, N_INIT_CARS=self.N_INIT_CARS, max_s=self.max_s,
-                                             track_length=self.track_length,
-                                             min_speed=self.traffic_speed_range[0], max_speed=self.traffic_speed_range[1])
+                                        width=width, height=height)
+        self.traffic_module = TrafficManager(MODULE_TRAFFIC, module_manager=self.module_manager)
         self.module_manager.register_module(self.world_module)
         self.module_manager.register_module(self.traffic_module)
         if args.play_mode:
@@ -332,11 +570,6 @@ class CarlaGymEnv(gym.Env):
             self.module_manager.register_module(self.hud_module)
             self.input_module = ModuleInput(MODULE_INPUT, module_manager=self.module_manager)
             self.module_manager.register_module(self.input_module)
-
-        if self.world_module.dt is not None:
-            self.dt = self.world_module.dt
-        else:
-            self.dt = 0.05
 
         # generate and save global route if it does not exist in the road_maps folder
         if self.global_route is None:
@@ -353,8 +586,7 @@ class CarlaGymEnv(gym.Env):
                 self.world_module.points_to_draw['wp {}'.format(wp.id)] = [wp.transform.location, 'COLOR_CHAMELEON_0']
             np.save('road_maps/global_route_town04', self.global_route)
 
-        self.motionPlanner = MotionPlanner(dt=self.dt, targetSpeed=self.targetSpeed,
-                                           speed_min=self.planner_speed_range[0], speed_max=self.planner_speed_range[1])
+        self.motionPlanner = MotionPlanner()
 
         # Start Modules
         self.motionPlanner.start(self.global_route)
@@ -365,7 +597,7 @@ class CarlaGymEnv(gym.Env):
 
         self.ego = self.world_module.hero_actor
         self.vehicleController = VehiclePIDController(self.ego, args_lateral={'K_P': 1.5, 'K_D': 0.0, 'K_I': 0.0})
-        self.IDM = IntelligentDriverModel(self.ego, self.dt)
+        self.IDM = IntelligentDriverModel(self.ego)
 
         self.module_manager.tick()  # Update carla world
 

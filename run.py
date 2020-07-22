@@ -27,9 +27,9 @@ from config import cfg, log_config_to_file, cfg_from_list, cfg_from_yaml_file
 
 
 def parse_args_cfgs():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser()
     parser.add_argument('--cfg_file', type=str, default=None, help='specify the config for training')
-    parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v95')
+    parser.add_argument('--env', help='environment ID', type=str, default='CarlaGymEnv-v1')
     parser.add_argument('--log_interval', help='Log interval (model)', type=int, default=100)
     parser.add_argument('--agent_id', type=int, default=None),
     parser.add_argument('--num_timesteps', type=float, default=1e7),

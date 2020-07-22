@@ -12,7 +12,7 @@ from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as Moti
 from agents.low_level_controller.controller import VehiclePIDController
 from agents.tools.misc import get_speed
 from agents.low_level_controller.controller import IntelligentDriverModel
-import yaml
+
 MODULE_WORLD = 'WORLD'
 MODULE_HUD = 'HUD'
 MODULE_INPUT = 'INPUT'

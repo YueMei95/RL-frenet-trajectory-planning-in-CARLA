@@ -3,12 +3,13 @@
 UCSC - ASL
 """
 
+import copy
+from tools.modules import *
 import gym
 import time
-from tools.modules import *
-from agents.tools.misc import get_speed
 from agents.local_planner.frenet_optimal_trajectory import FrenetPlanner as MotionPlanner
 from agents.low_level_controller.controller import VehiclePIDController
+from agents.tools.misc import get_speed
 from agents.low_level_controller.controller import IntelligentDriverModel
 
 MODULE_WORLD = 'WORLD'
@@ -64,12 +65,12 @@ class CarlaGymEnv(gym.Env):
 
         # constraints
         self.targetSpeed = 50 / 3.6  # m/s
-        self.planner_speed_range = [20 / 3.6, 55 / 3.6]
-        self.traffic_speed_range = [30 / 3.6, 40 / 3.6]
+        self.planner_speed_range = [20/3.6, 55/3.6]
+        self.traffic_speed_range = [30/3.6, 40/3.6]
         self.maxSpeed = 90 / 3.6  # m/s
         self.maxAcc = 6.878  # m/s^2 or 24.7608 km/h.s for Tesla model 3
         self.LANE_WIDTH = 3.5  # lane width [m]
-        self.N_INIT_CARS = 15  # number of other actors
+        self.N_INIT_CARS = 15   # number of other actors
 
         self.state_repr = 'fixed_position'
         # frenet
@@ -78,7 +79,7 @@ class CarlaGymEnv(gym.Env):
         self.max_s = 3000  # max frenet s value available in global route
         self.track_length = 500  # distance to travel on s axis before terminating the episode. Must be less than self.max_s - 50
         self.lookback = 30
-        self.loop_break = 50  # must be greater than loop_break
+        self.loop_break = 50    # must be greater than loop_break
 
         # RL
         if self.state_repr == 'fixed_position':
@@ -86,8 +87,8 @@ class CarlaGymEnv(gym.Env):
             self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(30)])
 
         else:
-            self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS + 1) * 2 + 1)])
-            self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS + 1) * 2 + 1)])
+            self.low_state = np.array([[-1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
+            self.high_state = np.array([[1 for _ in range(self.lookback)] for _ in range(int(self.N_INIT_CARS+1)*2+1)])
 
         # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
         #                                         dtype=np.float32)
@@ -133,16 +134,16 @@ class CarlaGymEnv(gym.Env):
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
-        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp, self.max_s]
+        ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp,self.max_s]
         fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5, Vf_n=action[1])
-        wps_to_go = len(fpath.t) - 3  # -2 bc len gives # of items not the idx of last item + 2wp controller is used
+        wps_to_go = len(fpath.t) - 3    # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 1
 
         speeds = []
         accelerations = []
         # actors_norm_s = []    # relative frenet s value wrt ego
         # actors_norm_d = []    # relative frenet d value wrt ego
-        actors_norm_s_d = []  # relative frenet consecutive s and d values wrt ego
+        actors_norm_s_d = []    # relative frenet consecutive s and d values wrt ego
         ego_norm_s = []
         ego_norm_d = []
         leading_s = []
@@ -174,7 +175,7 @@ class CarlaGymEnv(gym.Env):
         rrightDown_s = []
         rrightDown_d = []
 
-        side_window = 5  # times 2 to make adjacent window
+        side_window = 5 # times 2 to make adjacent window
 
         # dictionary={'ego...':egos, ...}
 
@@ -232,7 +233,7 @@ class CarlaGymEnv(gym.Env):
                     ************************************************ Update Carla ********************************************************
                     **********************************************************************************************************************
             """
-            speed_ = get_speed(self.ego)  # speed in previous tick
+            speed_ = get_speed(self.ego)    # speed in previous tick
             self.module_manager.tick()  # Update carla world
             if self.auto_render:
                 self.render()
@@ -245,7 +246,7 @@ class CarlaGymEnv(gym.Env):
             accelerations.append(acc)
             ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
             ego_norm_s.append(ego_s / self.max_s)
-            ego_norm_d.append(ego_d / (2 * self.LANE_WIDTH))
+            ego_norm_d.append(ego_d / (2*self.LANE_WIDTH))
 
             # lstm_state = np.zeros_like(self.observation_space.sample())
 
@@ -256,154 +257,130 @@ class CarlaGymEnv(gym.Env):
             for i, actor in enumerate(self.traffic_module.actors_batch):
                 act_s, act_d = actor['Frenet State']
                 norm_s[i] = (act_s - ego_s) / self.max_s
-                norm_d[i] = (act_d - ego_d) / (3 * self.LANE_WIDTH)
+                norm_d[i] = (act_d - ego_d) / (3*self.LANE_WIDTH)
                 others_s[i] = act_s
                 others_d[i] = act_d
 
             # --------------------------------------------- ego lane -------------------------------------------------
             same_lane_d_idx = np.where(abs(np.array(others_d) - ego_d) < 1)[0]
             if not same_lane_d_idx.any():
-                leading_s.append(-1)
-                leading_d.append(-1)
-                following_s.append(-1)
-                following_d.append(-1)
+                leading_s.append( -1 )
+                leading_d.append( -1 )
+                following_s.append( -1 )
+                following_d.append( -1 )
             else:
                 same_lane_d = np.array(others_d)[same_lane_d_idx]
                 same_lane_s = np.array(others_s)[same_lane_d_idx]
-                s_idx = np.concatenate((np.array(same_lane_d_idx).reshape(-1, 1), (same_lane_s - ego_s).reshape(-1, 1)), axis=1)
-                sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-                leading_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > 0][0])] if (any(sorted_s_idx[:, 1] > 0)) else -1)
-                leading_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > 0][0])] if (any(sorted_s_idx[:, 1] > 0)) else -1)
-                following_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < 0][-1])] if (any(sorted_s_idx[:, 1] < 0)) else -1)
-                following_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < 0][-1])] if (any(sorted_s_idx[:, 1] < 0)) else -1)
+                s_idx = np.concatenate((np.array(same_lane_d_idx).reshape(-1, 1), (same_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                leading_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>0][0])] if (any(sorted_s_idx[:, 1]>0)) else -1)
+                leading_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>0][0])] if (any(sorted_s_idx[:, 1]>0)) else -1)
+                following_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<0][-1])] if (any(sorted_s_idx[:, 1]<0)) else -1)
+                following_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<0][-1])] if (any(sorted_s_idx[:, 1]<0)) else -1)
 
             # --------------------------------------------- left lane -------------------------------------------------
-            left_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -3) * ((np.array(others_d) - ego_d) > -4))[0]
+            left_lane_d_idx = np.where( ((np.array(others_d) - ego_d)<-3) * ((np.array(others_d) - ego_d)>-4))[0]
             if not left_lane_d_idx.any():
-                left_s.append(-1)
-                left_d.append(-1)
+                left_s.append( -1 )
+                left_d.append( -1 )
 
-                leftUp_s.append(-1)
-                leftUp_d.append(-1)
+                leftUp_s.append( -1 )
+                leftUp_d.append( -1 )
 
-                leftDown_s.append(-1)
-                leftDown_d.append(-1)
+                leftDown_s.append( -1 )
+                leftDown_d.append( -1 )
 
             else:
                 left_lane_d = np.array(others_d)[left_lane_d_idx]
                 left_lane_s = np.array(others_s)[left_lane_d_idx]
-                s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s - ego_s).reshape(-1, 1)), axis=1)
-                sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-                left_s.append(
-                    norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-                left_d.append(
-                    norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                left_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                left_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
 
-                leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-                leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
+                leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
 
-                leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-                leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+                leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
 
             # ------------------------------------------- two left lane -----------------------------------------------
-            lleft_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -6.5) * ((np.array(others_d) - ego_d) > -7.5))[0]
+            lleft_lane_d_idx = np.where( ((np.array(others_d) - ego_d)<-6.5) * ((np.array(others_d) - ego_d)>-7.5))[0]
             if not lleft_lane_d_idx.any():
-                lleft_s.append(-1)
-                lleft_d.append(-1)
+                lleft_s.append( -1 )
+                lleft_d.append( -1 )
 
-                lleftUp_s.append(-1)
-                lleftUp_d.append(-1)
+                lleftUp_s.append( -1 )
+                lleftUp_d.append( -1 )
 
-                lleftDown_s.append(-1)
-                lleftDown_d.append(-1)
+                lleftDown_s.append( -1 )
+                lleftDown_d.append( -1 )
 
             else:
                 left_lane_d = np.array(others_d)[left_lane_d_idx]
                 left_lane_s = np.array(others_s)[left_lane_d_idx]
-                s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s - ego_s).reshape(-1, 1)), axis=1)
-                sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-                left_s.append(
-                    norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-                left_d.append(
-                    norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                left_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                left_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
 
-                leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-                leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
+                leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
 
-                leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-                leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+                leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
 
             # ---------------------------------------------- rigth lane --------------------------------------------------
-            right_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 3) * ((np.array(others_d) - ego_d) < 4))[0]
+            right_lane_d_idx = np.where( ((np.array(others_d) - ego_d)>3) * ((np.array(others_d) - ego_d)<4))[0]
             if not right_lane_d_idx.any():
-                right_s.append(-1)
-                right_d.append(-1)
+                right_s.append( -1 )
+                right_d.append( -1 )
 
-                rightUp_s.append(-1)
-                rightUp_d.append(-1)
+                rightUp_s.append( -1 )
+                rightUp_d.append( -1 )
 
-                rightDown_s.append(-1)
-                rightDown_d.append(-1)
+                rightDown_s.append( -1 )
+                rightDown_d.append( -1 )
 
             else:
                 right_lane_d = np.array(others_d)[right_lane_d_idx]
                 right_lane_s = np.array(others_s)[right_lane_d_idx]
-                s_idx = np.concatenate((np.array(right_lane_d_idx).reshape(-1, 1), (right_lane_s - ego_s).reshape(-1, 1)), axis=1)
-                sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-                right_s.append(
-                    norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-                right_d.append(
-                    norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                s_idx = np.concatenate((np.array(right_lane_d_idx).reshape(-1, 1), (right_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                right_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                right_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
 
-                rightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-                rightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
+                rightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                rightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
 
-                rightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-                rightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+                rightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                rightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
 
             # ------------------------------------------- two rigth lane --------------------------------------------------
-            rright_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 6.5) * ((np.array(others_d) - ego_d) < 7.5))[0]
+            rright_lane_d_idx = np.where( ((np.array(others_d) - ego_d)>6.5) * ((np.array(others_d) - ego_d)<7.5))[0]
             if not rright_lane_d_idx.any():
-                rright_s.append(-1)
-                rright_d.append(-1)
+                rright_s.append( -1 )
+                rright_d.append( -1 )
 
-                rrightUp_s.append(-1)
-                rrightUp_d.append(-1)
+                rrightUp_s.append( -1 )
+                rrightUp_d.append( -1 )
 
-                rrightDown_s.append(-1)
-                rrightDown_d.append(-1)
+                rrightDown_s.append( -1 )
+                rrightDown_d.append( -1 )
 
             else:
                 rright_lane_d = np.array(others_d)[rright_lane_d_idx]
                 rright_lane_s = np.array(others_s)[rright_lane_d_idx]
-                s_idx = np.concatenate((np.array(rright_lane_d_idx).reshape(-1, 1), (rright_lane_s - ego_s).reshape(-1, 1)), axis=1)
-                sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-                rright_s.append(
-                    norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-                rright_d.append(
-                    norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                s_idx = np.concatenate((np.array(rright_lane_d_idx).reshape(-1, 1), (rright_lane_s-ego_s).reshape(-1, 1)), axis=1)
+                sorted_s_idx = s_idx[s_idx[:,1].argsort()]
+                rright_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
+                rright_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1])<side_window][0])] if (any(abs(sorted_s_idx[:, 1])<side_window)) else -1 )
 
-                rrightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-                rrightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
+                rrightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
+                rrightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]>side_window][0])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]>0]>side_window)) else -1 )
 
-                rrightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-                rrightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                    any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+                rrightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
+                rrightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1]<side_window][-1])] if (any(sorted_s_idx[:, 1][sorted_s_idx[:, 1]<0]<side_window)) else -1 )
 
             actors_norm_s_d.append(norm_s)
             actors_norm_s_d.append(norm_d)
@@ -440,6 +417,7 @@ class CarlaGymEnv(gym.Env):
         speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
         acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
 
+
         if self.state_repr == 'fixed_position':
             ego_norm_s.extend(0 for _ in range(self.lookback - len(ego_norm_s)))
             ego_norm_d.extend(0 for _ in range(self.lookback - len(ego_norm_d)))
@@ -472,22 +450,13 @@ class CarlaGymEnv(gym.Env):
             rrightDown_s.extend(0 for _ in range(self.lookback - len(rrightDown_s)))
             rrightDown_d.extend(0 for _ in range(self.lookback - len(rrightDown_d)))
 
-            lstm_obs = np.concatenate((np.array(ego_norm_s)[-self.lookback:], np.array(ego_norm_d)[-self.lookback:],
-                                       np.array(leading_s)[-self.lookback:], np.array(leading_d)[-self.lookback:],
-                                       np.array(following_s)[-self.lookback:],
-                                       np.array(following_d)[-self.lookback:], np.array(left_s)[-self.lookback:], np.array(left_d)[-self.lookback:],
-                                       np.array(leftUp_s)[-self.lookback:], np.array(leftUp_d)[-self.lookback:],
-                                       np.array(leftDown_s)[-self.lookback:], np.array(leftDown_d)[-self.lookback:],
-                                       np.array(lleft_s)[-self.lookback:], np.array(lleft_d)[-self.lookback:], np.array(lleftUp_s)[-self.lookback:],
-                                       np.array(lleftUp_d)[-self.lookback:], np.array(lleftDown_s)[-self.lookback:],
-                                       np.array(lleftDown_d)[-self.lookback:], np.array(right_s)[-self.lookback:], np.array(right_d)[-self.lookback:],
-                                       np.array(rightUp_s)[-self.lookback:], np.array(rightUp_d)[-self.lookback:],
-                                       np.array(rightDown_s)[-self.lookback:], np.array(rightDown_d)[-self.lookback:],
-                                       np.array(rright_s)[-self.lookback:],
-                                       np.array(rright_d)[-self.lookback:], np.array(rrightUp_s)[-self.lookback:],
-                                       np.array(rrightUp_d)[-self.lookback:], np.array(rrightDown_s)[-self.lookback:],
-                                       np.array(rrightDown_d)[-self.lookback:]),
-                                      axis=0)
+            lstm_obs = np.concatenate(( np.array(ego_norm_s)[-self.lookback:], np.array(ego_norm_d)[-self.lookback:], np.array(leading_s)[-self.lookback:], np.array(leading_d)[-self.lookback:], np.array(following_s)[-self.lookback:],
+                                          np.array(following_d)[-self.lookback:], np.array(left_s)[-self.lookback:], np.array(left_d)[-self.lookback:], np.array(leftUp_s)[-self.lookback:], np.array(leftUp_d)[-self.lookback:],
+                                          np.array(leftDown_s)[-self.lookback:], np.array(leftDown_d)[-self.lookback:], np.array(lleft_s)[-self.lookback:], np.array(lleft_d)[-self.lookback:], np.array(lleftUp_s)[-self.lookback:],
+                                          np.array(lleftUp_d)[-self.lookback:], np.array(lleftDown_s)[-self.lookback:], np.array(lleftDown_d)[-self.lookback:], np.array(right_s)[-self.lookback:], np.array(right_d)[-self.lookback:],
+                                          np.array(rightUp_s)[-self.lookback:], np.array(rightUp_d)[-self.lookback:], np.array(rightDown_s)[-self.lookback:], np.array(rightDown_d)[-self.lookback:], np.array(rright_s)[-self.lookback:],
+                                          np.array(rright_d)[-self.lookback:], np.array(rrightUp_s)[-self.lookback:], np.array(rrightUp_d)[-self.lookback:], np.array(rrightDown_s)[-self.lookback:], np.array(rrightDown_d)[-self.lookback:]),
+                                          axis=0)
 
             self.state = lstm_obs.reshape(self.observation_space.shape[0], -1)
             # self.state = lstm_obs[:, -self.lookback:]
@@ -497,13 +466,13 @@ class CarlaGymEnv(gym.Env):
             ego_norm_s.extend(0 for _ in range(self.lookback - len(ego_norm_s)))
             ego_norm_d.extend(0 for _ in range(self.lookback - len(ego_norm_d)))
             actors_norm_s_d.extend([0 for _ in range(self.N_INIT_CARS)]
-                                   for _ in range(self.lookback * 2 - len(actors_norm_s_d)))
+                                    for _ in range(self.lookback*2 - len(actors_norm_s_d)))
 
-            # LSTM input                         
-            speeds_vec = (np.array(speeds) - self.maxSpeed) / self.maxSpeed
+            # LSTM input
+            speeds_vec = (np.array(speeds) - self.maxSpeed)/self.maxSpeed
             actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
             lstm_obs = np.concatenate((np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
-            lstm_obs = lstm_obs.reshape((self.N_INIT_CARS + 1) * 2 + 1, -1)
+            lstm_obs = lstm_obs.reshape((self.N_INIT_CARS+1)*2+1, -1)
             self.state = lstm_obs[:, -self.lookback:]
 
         # print(self.state)

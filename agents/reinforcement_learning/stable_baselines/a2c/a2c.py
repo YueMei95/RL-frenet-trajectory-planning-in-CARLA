@@ -47,7 +47,7 @@ class A2C(ActorCriticRLModel):
     def __init__(self, policy, env, gamma=0.99, n_steps=5, vf_coef=0.25, ent_coef=0.01, max_grad_norm=0.5,
                  learning_rate=7e-4, alpha=0.99, epsilon=1e-5, lr_schedule='constant', verbose=0,
                  tensorboard_log=None, _init_setup_model=True, policy_kwargs=None,
-                 full_tensorboard_log=False, seed=None, n_cpu_tf_sess=None):
+                 full_tensorboard_log=False, seed=None, n_cpu_tf_sess=None, model_dir=None):
 
         self.n_steps = n_steps
         self.gamma = gamma
@@ -60,6 +60,7 @@ class A2C(ActorCriticRLModel):
         self.learning_rate = learning_rate
         self.tensorboard_log = tensorboard_log
         self.full_tensorboard_log = full_tensorboard_log
+        self.model_dir = model_dir
 
         self.learning_rate_ph = None
         self.n_batch = None
@@ -275,6 +276,8 @@ class A2C(ActorCriticRLModel):
                         logger.logkv('ep_reward_mean', safe_mean([ep_info['r'] for ep_info in self.ep_info_buf]))
                         logger.logkv('ep_len_mean', safe_mean([ep_info['l'] for ep_info in self.ep_info_buf]))
                     logger.dump_tabular()
+
+                    self.save(self.model_dir + "/{}".format(self.num_timesteps))
 
         callback.on_training_end()
         return self

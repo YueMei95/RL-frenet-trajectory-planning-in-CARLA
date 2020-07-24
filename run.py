@@ -9,6 +9,7 @@ import os.path as osp
 from pathlib import Path
 currentPath = osp.dirname(osp.abspath(inspect.getfile(inspect.currentframe())))
 # sys.path.insert(1, currentPath + '/agents/stable_baselines/')
+import shutil
 
 from stable_baselines.bench import Monitor
 from stable_baselines.ddpg.policies import MlpPolicy as DDPGMlpPolicy
@@ -81,11 +82,13 @@ if __name__ == '__main__':
 
     if not args.test:  # training
         if args.agent_id is not None:
+            # create log folder
             os.mkdir(currentPath + '/logs/agent_{}/'.format(args.agent_id))                             # create agent_id folder
             os.mkdir(currentPath + '/logs/agent_{}/models/'.format(args.agent_id))
             save_path = 'logs/agent_{}/models/'.format(args.agent_id)
             env = Monitor(env, 'logs/agent_{}/'.format(args.agent_id))    # logging monitor
 
+            # log commit id
             repo = git.Repo(search_parent_directories=False)
             commit_id = repo.head.object.hexsha
             with open('logs/agent_{}/reproduction_info.txt'.format(args.agent_id), 'w') as f:  # Use file to refer to the file object
@@ -93,6 +96,12 @@ if __name__ == '__main__':
                 f.write('Program arguments:\n\n{}\n\n'.format(args))
                 f.write('Configuration file:\n\n{}'.format(cfg))
                 f.close()
+
+            # save a copy of config file
+            original_adr = currentPath + '/tools/cfgs/' + args.cfg_file.split('/')[-1]
+            target_adr = currentPath + '/logs/agent_{}/'.format(args.agent_id) + args.cfg_file.split('/')[-1]
+            shutil.copyfile(original_adr, target_adr)
+
         else:
             save_path = 'logs/'
             env = Monitor(env, 'logs/', info_keywords=('reserved',))                                   # logging monitor

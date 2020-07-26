@@ -22,7 +22,7 @@ from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
 from stable_baselines import A2C
-from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn
+from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass
 
 from config import cfg, log_config_to_file, cfg_from_list, cfg_from_yaml_file
 

@@ -260,10 +260,9 @@ class CarlaGymEnv(gym.Env):
                 norm_d[i] = (act_d - ego_d) / (3*self.LANE_WIDTH)
                 others_s[i] = act_s
                 others_d[i] = act_d
-
             # --------------------------------------------- ego lane -------------------------------------------------
             same_lane_d_idx = np.where(abs(np.array(others_d) - ego_d) < 1)[0]
-            if not same_lane_d_idx.any():
+            if len(same_lane_d_idx) == 0:
                 leading_s.append( -1 )
                 leading_d.append( -1 )
                 following_s.append( -1 )
@@ -280,7 +279,7 @@ class CarlaGymEnv(gym.Env):
 
             # --------------------------------------------- left lane -------------------------------------------------
             left_lane_d_idx = np.where( ((np.array(others_d) - ego_d)<-3) * ((np.array(others_d) - ego_d)>-4))[0]
-            if not left_lane_d_idx.any():
+            if len(left_lane_d_idx) == 0:
                 left_s.append( -1 )
                 left_d.append( -1 )
 
@@ -306,7 +305,7 @@ class CarlaGymEnv(gym.Env):
 
             # ------------------------------------------- two left lane -----------------------------------------------
             lleft_lane_d_idx = np.where( ((np.array(others_d) - ego_d)<-6.5) * ((np.array(others_d) - ego_d)>-7.5))[0]
-            if not lleft_lane_d_idx.any():
+            if len(lleft_lane_d_idx) == 0:
                 lleft_s.append( -1 )
                 lleft_d.append( -1 )
 
@@ -332,7 +331,7 @@ class CarlaGymEnv(gym.Env):
 
             # ---------------------------------------------- rigth lane --------------------------------------------------
             right_lane_d_idx = np.where( ((np.array(others_d) - ego_d)>3) * ((np.array(others_d) - ego_d)<4))[0]
-            if not right_lane_d_idx.any():
+            if len(right_lane_d_idx) == 0:
                 right_s.append( -1 )
                 right_d.append( -1 )
 
@@ -358,7 +357,7 @@ class CarlaGymEnv(gym.Env):
 
             # ------------------------------------------- two rigth lane --------------------------------------------------
             rright_lane_d_idx = np.where( ((np.array(others_d) - ego_d)>6.5) * ((np.array(others_d) - ego_d)<7.5))[0]
-            if not rright_lane_d_idx.any():
+            if len(rright_lane_d_idx) == 0:
                 rright_s.append( -1 )
                 rright_d.append( -1 )
 
@@ -503,33 +502,16 @@ class CarlaGymEnv(gym.Env):
             reward = -10
             done = True
             self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
+            # print('eps rew: ', self.n_step, self.eps_rew)
             return self.state, reward, done, {'reserved': 0}
         if track_finished:
             # print('Finished the race')
             reward = 10
             done = True
             self.eps_rew += reward
-            # print(self.n_step, self.eps_rew)
+            # print('eps rew: ', self.n_step, self.eps_rew)
             return self.state, reward, done, {'reserved': 0}
-        # if cte > self.maxCte:
-        #     reward = -100
-        #     # done = True
-        #     self.eps_rew += reward
-        #     # print(self.n_step, self.eps_rew)
-        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
-        # if theta > self.maxTheta:
-        #     reward = -100
-        #     # done = True
-        #     self.eps_rew += reward
-        #     # print(self.n_step, self.eps_rew)
-        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
-        # if w_norm > self.maxAngVelNorm:
-        #     reward = -100
-        #     # done = True
-        #     self.eps_rew += reward
-        #     # print(self.n_step, self.eps_rew)
-        #     return self.state, reward, done, {'max index': self.max_idx_achieved}
+
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
         return self.state, reward, done, {'reserved': 0}

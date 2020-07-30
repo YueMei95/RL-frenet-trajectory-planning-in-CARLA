@@ -1060,8 +1060,8 @@ class ModuleWorld:
     def _get_data_from_carla(self):
         try:
             self.client = carla.Client(self.args.carla_host, self.args.carla_port)
-            self.tm_port = self.client.get_trafficmanager(self.args.tm_port).get_port()
             self.client.set_timeout(self.timeout)
+            self.tm_port = self.client.get_trafficmanager(self.args.tm_port).get_port()
             # world = self.client.get_world()
             world = self.client.load_world('Town04')
             world.set_weather(getattr(carla.WeatherParameters, 'ClearNoon'))

@@ -20,7 +20,7 @@ def plot_rewards(args=None):
     data = []
 
     for i in args.agent_ids:
-        data.append(pd.read_csv('logs/agent_{}/monitor.csv'.format(i),skiprows=1))
+        data.append(pd.read_csv('logs/agent_{}/monitor.csv'.format(i), skiprows=1))
 
     average = []
     step_cum = []
@@ -40,13 +40,10 @@ def plot_rewards(args=None):
         
         average.append(temp)
         step_cum.append(temp_step)
-        
 
     plt.figure(figsize=(12,8))
 
-    #lr = ['{}'.format(x) for x in range(start_id,end_id)]
     lr = args.agent_ids
-    #colors = [np.random.rand(3,) for x in range(start_id,end_id)]
     colors = [np.random.rand(3,) for x in args.agent_ids]
     for i in range(len(lr)):
         plt.plot(step_cum[i], average[i], '-', color=colors[i])

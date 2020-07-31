@@ -23,7 +23,7 @@ GYM_ENV:
   LOOP_BREAK: 50                                                # [int] steps to break path following while loop  - must be greater than LOOK_BACK
 
 LOCAL_PLANNER:
-  MIN_SPEED: 5.56                                               # Allowed min speed for ego vehicle; RL's -1 action maps to this value
+  MIN_SPEED: 13.89 # 5.56                                       # Allowed min speed for ego vehicle; RL's -1 action maps to this value
   MAX_SPEED: 15.28                                              # Allowed max speed for ego vehicle; RL's 1 action maps to this value
 
 TRAFFIC_MANAGER:

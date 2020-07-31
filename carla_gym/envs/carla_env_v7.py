@@ -89,7 +89,7 @@ class CarlaGymEnv(gym.Env):
         # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
         #                                         dtype=np.float32)
 
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.look_back, 30),
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.look_back, 29),
                                                 dtype=np.float32)
         action_low = np.array([-1])
         action_high = np.array([1])
@@ -453,7 +453,7 @@ class CarlaGymEnv(gym.Env):
             rrightDown_s.extend(0 for _ in range(self.look_back - len(rrightDown_s)))
             rrightDown_d.extend(0 for _ in range(self.look_back - len(rrightDown_d)))
 
-            lstm_obs = np.concatenate(( np.array(ego_norm_s)[-self.look_back:], np.array(ego_norm_d)[-self.look_back:], np.array(leading_s)[-self.look_back:], np.array(leading_d)[-self.look_back:], np.array(following_s)[-self.look_back:],
+            lstm_obs = np.concatenate(( np.array(ego_norm_d)[-self.look_back:], np.array(leading_s)[-self.look_back:], np.array(leading_d)[-self.look_back:], np.array(following_s)[-self.look_back:],
                                           np.array(following_d)[-self.look_back:], np.array(left_s)[-self.look_back:], np.array(left_d)[-self.look_back:], np.array(leftUp_s)[-self.look_back:], np.array(leftUp_d)[-self.look_back:],
                                           np.array(leftDown_s)[-self.look_back:], np.array(leftDown_d)[-self.look_back:], np.array(lleft_s)[-self.look_back:], np.array(lleft_d)[-self.look_back:], np.array(lleftUp_s)[-self.look_back:],
                                           np.array(lleftUp_d)[-self.look_back:], np.array(lleftDown_s)[-self.look_back:], np.array(lleftDown_d)[-self.look_back:], np.array(right_s)[-self.look_back:], np.array(right_d)[-self.look_back:],

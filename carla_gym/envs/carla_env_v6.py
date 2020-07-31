@@ -252,7 +252,6 @@ class CarlaGymEnv(gym.Env):
             ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
             ego_norm_s.append((ego_s - self.init_s) / self.track_length)
             ego_norm_d.append(ego_d / (2*self.LANE_WIDTH))
-
             # lstm_state = np.zeros_like(self.observation_space.sample())
 
             norm_s = [0 for _ in range(self.N_SPAWN_CARS)]
@@ -265,6 +264,7 @@ class CarlaGymEnv(gym.Env):
                 norm_d[i] = (act_d - ego_d) / (3*self.LANE_WIDTH)
                 others_s[i] = act_s
                 others_d[i] = act_d
+
             # --------------------------------------------- ego lane -------------------------------------------------
             same_lane_d_idx = np.where(abs(np.array(others_d) - ego_d) < 1)[0]
             if len(same_lane_d_idx) == 0:

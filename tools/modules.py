@@ -1792,6 +1792,7 @@ class TrafficManager:
             control = actor_dic['Cruise Control']
             state = control.tick()
             s = self.estimate_s(control.s, state[0], state[1], state[-1])
+            actor_dic['Frenet State'] = [s, actor_dic['Frenet State'][1]]
             control.update_s(s)
 
 

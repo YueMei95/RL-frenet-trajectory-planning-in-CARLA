@@ -250,7 +250,7 @@ class CarlaGymEnv(gym.Env):
             speeds.append(speed)
             accelerations.append(acc)
             ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
-            ego_norm_s.append(ego_s / self.max_s)
+            ego_norm_s.append((ego_s - self.init_s) / self.track_length)
             ego_norm_d.append(ego_d / (2*self.LANE_WIDTH))
 
             # lstm_state = np.zeros_like(self.observation_space.sample())
@@ -493,7 +493,7 @@ class CarlaGymEnv(gym.Env):
         r_laneChange = -abs(np.round(action[0]))  # -1<= r_laneChange <= 0
         positives = r_speed
         # negatives = (r_acc + r_laneChange) / 2
-        negatives = r_laneChange
+        negatives = 0
         reward = positives + negatives  # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
 

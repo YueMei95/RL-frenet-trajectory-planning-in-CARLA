@@ -473,8 +473,8 @@ class CarlaGymEnv(gym.Env):
             lstm_obs = lstm_obs.reshape((self.N_SPAWN_CARS+1)*2+1, -1)
             self.state = lstm_obs[:, -self.look_back:]
 
-        # print(self.state)
-        # print(100 * '--')
+        #print(self.state)
+        #print(100 * '--')
         """
                 **********************************************************************************************************************
                 ********************************************* RL Reward Function *****************************************************

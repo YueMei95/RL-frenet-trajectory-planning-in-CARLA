@@ -93,7 +93,7 @@ class CarlaGymEnv(gym.Env):
         # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
         #                                         dtype=np.float32)
 
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(16, self.look_back),
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.look_back, 16),
                                                 dtype=np.float32)
         action_low = np.array([-1])
         action_high = np.array([1])
@@ -353,7 +353,7 @@ class CarlaGymEnv(gym.Env):
                                    np.array(rrightDown_s)[-self.look_back:]),
                                    axis=0)
 
-        return lstm_obs.reshape(self.observation_space.shape[0], -1) # state
+        return lstm_obs.reshape(self.observation_space.shape[1], -1).transpose() # state
 
     def non_fix_representation(self, speeds, ego_norm_s, ego_norm_d, actors_norm_s_d):
         speeds.extend(0 for _ in range(self.look_back - len(speeds)))
@@ -741,9 +741,9 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---EPS UPDATE---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
-            # for idx in range(2, self.state.shape[0]):
-            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            # for idx in range(2, self.state.shape[1]):
+            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
@@ -876,9 +876,9 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---RESET---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
-            # for idx in range(2, self.state.shape[0]):
-            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            # for idx in range(2, self.state.shape[1]):
+            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time

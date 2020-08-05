@@ -56,7 +56,6 @@ def sequence_1d_cnn_ego_bypass(scaled_sequence, **kwargs):
     :return: (TensorFlow Tensor) The CNN output layer
     """
     activ = tf.nn.relu
-
     norm_ego = scaled_sequence[:, :, 0:2]
     layer_1_ego = activ(conv1d(norm_ego, 'c1_ego', n_filters=16, filter_size=4, stride=2, init_scale=np.sqrt(2), **kwargs))
     layer_2_ego = activ(conv1d(layer_1_ego, 'c2_ego', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))

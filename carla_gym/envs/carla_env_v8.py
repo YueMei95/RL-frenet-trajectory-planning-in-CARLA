@@ -372,8 +372,7 @@ class CarlaGymEnv(gym.Env):
 
     def step(self, action=None):
         self.n_step += 1
-        track_finished = False
-
+        lanechange = False
         """
                 **********************************************************************************************************************
                 *********************************************** Motion Planner *******************************************************
@@ -385,7 +384,7 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp, self.max_s]
-        fpath = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5, Vf_n=-1)
+        fpath, lanechange = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5, Vf_n=-1)
         wps_to_go = len(fpath.t) - 3  # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 1
 
@@ -439,9 +438,11 @@ class CarlaGymEnv(gym.Env):
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
 
-        # follows path until end of WPs for max 1.8seconds
+        # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
         loop_counter = 0
-        while self.f_idx < wps_to_go and elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5:
+        while self.f_idx < wps_to_go and ((elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
+                                          loop_counter > self.loop_break) and not lanechange):
+
             loop_counter += 1
             # for _ in range(wps_to_go):
             # self.f_idx += 1
@@ -654,7 +655,9 @@ class CarlaGymEnv(gym.Env):
             # actors_norm_s_d.append(norm_s)
             # actors_norm_s_d.append(norm_d)
             # loop breakers:
-            if any(collision_hist):
+
+            # if ego off-the road or collided
+            if any(collision_hist) or ego_d < -4.5 or ego_d > 8:
                 collision = True
                 break
 
@@ -664,8 +667,8 @@ class CarlaGymEnv(gym.Env):
             if distance_traveled >= self.track_length:
                 track_finished = True
                 break
-            if loop_counter >= self.loop_break:
-                break
+            # if loop_counter >= self.loop_break:
+            #    break
 
         """
                 *********************************************************************************************************************
@@ -741,9 +744,9 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---EPS UPDATE---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
             # for idx in range(2, self.state.shape[1]):
-            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
@@ -776,10 +779,10 @@ class CarlaGymEnv(gym.Env):
         w_speed = 10
         e_speed = abs(self.targetSpeed - speed)
         r_speed = 5 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
-        r_laneChange = -abs(np.round(action[0]))  # -1<= r_laneChange <= 0
+        r_laneChange = -abs(np.round(action[0])) / 10 # -0.1<= r_laneChange <= 0
         positives = r_speed
         # negatives = (r_acc + r_laneChange) / 2
-        negatives = 0
+        negatives = r_laneChange
         reward = positives + negatives  # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
 
@@ -806,7 +809,7 @@ class CarlaGymEnv(gym.Env):
 
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
-        # print(reward, action)
+        print(reward, action)
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):
@@ -876,9 +879,9 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---RESET---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
             # for idx in range(2, self.state.shape[1]):
-            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time

@@ -440,8 +440,8 @@ class CarlaGymEnv(gym.Env):
 
         # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
         loop_counter = 0
-        while self.f_idx < wps_to_go and ((elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
-                                           loop_counter > self.loop_break) and not lanechange):
+        while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
+                                          loop_counter < self.loop_break or lanechange):
 
             loop_counter += 1
             # for _ in range(wps_to_go):

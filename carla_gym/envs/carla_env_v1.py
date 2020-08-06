@@ -174,10 +174,10 @@ class CarlaGymEnv(gym.Env):
             left_s.append(0)
         #    left_d.append(-0.33)
 
-            leftUp_s.append(0.002)
+            leftUp_s.append(0.004)
         #    leftUp_d.append(-0.33)
 
-            leftDown_s.append(-0.002)
+            leftDown_s.append(-0.004)
         #    leftDown_d.append(-0.33)
 
         else:
@@ -207,10 +207,10 @@ class CarlaGymEnv(gym.Env):
             lleft_s.append(0)
         #    lleft_d.append(-0.66)
 
-            lleftUp_s.append(0.002)
+            lleftUp_s.append(0.004)
         #    lleftUp_d.append(-0.66)
 
-            lleftDown_s.append(-0.002)
+            lleftDown_s.append(-0.004)
         #    lleftDown_d.append(-0.66)
 
         else:
@@ -240,10 +240,10 @@ class CarlaGymEnv(gym.Env):
             right_s.append(0)
         #    right_d.append(0.33)
 
-            rightUp_s.append(0.002)
+            rightUp_s.append(0.004)
         #    rightUp_d.append(0.33)
 
-            rightDown_s.append(-0.002)
+            rightDown_s.append(-0.004)
         #    rightDown_d.append(0.33)
 
         else:
@@ -273,10 +273,10 @@ class CarlaGymEnv(gym.Env):
             rright_s.append(0)
         #    rright_d.append(0.66)
 
-            rrightUp_s.append(0.002)
+            rrightUp_s.append(0.004)
         #    rrightUp_d.append(0.66)
 
-            rrightDown_s.append(-0.002)
+            rrightDown_s.append(-0.004)
         #    rrightDown_d.append(0.66)
 
         else:
@@ -745,7 +745,7 @@ class CarlaGymEnv(gym.Env):
             # print(3 * '---EPS UPDATE---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
             #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
-            # for idx in range(2, self.state.shape[1]):
+            # for idx in range(2, self.state.shape[0]):
             #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
@@ -880,7 +880,7 @@ class CarlaGymEnv(gym.Env):
             # print(3 * '---RESET---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
             #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
-            # for idx in range(2, self.state.shape[1]):
+            # for idx in range(2, self.state.shape[0]):
             #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:

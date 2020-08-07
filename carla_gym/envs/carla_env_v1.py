@@ -809,7 +809,7 @@ class CarlaGymEnv(gym.Env):
 
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
-        print(reward, action)
+        # print(reward, action)
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):

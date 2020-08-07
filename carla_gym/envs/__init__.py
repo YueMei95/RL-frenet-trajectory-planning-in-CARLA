@@ -1,8 +1,5 @@
 from carla_gym.envs.carla_env_v1 import CarlaGymEnv as CarlaGymEnv_v1
 from carla_gym.envs.carla_env_v2 import CarlaGymEnv as CarlaGymEnv_v2
+# actor tracking
 from carla_gym.envs.carla_env_v3 import CarlaGymEnv as CarlaGymEnv_v3
 from carla_gym.envs.carla_env_v4 import CarlaGymEnv as CarlaGymEnv_v4
-from carla_gym.envs.carla_env_v5 import CarlaGymEnv as CarlaGymEnv_v5
-from carla_gym.envs.carla_env_v6 import CarlaGymEnv as CarlaGymEnv_v6
-from carla_gym.envs.carla_env_v7 import CarlaGymEnv as CarlaGymEnv_v7
-from carla_gym.envs.carla_env_v8 import CarlaGymEnv as CarlaGymEnv_v8

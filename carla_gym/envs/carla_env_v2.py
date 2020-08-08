@@ -546,7 +546,7 @@ class CarlaGymEnv(gym.Env):
 
             # self.state = lstm_obs.reshape(self.observation_space.shape[0], -1)
 
-            print(3 * '---EPS UPDATE---')
+            # print(3 * '---EPS UPDATE---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
             #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
             # for idx in range(2, self.state.shape[1]):

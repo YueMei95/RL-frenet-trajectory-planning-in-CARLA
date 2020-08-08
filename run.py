@@ -22,7 +22,7 @@ from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
 from stable_baselines import A2C
-from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass
+from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass, sequence_1d_cnn_ego_bypass_ct, sequence_1d_cnn_ego_bypass_tc
 
 from config import cfg, log_config_to_file, cfg_from_list, cfg_from_yaml_file
 
@@ -74,7 +74,6 @@ if __name__ == '__main__':
     # --------------------------------------------------------------------------------------------------------------------
     # --------------------------------------------------Training----------------------------------------------------------
     # --------------------------------------------------------------------------------------------------------------------
-
     if cfg.POLICY.NAME == 'DDPG':
         policy = {'MLP': DDPGMlpPolicy, 'CNN': DDPGCnnPolicy}   # DDPG does not have LSTM policy
     else:

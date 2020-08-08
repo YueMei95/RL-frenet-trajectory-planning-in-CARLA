@@ -55,8 +55,9 @@ def sequence_1d_cnn_ego_bypass(scaled_sequence, **kwargs):
     :param kwargs: (dict) Extra keywords parameters for the convolutional layers of the CNN
     :return: (TensorFlow Tensor) The CNN output layer
     """
+
     activ = tf.nn.relu
-    norm_ego = scaled_sequence[:, :, 0:2]
+    norm_ego = scaled_sequence[:, :, :2]
     layer_1_ego = activ(conv1d(norm_ego, 'c1_ego', n_filters=16, filter_size=4, stride=2, init_scale=np.sqrt(2), **kwargs))
     layer_2_ego = activ(conv1d(layer_1_ego, 'c2_ego', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     layer_3_ego = activ(conv1d(layer_2_ego, 'c3_ego', n_filters=32, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
@@ -71,6 +72,71 @@ def sequence_1d_cnn_ego_bypass(scaled_sequence, **kwargs):
     layer_3_others = conv_to_fc(layer_3_others)
     fc1_others = activ(linear(layer_3_others, 'fc1_others', n_hidden=256, init_scale=np.sqrt(2)))
     fc2_others = activ(linear(fc1_others, 'fc2_others', n_hidden=256, init_scale=np.sqrt(2)))
+
+    concat_out = tf.concat([fc2_ego, fc2_others], axis=1, name='concat')
+    return activ(linear(concat_out, 'fc3', n_hidden=512, init_scale=np.sqrt(2)))
+
+
+def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
+    """
+    CNN for sequence.
+
+    :param scaled_sequence: (TensorFlow Tensor) Image input placeholder
+    :shape of scaled_sequence: (Batch, Time, Channels)
+    :scaled_sequence => [norm_egos_s, norm_ego_d, relative_leading_s, ...]
+    :param kwargs: (dict) Extra keywords parameters for the convolutional layers of the CNN
+    :return: (TensorFlow Tensor) The CNN output layer
+    """
+
+    activ = tf.nn.relu
+    norm_ego = scaled_sequence[:, :, :2]
+    layer_1_ego = activ(conv1d(norm_ego, 'c1_ego', n_filters=16, filter_size=1, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_2_ego = activ(conv1d(layer_1_ego, 'c2_ego', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_3_ego = activ(conv1d(layer_2_ego, 'c3_ego', n_filters=32, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3_ego = conv_to_fc(layer_1_ego)
+    # fc1_ego = activ(linear(layer_3_ego, 'fc1_ego', n_hidden=64, init_scale=np.sqrt(2)))
+    fc2_ego = activ(linear(layer_3_ego, 'fc2_ego', n_hidden=64, init_scale=np.sqrt(2)))
+
+    relative_others = scaled_sequence[:, :, 2:]
+    layer_1_others = activ(conv1d(relative_others, 'c1_others', n_filters=64, filter_size=3, stride=3, init_scale=np.sqrt(2), **kwargs))
+    # layer_2_others = activ(conv1d(layer_1_others, 'c2_others', n_filters=128, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_3_others = activ(conv1d(layer_2_others, 'c3_others', n_filters=128, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3_others = conv_to_fc(layer_1_others)
+    #fc1_others = activ(linear(layer_3_others, 'fc1_others', n_hidden=256, init_scale=np.sqrt(2)))
+    fc2_others = activ(linear(layer_3_others, 'fc2_others', n_hidden=256, init_scale=np.sqrt(2)))
+
+    concat_out = tf.concat([fc2_ego, fc2_others], axis=1, name='concat')
+    return activ(linear(concat_out, 'fc3', n_hidden=512, init_scale=np.sqrt(2)))
+
+
+def sequence_1d_cnn_ego_bypass_ct(scaled_sequence, **kwargs):
+    """
+    CNN for sequence.
+
+    :param scaled_sequence: (TensorFlow Tensor) Image input placeholder
+    :shape of scaled_sequence: (Batch, Channels, Time)
+    :scaled_sequence => [norm_egos_s, norm_ego_d, relative_leading_s, ...]
+    :param kwargs: (dict) Extra keywords parameters for the convolutional layers of the CNN
+    :return: (TensorFlow Tensor) The CNN output layer
+    """
+    activ = tf.nn.relu
+    norm_ego = scaled_sequence[:, :2, :]
+    layer_1_ego = activ(
+        conv1d(norm_ego, 'c1_ego', n_filters=16, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_2_ego = activ(conv1d(layer_1_ego, 'c2_ego', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_3_ego = activ(conv1d(layer_2_ego, 'c3_ego', n_filters=32, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3_ego = conv_to_fc(layer_1_ego)
+    # fc1_ego = activ(linear(layer_3_ego, 'fc1_ego', n_hidden=64, init_scale=np.sqrt(2)))
+    fc2_ego = activ(linear(layer_3_ego, 'fc2_ego', n_hidden=64, init_scale=np.sqrt(2)))
+
+    relative_others = scaled_sequence[:, 2:, :]
+    layer_1_others = activ(
+        conv1d(relative_others, 'c1_others', n_filters=16, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_2_others = activ(conv1d(layer_1_others, 'c2_others', n_filters=128, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
+    # layer_3_others = activ(conv1d(layer_2_others, 'c3_others', n_filters=128, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
+    layer_3_others = conv_to_fc(layer_1_others)
+    # fc1_others = activ(linear(layer_3_others, 'fc1_others', n_hidden=256, init_scale=np.sqrt(2)))
+    fc2_others = activ(linear(layer_3_others, 'fc2_others', n_hidden=256, init_scale=np.sqrt(2)))
 
     concat_out = tf.concat([fc2_ego, fc2_others], axis=1, name='concat')
     return activ(linear(concat_out, 'fc3', n_hidden=512, init_scale=np.sqrt(2)))

@@ -93,7 +93,7 @@ class CarlaGymEnv(gym.Env):
         # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
         #                                         dtype=np.float32)
 
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(16, self.look_back),
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.look_back, 16),
                                                 dtype=np.float32)
         action_low = np.array([-1])
         action_high = np.array([1])
@@ -400,7 +400,7 @@ class CarlaGymEnv(gym.Env):
                                    np.array(rrightDown_s)[-self.look_back:]),
                                    axis=0)
 
-        return lstm_obs.reshape(self.observation_space.shape[0], -1) # state
+        return lstm_obs.reshape(self.observation_space.shape[1], -1).transpose() # state
 
     def non_fix_representation(self, speeds, ego_norm_s, ego_norm_d, actors_norm_s_d):
         speeds.extend(0 for _ in range(self.look_back - len(speeds)))
@@ -550,7 +550,7 @@ class CarlaGymEnv(gym.Env):
             accelerations.append(acc)
             ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
             ego_norm_s.append((ego_s - self.init_s) / self.track_length)
-            ego_norm_d.append(ego_d / (2 * self.LANE_WIDTH))
+            ego_norm_d.append(round(ego_d / (2 * self.LANE_WIDTH),2))
             # lstm_state = np.zeros_like(self.observation_space.sample())
 
             self.record_actor_states(actors_norm_s_d, self.side_window, ego_s, ego_d, leading_s, leading_d, following_s,
@@ -558,8 +558,6 @@ class CarlaGymEnv(gym.Env):
                                   lleft_d, lleftUp_s, lleftUp_d, lleftDown_s, lleftDown_d, right_s, right_d,
                                   rightUp_s, rightUp_d, rightDown_s, rightDown_d, rright_s, rright_d, rrightUp_s,
                                   rrightUp_d, rrightDown_s, rrightDown_d)
-
-            # loop breakers:
 
             # if ego off-the road or collided
             if any(collision_hist) or ego_d < -4.5 or ego_d > 8:
@@ -598,9 +596,9 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---EPS UPDATE---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
-            # for idx in range(2, self.state.shape[0]):
-            #    print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            # for idx in range(2, self.state.shape[1]):
+            #    print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
@@ -702,7 +700,7 @@ class CarlaGymEnv(gym.Env):
 
 
         ego_norm_s.append(0)
-        ego_norm_d.append(init_d / (2 * self.LANE_WIDTH))
+        ego_norm_d.append(round(init_d / (2 * self.LANE_WIDTH),2))
         speeds.append(0)
         self.enumerate_actors(self.side_window, self.init_s, init_d)
         self.record_actor_states(actors_norm_s_d, self.side_window, self.init_s, init_d, leading_s, leading_d, following_s,
@@ -721,9 +719,9 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---RESET---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[0][-1], self.state[1][-1]))
-            # for idx in range(2, self.state.shape[0]):
-            #     print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[idx][-1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            # for idx in range(2, self.state.shape[1]):
+            #    print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time

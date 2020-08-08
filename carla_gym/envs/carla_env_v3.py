@@ -550,7 +550,7 @@ class CarlaGymEnv(gym.Env):
             accelerations.append(acc)
             ego_s, ego_d = fpath.s[self.f_idx], fpath.d[self.f_idx]
             ego_norm_s.append((ego_s - self.init_s) / self.track_length)
-            ego_norm_d.append(ego_d / (2 * self.LANE_WIDTH))
+            ego_norm_d.append(round(ego_d / (2 * self.LANE_WIDTH),2))
             # lstm_state = np.zeros_like(self.observation_space.sample())
 
             self.record_actor_states(actors_norm_s_d, self.side_window, ego_s, ego_d, leading_s, leading_d, following_s,
@@ -702,7 +702,7 @@ class CarlaGymEnv(gym.Env):
 
 
         ego_norm_s.append(0)
-        ego_norm_d.append(init_d / (2 * self.LANE_WIDTH))
+        ego_norm_d.append(round(init_d / (2 * self.LANE_WIDTH),2))
         speeds.append(0)
         self.enumerate_actors(self.side_window, self.init_s, init_d)
         self.record_actor_states(actors_norm_s_d, self.side_window, self.init_s, init_d, leading_s, leading_d, following_s,

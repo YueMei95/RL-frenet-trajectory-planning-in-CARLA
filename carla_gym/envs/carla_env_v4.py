@@ -383,7 +383,7 @@ class CarlaGymEnv(gym.Env):
         rrightDown_s.extend(rrightDown_s[-1] for _ in range(self.look_back - len(rrightDown_s)))
         # rrightDown_d.extend(rrightDown_d[-1] for _ in range(self.look_back - len(rrightDown_d)))
 
-        lstm_obs = np.concatenate((np.array(ego_norm_s)[-self.look_back:], np.array(ego_norm_d)[-self.look_back:],
+        lstm_obs = np.concatenate((np.array(ego_norm_d)[-self.look_back:], np.array(ego_norm_s)[-self.look_back:],
                                    np.array(leading_s)[-self.look_back:],
                                    np.array(following_s)[-self.look_back:],
                                    np.array(left_s)[-self.look_back:],
@@ -596,7 +596,7 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---EPS UPDATE---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
             # for idx in range(2, self.state.shape[1]):
             #    print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
@@ -719,7 +719,7 @@ class CarlaGymEnv(gym.Env):
 
             # print(3 * '---RESET---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][0], self.state[-1][1]))
+            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
             # for idx in range(2, self.state.shape[1]):
             #    print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]

@@ -947,14 +947,14 @@ class DDPG(OffPolicyRLModel):
 
                         callback.on_rollout_end()
                         # Train.
-                        print('Train Started')
+                        # print('Train Started')
                         epoch_actor_losses = []
                         epoch_critic_losses = []
                         epoch_adaptive_distances = []
                         for t_train in range(self.nb_train_steps):
                             # Not enough samples in the replay buffer
                             if not self.replay_buffer.can_sample(self.batch_size):
-                                print('Not Enough RP')
+                                # print('Not Enough RP')
                                 break
 
                             # Adapt param noise, if necessary.
@@ -967,7 +967,7 @@ class DDPG(OffPolicyRLModel):
                             # to nb_rollout_steps
                             step = (int(t_train * (self.nb_rollout_steps / self.nb_train_steps)) +
                                     self.num_timesteps - self.nb_rollout_steps)
-                            print('Train Step')
+                            # print('Train Step')
                             critic_loss, actor_loss = self._train_step(step, writer, log=t_train == 0)
                             epoch_critic_losses.append(critic_loss)
                             epoch_actor_losses.append(actor_loss)

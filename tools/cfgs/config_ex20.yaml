@@ -9,7 +9,7 @@ CARLA:
 POLICY:
   NAME: DDPG                                                    # DDPG/TRPO/PPO2/A2C
   NET: CNN                                                      # MLP/CNN/LSTM - DDPG does not have LSTM policy
-  CNN_EXTRACTOR: sequence_1d_cnn                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
+  CNN_EXTRACTOR: sequence_1d_cnn_ego_bypass                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
   ACTION_NOISE: 0.5                                             # DDPG only
   PARAM_NOISE_STD: 0.0                                          # DDPG only
 

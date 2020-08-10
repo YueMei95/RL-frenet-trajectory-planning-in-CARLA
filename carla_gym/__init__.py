@@ -15,3 +15,7 @@ register(
 register(
     id='CarlaGymEnv-v4',
     entry_point='carla_gym.envs:CarlaGymEnv_v4')
+
+register(
+    id='CarlaGymEnv-v44',
+    entry_point='carla_gym.envs:CarlaGymEnv_v44')

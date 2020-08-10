@@ -1772,7 +1772,7 @@ class TrafficManager:
         ego_grid_n = ego_lane + 9  # in Grid world (see notes above), ego is in column 2 so its grid number will be based on its lane number
         grid_choices = np.arange(80)
         # grid_choices = np.delete(grid_choices, ego_grid_n)  # Don't spawn any car at the ego location
-        for i in range(10):
+        for i in range(8):
             grid_choices = np.delete(grid_choices, ego_grid_n + i)  # Don't spawn any car right in front of the ego
 
         rnd_indices = np.random.choice(grid_choices, self.N_SPAWN_CARS, replace=False)

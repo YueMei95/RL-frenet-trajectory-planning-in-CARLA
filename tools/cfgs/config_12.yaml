@@ -9,13 +9,13 @@ CARLA:
 POLICY:
   NAME: PPO2                                                    # DDPG/TRPO/PPO2/A2C
   NET: CNN                                                      # MLP/CNN/LSTM - DDPG does not have LSTM policy
-  CNN_EXTRACTOR: sequence_1d_cnn_ego_bypass                     # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
+  CNN_EXTRACTOR: sequence_1d_cnn_ego_bypass_tc                     # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
   ACTION_NOISE: 0.5                                             # DDPG only
   PARAM_NOISE_STD: 0.0                                          # DDPG only
 
 GYM_ENV:
   FIXED_REPRESENTATION: True                                    # actors's states have fixed positions in the observation tensor
-  TRACK_LENGTH: 1000                        # [int] distance to travel on s axis before terminating the episode. Must be less than CARLA.MAX_S - 50
+  TRACK_LENGTH: 400                        # [int] distance to travel on s axis before terminating the episode. Must be less than CARLA.MAX_S - 50
   TARGET_SPEED: 13.89                                           # Ego's target speed
   MAX_SPEED: 25
   MAX_ACC: 6.878                                                # equivalent to 24.7608 km/h.s for Tesla model 3
@@ -27,6 +27,6 @@ LOCAL_PLANNER:
   MAX_SPEED: 15.28                                              # Allowed max speed for ego vehicle; RL's 1 action maps to this value
 
 TRAFFIC_MANAGER:
-  N_SPAWN_CARS: 15                                              # number of cars spawned at each episode
+  N_SPAWN_CARS: 10                                              # number of cars spawned at each episode
   MIN_SPEED: 8.33                                               # Min speed for actors in random traffic
   MAX_SPEED: 11.11                                              # Max speed for actors in random traffic

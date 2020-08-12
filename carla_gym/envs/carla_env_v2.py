@@ -568,7 +568,7 @@ class CarlaGymEnv(gym.Env):
         # r_acc = np.exp(-abs(meanAcc) ** 2 / (2 * self.maxAcc) * w_acc) - 1  # -1<= r_acc <= 0
         w_speed = 10
         e_speed = abs(self.targetSpeed - speed)
-        r_speed = 10 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
+        r_speed = 13 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
         r_laneChange = -abs(np.round(action[0])) * r_speed / 10  # -1<= r_laneChange <= 0
         positives = r_speed
         # negatives = (r_acc + r_laneChange) / 2

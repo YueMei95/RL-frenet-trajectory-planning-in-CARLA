@@ -114,11 +114,6 @@ class CarlaGymEnv(gym.Env):
         self.acceleration_ = 0
         self.eps_rew = 0
 
-        '''
-        [0:'LEADING', 1:'FOLLOWING', 2:'LEFT', 3:'LEFT_UP', 4:'LEFT_DOWN', 5:'LLEFT', 6:'LLEFT_UP', 
-        7:'LLEFT_DOWN', 8:'RIGHT', 9:'RIGHT_UP', 10:'RIGHT_DOWN', 11:'RRIGHT', 12:'RRIGHT_UP', 13:'RRIGHT_DOWN']
-        '''
-        self.actor_enumeration = None
         self.side_window = 5  # times 2 to make adjacent window
 
         self.motionPlanner = None
@@ -132,222 +127,180 @@ class CarlaGymEnv(gym.Env):
     def seed(self, seed=None):
         pass
 
-    def enumerate_actors(self, side_window, ego_s, ego_d):
-        self.actor_enumeration = []
-
-        others_s = [0 for _ in range(self.N_SPAWN_CARS)]
-        others_d = [0 for _ in range(self.N_SPAWN_CARS)]
-        others_id = [0 for _ in range(self.N_SPAWN_CARS)]
-        for i, actor in enumerate(self.traffic_module.actors_batch):
-            act_s, act_d = actor['Frenet State']
-            others_s[i] = act_s
-            others_d[i] = act_d
-            others_id[i] = actor['Actor'].id
-        # --------------------------------------------- ego lane -------------------------------------------------
-        same_lane_d_idx = np.where(abs(np.array(others_d) - ego_d) < 1)[0]
-        if len(same_lane_d_idx) == 0:
-            self.actor_enumeration.append(-1)
-            self.actor_enumeration.append(-1)
-
-        else:
-            same_lane_s = np.array(others_s)[same_lane_d_idx]
-            same_lane_id = np.array(others_id)[same_lane_d_idx]
-            s_idx = np.concatenate((np.array(same_lane_d_idx).reshape(-1, 1), (same_lane_s - ego_s).reshape(-1, 1),
-                                   same_lane_id.reshape(-1,1)), axis=1)
-            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > 0][0])]
-                                          if (any(sorted_s_idx[:, 1] > 0)) else -1)
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < 0][-1])]
-                                          if (any(sorted_s_idx[:, 1] < 0)) else -1)
-
-        # --------------------------------------------- left lane -------------------------------------------------
-        left_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -3) * ((np.array(others_d) - ego_d) > -4))[0]
-        if len(left_lane_d_idx) == 0:
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-
-        else:
-            left_lane_s = np.array(others_s)[left_lane_d_idx]
-            left_lane_id = np.array(others_id)[left_lane_d_idx]
-            s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s - ego_s).reshape(-1, 1),
-                                   left_lane_id.reshape(-1, 1)), axis=1)
-            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-
-        # ------------------------------------------- two left lane -----------------------------------------------
-        lleft_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -6.5) * ((np.array(others_d) - ego_d) > -7.5))[0]
-        if len(lleft_lane_d_idx) == 0:
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-
-        else:
-            lleft_lane_s = np.array(others_s)[lleft_lane_d_idx]
-            lleft_lane_id = np.array(others_id)[lleft_lane_d_idx]
-            s_idx = np.concatenate((np.array(lleft_lane_d_idx).reshape(-1, 1), (lleft_lane_s - ego_s).reshape(-1, 1),
-                                   lleft_lane_id.reshape(-1, 1)), axis=1)
-            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-        # ---------------------------------------------- rigth lane --------------------------------------------------
-        right_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 3) * ((np.array(others_d) - ego_d) < 4))[0]
-        if len(right_lane_d_idx) == 0:
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-
-        else:
-            right_lane_s = np.array(others_s)[right_lane_d_idx]
-            right_lane_id = np.array(others_id)[right_lane_d_idx]
-            s_idx = np.concatenate((np.array(right_lane_d_idx).reshape(-1, 1), (right_lane_s - ego_s).reshape(-1, 1),
-                                   right_lane_id.reshape(-1, 1)), axis=1)
-            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-
-        # ------------------------------------------- two rigth lane --------------------------------------------------
-        rright_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 6.5) * ((np.array(others_d) - ego_d) < 7.5))[0]
-        if len(rright_lane_d_idx) == 0:
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-            self.actor_enumeration.append(-2)
-
-        else:
-            rright_lane_s = np.array(others_s)[rright_lane_d_idx]
-            rright_lane_id = np.array(others_id)[rright_lane_d_idx]
-            s_idx = np.concatenate((np.array(rright_lane_d_idx).reshape(-1, 1), (rright_lane_s - ego_s).reshape(-1, 1),
-                                   rright_lane_id.reshape(-1, 1)), axis=1)
-            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
-
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
-
-            # print(self.actor_enumeration)
-
-    def record_actor_states(self, actors_norm_s_d, side_window, ego_s, ego_d, leading_s, leading_d, following_s,
+    def enumerate_actors(self, actors_norm_s_d, side_window, ego_s, ego_d, leading_s, leading_d, following_s,
                          following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s, leftDown_d, lleft_s, lleft_d,
                          lleftUp_s, lleftUp_d, lleftDown_s, lleftDown_d, right_s, right_d, rightUp_s, rightUp_d,
                          rightDown_s, rightDown_d, rright_s, rright_d, rrightUp_s, rrightUp_d, rrightDown_s,
                          rrightDown_d):
 
-        actor_id_s_d = {}
-        norm_s = [0 for _ in range(len(self.actor_enumeration))]
-        # norm_d = []
-        for actor in self.traffic_module.actors_batch:
-            actor_id_s_d[actor['Actor'].id] = actor['Frenet State']
-
-        for i, actor_id in enumerate(self.actor_enumeration):
-            if actor_id >= 0:
-                act_s, act_d = actor_id_s_d[actor_id]
-                norm_s[i] = (act_s - ego_s) / self.max_s
-            #    norm_d[i] = (act_d - ego_d) / (3 * self.LANE_WIDTH)
-
-            # -1:empty lane, -2:no lane
-            else:
-                norm_s[i] = actor_id
-
-            # print(actor_id, norm_s[i])
-
-        if norm_s[0] not in (-1, -2):
-            leading_s.append(norm_s[0])
-        else:
-            leading_s.append(1 if norm_s[0] == -1 else 1)
-
-        if norm_s[1] not in (-1, -2):
-            following_s.append(norm_s[1])
-        else:
-            following_s.append(-1 if norm_s[1] == -1 else -1)
-
-        if norm_s[2] not in (-1, -2):
-            left_s.append(norm_s[2])
-        else:
-            left_s.append(-1 if norm_s[2] == -1 else 0.0)
-
-        if norm_s[3] not in (-1, -2):
-            leftUp_s.append(norm_s[3])
-        else:
-            leftUp_s.append(1 if norm_s[3] == -1 else 0.0015)
-
-        if norm_s[4] not in (-1, -2):
-            leftDown_s.append(norm_s[4])
-        else:
-            leftDown_s.append(-1 if norm_s[4] == -1 else -0.0015)
-
-        if norm_s[5] not in (-1, -2):
-            lleft_s.append(norm_s[5])
-        else:
-            lleft_s.append(-1 if norm_s[5] == -1 else 0.0)
-
-        if norm_s[6] not in (-1, -2):
-            lleftUp_s.append(norm_s[6])
-        else:
-            lleftUp_s.append(1 if norm_s[6] == -1 else 0.0015)
-
-        if norm_s[7] not in (-1, -2):
-            lleftDown_s.append(norm_s[7])
-        else:
-            lleftDown_s.append(-1 if norm_s[7] == -1 else -0.0015)
-
-        if norm_s[8] not in (-1, -2):
-            right_s.append(norm_s[8])
-        else:
-            right_s.append(-1 if norm_s[8] == -1 else 0.0)
-
-        if norm_s[9] not in (-1, -2):
-            rightUp_s.append(norm_s[9])
-        else:
-            rightUp_s.append(1 if norm_s[9] == -1 else 0.0015)
-
-        if norm_s[10] not in (-1, -2):
-            rightDown_s.append(norm_s[10])
-        else:
-            rightDown_s.append(-1 if norm_s[10] == -1 else -0.0015)
-
-        if norm_s[11] not in (-1, -2):
-            rright_s.append(norm_s[11])
-        else:
-            rright_s.append(-1 if norm_s[11] == -1 else 0.0)
-
-        if norm_s[12] not in (-1, -2):
-            rrightUp_s.append(norm_s[12])
-        else:
-            rrightUp_s.append(1 if norm_s[12] == -1 else 0.0015)
-
-        if norm_s[13] not in (-1, -2):
-            rrightDown_s.append(norm_s[13])
-        else:
-            rrightDown_s.append(-1 if norm_s[13] == -1 else -0.0015)
-
+        norm_s = [0 for _ in range(self.N_SPAWN_CARS)]
+        norm_d = [0 for _ in range(self.N_SPAWN_CARS)]
+        others_s = [0 for _ in range(self.N_SPAWN_CARS)]
+        others_d = [0 for _ in range(self.N_SPAWN_CARS)]
+        for i, actor in enumerate(self.traffic_module.actors_batch):
+            act_s, act_d = actor['Frenet State']
+            norm_s[i] = (act_s - ego_s) / self.max_s
+            norm_d[i] = (act_d - ego_d) / (3 * self.LANE_WIDTH)
+            others_s[i] = act_s
+            others_d[i] = act_d
         actors_norm_s_d.append(norm_s)
-        # actors_norm_s_d.append(norm_d)
+        actors_norm_s_d.append(norm_d)
 
+        # --------------------------------------------- ego lane -------------------------------------------------
+        same_lane_d_idx = np.where(abs(np.array(others_d) - ego_d) < 1)[0]
+        if len(same_lane_d_idx) == 0:
+            leading_s.append(1)
+            #    leading_d.append(0)
+            following_s.append(-1)
+        #    following_d.append(0)
+        else:
+            #    same_lane_d = np.array(others_d)[same_lane_d_idx]
+            same_lane_s = np.array(others_s)[same_lane_d_idx]
+            s_idx = np.concatenate((np.array(same_lane_d_idx).reshape(-1, 1), (same_lane_s - ego_s).reshape(-1, 1)),
+                                   axis=1)
+            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
+            leading_s.append(
+                norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > 0][0])] if (any(sorted_s_idx[:, 1] > 0)) else 1)
+            #    leading_d.append(
+            #        norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > 0][0])] if (any(sorted_s_idx[:, 1] > 0)) else 0)
+            following_s.append(
+                norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < 0][-1])] if (any(sorted_s_idx[:, 1] < 0)) else -1)
+        #    following_d.append(
+        #        norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < 0][-1])] if (any(sorted_s_idx[:, 1] < 0)) else 0)
 
-    def fix_representation(self,ego_norm_s, ego_norm_d, leading_s, leading_d, following_s, following_d, left_s,
+        # --------------------------------------------- left lane -------------------------------------------------
+        left_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -3) * ((np.array(others_d) - ego_d) > -4))[0]
+        if len(left_lane_d_idx) == 0:
+            left_s.append(0)
+            #    left_d.append(-0.33)
+
+            leftUp_s.append(0.004)
+            #    leftUp_d.append(-0.33)
+
+            leftDown_s.append(-0.004)
+        #    leftDown_d.append(-0.33)
+
+        else:
+            #    left_lane_d = np.array(others_d)[left_lane_d_idx]
+            left_lane_s = np.array(others_s)[left_lane_d_idx]
+            s_idx = np.concatenate((np.array(left_lane_d_idx).reshape(-1, 1), (left_lane_s - ego_s).reshape(-1, 1)),
+                                   axis=1)
+            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
+            left_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+            #    left_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+            #        any(abs(sorted_s_idx[:, 1]) < side_window)) else -0.33)
+
+            leftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else 1)
+            #    leftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+            #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -0.33)
+
+            leftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+        #    leftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+        #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -0.33)
+
+        # ------------------------------------------- two left lane -----------------------------------------------
+        lleft_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -6.5) * ((np.array(others_d) - ego_d) > -7.5))[0]
+        if len(lleft_lane_d_idx) == 0:
+            lleft_s.append(0)
+            #    lleft_d.append(-0.66)
+
+            lleftUp_s.append(0.004)
+            #    lleftUp_d.append(-0.66)
+
+            lleftDown_s.append(-0.004)
+        #    lleftDown_d.append(-0.66)
+
+        else:
+            #    lleft_lane_d = np.array(others_d)[lleft_lane_d_idx]
+            lleft_lane_s = np.array(others_s)[lleft_lane_d_idx]
+            s_idx = np.concatenate((np.array(lleft_lane_d_idx).reshape(-1, 1), (lleft_lane_s - ego_s).reshape(-1, 1)),
+                                   axis=1)
+            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
+            lleft_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+            #    lleft_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+            #        any(abs(sorted_s_idx[:, 1]) < side_window)) else -0.66)
+
+            lleftUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else 1)
+            #    lleftUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+            #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -0.66)
+
+            lleftDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+        #    lleftDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+        #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -0.66)
+
+        # ---------------------------------------------- rigth lane --------------------------------------------------
+        right_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 3) * ((np.array(others_d) - ego_d) < 4))[0]
+        if len(right_lane_d_idx) == 0:
+            right_s.append(0)
+            #    right_d.append(0.33)
+
+            rightUp_s.append(0.004)
+            #    rightUp_d.append(0.33)
+
+            rightDown_s.append(-0.004)
+        #    rightDown_d.append(0.33)
+
+        else:
+            #    right_lane_d = np.array(others_d)[right_lane_d_idx]
+            right_lane_s = np.array(others_s)[right_lane_d_idx]
+            s_idx = np.concatenate((np.array(right_lane_d_idx).reshape(-1, 1), (right_lane_s - ego_s).reshape(-1, 1)),
+                                   axis=1)
+            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
+            right_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+            #    right_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+            #        any(abs(sorted_s_idx[:, 1]) < side_window)) else 0.33)
+
+            rightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else 1)
+            #    rightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+            #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else 0.33)
+
+            rightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+        #    rightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+        #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else 0.33)
+
+        # ------------------------------------------- two rigth lane --------------------------------------------------
+        rright_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 6.5) * ((np.array(others_d) - ego_d) < 7.5))[0]
+        if len(rright_lane_d_idx) == 0:
+            rright_s.append(0)
+            #    rright_d.append(0.66)
+
+            rrightUp_s.append(0.004)
+            #    rrightUp_d.append(0.66)
+
+            rrightDown_s.append(-0.004)
+        #    rrightDown_d.append(0.66)
+
+        else:
+            #    rright_lane_d = np.array(others_d)[rright_lane_d_idx]
+            rright_lane_s = np.array(others_s)[rright_lane_d_idx]
+            s_idx = np.concatenate((np.array(rright_lane_d_idx).reshape(-1, 1), (rright_lane_s - ego_s).reshape(-1, 1)),
+                                   axis=1)
+            sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
+            rright_s.append(norm_s[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+            #    rright_d.append(norm_d[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
+            #        any(abs(sorted_s_idx[:, 1]) < side_window)) else 0.66)
+
+            rrightUp_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else 1)
+            #    rrightUp_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
+            #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else 0.66)
+
+            rrightDown_s.append(norm_s[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+        #    rrightDown_d.append(norm_d[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
+        #        any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else 0.66)
+
+    def fix_representation(self, ego_norm_s, ego_norm_d, leading_s, leading_d, following_s, following_d, left_s,
                            left_d, leftUp_s, leftUp_d, leftDown_s, leftDown_d, lleft_s, lleft_d, lleftUp_s,
                            lleftUp_d, lleftDown_s, lleftDown_d, right_s, right_d, rightUp_s, rightUp_d, rightDown_s,
                            rightDown_d, rright_s, rright_d, rrightUp_s, rrightUp_d, rrightDown_s, rrightDown_d):
@@ -394,7 +347,7 @@ class CarlaGymEnv(gym.Env):
                                    np.array(rightDown_s)[-self.look_back:]),
                                    axis=0)
 
-        return lstm_obs.reshape(self.observation_space.shape[1], -1).transpose() # state
+        return lstm_obs.reshape(self.observation_space.shape[1], -1).transpose()  # state
 
     def non_fix_representation(self, speeds, ego_norm_s, ego_norm_d, actors_norm_s_d):
         speeds.extend(0 for _ in range(self.look_back - len(speeds)))
@@ -409,10 +362,11 @@ class CarlaGymEnv(gym.Env):
         lstm_obs = np.concatenate(
             (np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
         lstm_obs = lstm_obs.reshape((self.N_SPAWN_CARS + 1) * 2 + 1, -1)
-        return lstm_obs[:, -self.look_back:] # state
+        return lstm_obs[:, -self.look_back:]  # state
 
     def step(self, action=None):
         self.n_step += 1
+        lanechange = False
         """
                 **********************************************************************************************************************
                 *********************************************** Motion Planner *******************************************************
@@ -477,8 +431,7 @@ class CarlaGymEnv(gym.Env):
         collision = track_finished = False
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
-        ego_s, ego_d = fpath.s[0], fpath.d[0]
-        self.enumerate_actors(self.side_window, ego_s, ego_d)
+
         # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
         loop_counter = 0
         while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
@@ -546,12 +499,12 @@ class CarlaGymEnv(gym.Env):
             ego_norm_s.append((ego_s - self.init_s) / self.track_length)
             ego_norm_d.append(round(ego_d / (2 * self.LANE_WIDTH),2))
             # lstm_state = np.zeros_like(self.observation_space.sample())
-
-            self.record_actor_states(actors_norm_s_d, self.side_window, ego_s, ego_d, leading_s, leading_d, following_s,
+            self.enumerate_actors(actors_norm_s_d, self.side_window, ego_s, ego_d, leading_s, leading_d, following_s,
                                   following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s, leftDown_d, lleft_s,
                                   lleft_d, lleftUp_s, lleftUp_d, lleftDown_s, lleftDown_d, right_s, right_d,
                                   rightUp_s, rightUp_d, rightDown_s, rightDown_d, rright_s, rright_d, rrightUp_s,
                                   rrightUp_d, rrightDown_s, rrightDown_d)
+
 
             # if ego off-the road or collided
             if any(collision_hist) or ego_d < -4.5 or ego_d > 8:
@@ -563,8 +516,8 @@ class CarlaGymEnv(gym.Env):
                 distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
                 track_finished = True
-                break
-            #if loop_counter >= self.loop_break:
+                # break
+            # if loop_counter >= self.loop_break:
             #    break
 
         """
@@ -578,13 +531,12 @@ class CarlaGymEnv(gym.Env):
         acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
 
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
-
             self.state = self.fix_representation(ego_norm_s, ego_norm_d, leading_s, leading_d, following_s,
-                                               following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s,
-                                               leftDown_d, lleft_s, lleft_d, lleftUp_s, lleftUp_d, lleftDown_s,
-                                               lleftDown_d, right_s, right_d, rightUp_s, rightUp_d, rightDown_s,
-                                               rightDown_d, rright_s, rright_d, rrightUp_s, rrightUp_d, rrightDown_s,
-                                               rrightDown_d)
+                                                 following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s,
+                                                 leftDown_d, lleft_s, lleft_d, lleftUp_s, lleftUp_d, lleftDown_s,
+                                                 lleftDown_d, right_s, right_d, rightUp_s, rightUp_d, rightDown_s,
+                                                 rightDown_d, rright_s, rright_d, rrightUp_s, rrightUp_d, rrightDown_s,
+                                                 rrightDown_d)
 
             # self.state = lstm_obs.reshape(self.observation_space.shape[0], -1)
 
@@ -596,7 +548,6 @@ class CarlaGymEnv(gym.Env):
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
-
             self.state = self.non_fix_representation(speeds, ego_norm_s, ego_norm_d, actors_norm_s_d)
             # self.state = lstm_obs[:, -self.look_back:]
 
@@ -609,13 +560,13 @@ class CarlaGymEnv(gym.Env):
         """
         # w_acc = 1 / 2
         # r_acc = np.exp(-abs(meanAcc) ** 2 / (2 * self.maxAcc) * w_acc) - 1  # -1<= r_acc <= 0
-        w_speed = 15
+        w_speed = 10
         e_speed = abs(self.targetSpeed - speed)
-        r_speed = 10 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
-        r_laneChange = -abs(np.round(action[0])) / 10 # -1<= r_laneChange <= 0
+        r_speed = 13 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
+        r_laneChange = -abs(np.round(action[0])) * r_speed / 10  # -1<= r_laneChange <= 0
         positives = r_speed
         # negatives = (r_acc + r_laneChange) / 2
-        negatives = 0
+        negatives = r_laneChange
         reward = positives + negatives  # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
 
@@ -634,7 +585,7 @@ class CarlaGymEnv(gym.Env):
             return self.state, reward, done, {'reserved': 0}
         if track_finished:
             # print('Finished the race')
-            reward = 10
+            # reward = 10
             done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
@@ -642,7 +593,7 @@ class CarlaGymEnv(gym.Env):
 
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
-        print(reward, action)
+        # print(reward, action)
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):
@@ -692,12 +643,11 @@ class CarlaGymEnv(gym.Env):
         rrightDown_s = []
         rrightDown_d = []
 
-
         ego_norm_s.append(0)
         ego_norm_d.append(round(init_d / (2 * self.LANE_WIDTH),2))
         speeds.append(0)
-        self.enumerate_actors(self.side_window, self.init_s, init_d)
-        self.record_actor_states(actors_norm_s_d, self.side_window, self.init_s, init_d, leading_s, leading_d, following_s,
+
+        self.enumerate_actors(actors_norm_s_d, self.side_window, self.init_s, init_d, leading_s, leading_d, following_s,
                               following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s, leftDown_d, lleft_s,
                               lleft_d, lleftUp_s, lleftUp_d, lleftDown_s, lleftDown_d, right_s, right_d,
                               rightUp_s, rightUp_d, rightDown_s, rightDown_d, rright_s, rright_d, rrightUp_s,
@@ -705,11 +655,11 @@ class CarlaGymEnv(gym.Env):
 
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
             self.state = self.fix_representation(ego_norm_s, ego_norm_d, leading_s, leading_d, following_s,
-                                               following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s,
-                                               leftDown_d, lleft_s, lleft_d, lleftUp_s, lleftUp_d, lleftDown_s,
-                                               lleftDown_d, right_s, right_d, rightUp_s, rightUp_d, rightDown_s,
-                                               rightDown_d, rright_s, rright_d, rrightUp_s, rrightUp_d, rrightDown_s,
-                                               rrightDown_d)
+                                                 following_d, left_s, left_d, leftUp_s, leftUp_d, leftDown_s,
+                                                 leftDown_d, lleft_s, lleft_d, lleftUp_s, lleftUp_d, lleftDown_s,
+                                                 lleftDown_d, right_s, right_d, rightUp_s, rightUp_d, rightDown_s,
+                                                 rightDown_d, rright_s, rright_d, rrightUp_s, rrightUp_d, rrightDown_s,
+                                                 rrightDown_d)
 
             # print(3 * '---RESET---')
             # print(TENSOR_ROW_NAMES[0].ljust(15),
@@ -721,8 +671,6 @@ class CarlaGymEnv(gym.Env):
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
 
             self.state = self.non_fix_representation(speeds, ego_norm_s, ego_norm_d, actors_norm_s_d)
-
-
 
         # ---
         # Ego starts to move slightly after being relocated when a new episode starts. Probably, ego keeps a fraction of previous acceleration after

@@ -9,6 +9,10 @@ register(
     entry_point='carla_gym.envs:CarlaGymEnv_v2')
 
 register(
+    id='CarlaGymEnv-v22',
+    entry_point='carla_gym.envs:CarlaGymEnv_v22')
+
+register(
     id='CarlaGymEnv-v3',
     entry_point='carla_gym.envs:CarlaGymEnv_v3')
 

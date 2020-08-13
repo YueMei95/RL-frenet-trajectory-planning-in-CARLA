@@ -1,18 +1,6 @@
 from gym.envs.registration import register
 
 register(
-    id='CarlaGymEnv-v1',
-    entry_point='carla_gym.envs:CarlaGymEnv_v1')
-
-register(
-    id='CarlaGymEnv-v2',
-    entry_point='carla_gym.envs:CarlaGymEnv_v2')
-
-register(
-    id='CarlaGymEnv-v22',
-    entry_point='carla_gym.envs:CarlaGymEnv_v22')
-
-register(
     id='CarlaGymEnv-v3',
     entry_point='carla_gym.envs:CarlaGymEnv_v3')
 
@@ -21,5 +9,9 @@ register(
     entry_point='carla_gym.envs:CarlaGymEnv_v4')
 
 register(
-    id='CarlaGymEnv-v44',
-    entry_point='carla_gym.envs:CarlaGymEnv_v44')
+    id='CarlaGymEnv-v5',
+    entry_point='carla_gym.envs:CarlaGymEnv_v5')
+
+register(
+    id='CarlaGymEnv-v55',
+    entry_point='carla_gym.envs:CarlaGymEnv_v55')

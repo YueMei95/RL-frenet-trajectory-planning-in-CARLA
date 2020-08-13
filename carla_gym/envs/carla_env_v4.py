@@ -174,13 +174,13 @@ class CarlaGymEnv(gym.Env):
                                    left_lane_id.reshape(-1, 1)), axis=1)
             sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                any(abs(sorted_s_idx[:, 1][abs(sorted_s_idx[:, 1]) <= side_window]) >= -side_window)) else -1)
 
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
                 any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
 
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < -side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < -side_window)) else -1)
 
         # ------------------------------------------- two left lane -----------------------------------------------
         lleft_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -6.5) * ((np.array(others_d) - ego_d) > -7.5))[0]
@@ -196,13 +196,13 @@ class CarlaGymEnv(gym.Env):
                                    lleft_lane_id.reshape(-1, 1)), axis=1)
             sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                any(abs(sorted_s_idx[:, 1][abs(sorted_s_idx[:, 1]) <= side_window]) >= -side_window)) else -1)
 
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
                 any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
 
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < -side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < -side_window)) else -1)
         # ---------------------------------------------- rigth lane --------------------------------------------------
         right_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 3) * ((np.array(others_d) - ego_d) < 4))[0]
         if len(right_lane_d_idx) == 0:
@@ -217,13 +217,13 @@ class CarlaGymEnv(gym.Env):
                                    right_lane_id.reshape(-1, 1)), axis=1)
             sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                any(abs(sorted_s_idx[:, 1][abs(sorted_s_idx[:, 1]) <= side_window]) >= -side_window)) else -1)
 
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
                 any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
 
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < -side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < -side_window)) else -1)
 
         # ------------------------------------------- two rigth lane --------------------------------------------------
         rright_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 6.5) * ((np.array(others_d) - ego_d) < 7.5))[0]
@@ -239,13 +239,13 @@ class CarlaGymEnv(gym.Env):
                                    rright_lane_id.reshape(-1, 1)), axis=1)
             sorted_s_idx = s_idx[s_idx[:, 1].argsort()]
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][abs(sorted_s_idx[:, 1]) < side_window][0])] if (
-                any(abs(sorted_s_idx[:, 1]) < side_window)) else -1)
+                any(abs(sorted_s_idx[:, 1][abs(sorted_s_idx[:, 1]) <= side_window]) >= -side_window)) else -1)
 
             self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] > side_window][0])] if (
                 any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] > 0] > side_window)) else -1)
 
-            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < side_window][-1])] if (
-                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < side_window)) else -1)
+            self.actor_enumeration.append(others_id[int(sorted_s_idx[:, 0][sorted_s_idx[:, 1] < -side_window][-1])] if (
+                any(sorted_s_idx[:, 1][sorted_s_idx[:, 1] < 0] < -side_window)) else -1)
 
             # print(self.actor_enumeration)
 
@@ -594,11 +594,11 @@ class CarlaGymEnv(gym.Env):
 
             # self.state = lstm_obs.reshape(self.observation_space.shape[0], -1)
 
-            # print(3 * '---EPS UPDATE---')
-            # print(TENSOR_ROW_NAMES[0].ljust(15),
-            #       '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
-            # for idx in range(2, self.state.shape[1]):
-            #    print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+            print(3 * '---EPS UPDATE---')
+            print(TENSOR_ROW_NAMES[0].ljust(15),
+                  '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
+            for idx in range(2, self.state.shape[1]):
+                print(TENSOR_ROW_NAMES[idx - 1].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time

@@ -80,9 +80,18 @@ class CarlaGymEnv(gym.Env):
         self.track_length = int(cfg.GYM_ENV.TRACK_LENGTH)
         self.look_back = 12  # int(cfg.GYM_ENV.LOOK_BACK)
         self.loop_break = int(cfg.GYM_ENV.LOOP_BREAK)
+        self.effective_distance_from_vehicle_ahead = int(cfg.GYM_ENV.DISTN_FRM_VHCL_AHD)
         self.lanechange = False
+        self.is_first_path = True
 
         # RL
+        self.w_speed = int(cfg.RL.W_SPEED)
+        self.w_r_speed = int(cfg.RL.W_R_SPEED)
+        self.w_lanechange = float(cfg.RL.W_LANECHANGE)
+        self.min_change_percentage = float(cfg.RL.MIN_PENALTY_PERCT)
+        self.off_the_road_penalty = int(cfg.RL.OFF_THE_ROAD)
+        self.collision_penalty = int(cfg.RL.COLLISION)
+
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
             self.low_state = np.array([[-1 for _ in range(self.look_back)] for _ in range(16)])
             self.high_state = np.array([[1 for _ in range(self.look_back)] for _ in range(16)])
@@ -135,6 +144,7 @@ class CarlaGymEnv(gym.Env):
         pass
 
     def get_vehicle_ahead(self, ego_s, ego_d, ego_init_d, ego_target_d):
+        distance = self.effective_distance_from_vehicle_ahead
         others_s = [0 for _ in range(self.N_SPAWN_CARS)]
         others_d = [0 for _ in range(self.N_SPAWN_CARS)]
         for i, actor in enumerate(self.traffic_module.actors_batch):
@@ -172,9 +182,9 @@ class CarlaGymEnv(gym.Env):
 
             if any(sorted_init_s_idx[:, 1][sorted_init_s_idx[:, 1] <= 10] > 0):
                 vehicle_ahead_idx = int(sorted_init_s_idx[:, 0][sorted_init_s_idx[:, 1] > 0][0])
-            elif any(sorted_init_strict_s_idx[:, 1][sorted_init_strict_s_idx[:, 1] <= 50] > 0):
+            elif any(sorted_init_strict_s_idx[:, 1][sorted_init_strict_s_idx[:, 1] <= distance] > 0):
                 vehicle_ahead_idx = int(sorted_init_strict_s_idx[:, 0][sorted_init_strict_s_idx[:, 1] > 0][0])
-            elif any(sorted_target_s_idx[:, 1][sorted_target_s_idx[:, 1] <= 50] > 0):
+            elif any(sorted_target_s_idx[:, 1][sorted_target_s_idx[:, 1] <= distance] > 0):
                 vehicle_ahead_idx = int(sorted_target_s_idx[:, 0][sorted_target_s_idx[:, 1] > 0][0])
             else:
                 return None
@@ -451,7 +461,7 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         temp = [self.ego.get_velocity(), self.ego.get_acceleration()]
-        speed = get_speed(self.ego)
+        init_speed = speed = get_speed(self.ego)
         acc_vec = self.ego.get_acceleration()
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
@@ -482,7 +492,7 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         # initialize flags
-        collision = track_finished = False
+        off_the_road = collision = track_finished = False
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
         ego_init_d, ego_target_d = fpath.d[0], fpath.d[-1]
@@ -546,17 +556,17 @@ class CarlaGymEnv(gym.Env):
                     ************************************************ Update Carla ********************************************************
                     **********************************************************************************************************************
             """
-            speed_ = get_speed(self.ego)  # speed in previous tick
+            # speed_ = get_speed(self.ego)  # speed in previous tick
             self.module_manager.tick()  # Update carla world
             if self.auto_render:
                 self.render()
 
             collision_hist = self.world_module.get_collision_history()
 
-            speed = get_speed(self.ego)
-            acc = (speed - speed_) / self.dt
-            speeds.append(speed)
-            accelerations.append(acc)
+            # speed = get_speed(self.ego)
+            # acc = (speed - speed_) / self.dt
+            # speeds.append(speed)
+            # accelerations.append(acc)
             # ego_s,  = fpath.s[self.f_idx]
             # ego_d = fpath.d[self.f_idx]
 
@@ -569,8 +579,12 @@ class CarlaGymEnv(gym.Env):
             # lstm_state = np.zeros_like(self.observation_space.sample())
 
             # if ego off-the road or collided
-            if any(collision_hist) or ego_d < -3.8 or ego_d > 7.3:
+            if any(collision_hist):
                 collision = True
+                break
+
+            if ego_d < -4 or ego_d > 7.5:
+                off_the_road = True
                 break
 
             distance_traveled = ego_s - self.init_s
@@ -578,7 +592,7 @@ class CarlaGymEnv(gym.Env):
                 distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
                 track_finished = True
-                break
+
             # if loop_counter >= self.loop_break:
             #    break
 
@@ -587,10 +601,10 @@ class CarlaGymEnv(gym.Env):
                 *********************************************** RL Observation ******************************************************
                 *********************************************************************************************************************
         """
-        meanSpeed = np.mean(speeds)
-        meanAcc = np.mean(accelerations)
-        speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
-        acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
+        # meanSpeed = np.mean(speeds)
+        # meanAcc = np.mean(accelerations)
+        # speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
+        # acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
 
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
 
@@ -625,12 +639,29 @@ class CarlaGymEnv(gym.Env):
         """
         # w_acc = 1 / 2
         # r_acc = np.exp(-abs(meanAcc) ** 2 / (2 * self.maxAcc) * w_acc) - 1  # -1<= r_acc <= 0
-        w_speed = 10
-        e_speed = abs(self.targetSpeed - speed)
-        r_speed = 8 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
-        r_laneChange = -abs(np.round(action[0])) * r_speed / 10  # -1<= r_laneChange <= 0
+        last_speed = get_speed(self.ego)
+        e_speed = abs(self.targetSpeed - last_speed)
+        r_speed = self.w_r_speed * np.exp(-e_speed ** 2 / self.maxSpeed * self.w_speed)  # 0<= r_speed <= self.w_r_speed
+        #  first two path speed change increases regardless so we penalize it differently
+
+        spd_change_percentage = (last_speed - init_speed) / init_speed if init_speed != 0 else -1
+        if self.lanechange and self.is_first_path:
+            # print('First Path Lane Change')
+            self.is_first_path = False
+            r_laneChange = -1 * r_speed / 10.0  # r_laneChange <= 0
+            # print("speeds:{},{}".format(init_speed, last_speed))
+
+        elif self.lanechange and spd_change_percentage >= 0:
+            # Speed Change Percentage: self.penalty_percentage < x < 1
+            spd_penalty_percentage = max(0, self.min_change_percentage - spd_change_percentage)
+            r_laneChange = self.w_lanechange * np.log(1 - spd_penalty_percentage)  # f(x) <= r_laneChange <= 0
+            # print("speeds:{},{} - spd_change:{} penalty:{}".format(init_speed, last_speed, spd_change_percentage,
+            #                                                       spd_penalty_percentage))
+
+        else:
+            r_laneChange = 0
+
         positives = r_speed
-        # negatives = (r_acc + r_laneChange) / 2
         negatives = r_laneChange
         reward = positives + negatives  # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
@@ -641,21 +672,31 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         done = False
-        if collision:
+        if off_the_road:
             # print('Collision happened!')
-            reward = -10
+            reward = self.off_the_road_penalty
             done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             # print(reward, action)
             return self.state, reward, done, {'reserved': 0}
-        if track_finished:
+
+        elif collision:
+            # print('Collision happened!')
+            reward = self.collision_penalty
+            done = True
+            self.eps_rew += reward
+            # print('eps rew: ', self.n_step, self.eps_rew)
+            # print(reward, action)
+            return self.state, reward, done, {'reserved': 0}
+
+        elif track_finished:
             # print('Finished the race')
             # reward = 10
             done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
-            print(reward, action)
+            # print(reward, action)
             return self.state, reward, done, {'reserved': 0}
 
         self.eps_rew += reward
@@ -674,6 +715,7 @@ class CarlaGymEnv(gym.Env):
 
         self.n_step = 0  # initialize episode steps count
         self.eps_rew = 0
+        self.is_first_path = True
 
         # self.state = np.zeros_like(self.observation_space.sample())
 

@@ -21,6 +21,15 @@ GYM_ENV:
   MAX_ACC: 6.878                                                # equivalent to 24.7608 km/h.s for Tesla model 3
   LOOK_BACK: 30                                                 # [int] Steps to look back at last path for observation sequence vector
   LOOP_BREAK: 50                                                # [int] steps to break path following while loop  - must be greater than LOOK_BACK
+  DISTN_FRM_VHCL_AHD: 50                                                # Effective distance to keep from vehicle ahead
+
+RL:
+  W_SPEED: 10                                                    # Speed Error Resolution
+  W_R_SPEED: 10                                                  # Speed Reward Magnitude (w*r_speed)
+  W_LANECHANGE: 12                                               # Lane Change Penalty (w*speed_change)
+  MIN_PENALTY_PERCT: 0.1                                         # Min Speed Gain for Lane Change Penalty
+  OFF_THE_ROAD: -5                                               # Off-the-road attempt penalty
+  COLLISION: -10                                                 # Collison penalty
 
 LOCAL_PLANNER:
   MIN_SPEED: 13.89 # 5.56                                       # Allowed min speed for ego vehicle; RL's -1 action maps to this value

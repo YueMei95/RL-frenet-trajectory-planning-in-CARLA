@@ -590,16 +590,17 @@ class FrenetPlanner:
 
         # convert lateral action value from range (-1, 1) to the desired value in [-3.5, 0.0, 3.0, 7.0]
         d = self.path.d[idx]  # CHANGE THIS! when f_state estimation works fine. (self.path.d[idx])(d = f_state[3])
-        # df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -self.LANE_WIDTH, 2 * self.LANE_WIDTH).item()
-        # df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], df)
-        df = np.round(df_n[0]) * self.LANE_WIDTH + d  # allows agent to drive off the road
+        _df = np.clip(np.round(df_n) * self.LANE_WIDTH + d, -2 * self.LANE_WIDTH, 3 * self.LANE_WIDTH).item()
+        df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], _df)
+        # df = np.round(df_n[0]) * self.LANE_WIDTH + d  # allows agent to drive off the road
 
         # lanechange should be set true if there is a lane change
-        lanechange = True if abs(np.round(df_n[0])) >= 1 else False
+        lanechange = True if abs(df - d) >= 3 else False
+        off_the_road = True if _df < -4 or _df > 7.5 else False
 
         Vf = self.speed_radius * Vf_n + self.speed_center
 
         # Frenet motion planning
         self.path = self.generate_single_frenet_path(f_state, df=df, Tf=Tf, Vf=Vf)
 
-        return self.path, lanechange
+        return self.path, lanechange, off_the_road

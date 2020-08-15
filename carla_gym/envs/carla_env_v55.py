@@ -466,7 +466,7 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp, self.max_s]
-        fpath, self.lanechange = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5,
+        fpath, self.lanechange, off_the_road = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5,
                                                                          Vf_n=-1)
         wps_to_go = len(fpath.t) - 3  # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 1
@@ -492,14 +492,14 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         # initialize flags
-        off_the_road = collision = track_finished = False
+        collision = track_finished = False
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
         ego_init_d, ego_target_d = fpath.d[0], fpath.d[-1]
         # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
         loop_counter = 0
-        while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
-                                          loop_counter < self.loop_break or self.lanechange):
+        while self.f_idx < wps_to_go and (((elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5) and
+                                          (loop_counter < self.loop_break)) or self.lanechange):
 
             loop_counter += 1
             # for _ in range(wps_to_go):
@@ -583,9 +583,9 @@ class CarlaGymEnv(gym.Env):
                 collision = True
                 break
 
-            if ego_d < -4 or ego_d > 7.5:
-                off_the_road = True
-                break
+            if off_the_road:
+                # break
+                pass
 
             distance_traveled = ego_s - self.init_s
             if distance_traveled < -5:
@@ -675,7 +675,6 @@ class CarlaGymEnv(gym.Env):
         if off_the_road:
             # print('Collision happened!')
             reward = self.off_the_road_penalty
-            done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             # print(reward, action)

@@ -83,6 +83,8 @@ class CarlaGymEnv(gym.Env):
         self.lanechange = False
 
         # RL
+        self.w_r_speed = float(cfg.RL.W_R_SPEED)
+        self.w_lanechange = float(cfg.RL.W_LANECHANGE)
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
             self.low_state = np.array([[-1 for _ in range(self.look_back)] for _ in range(16)])
             self.high_state = np.array([[1 for _ in range(self.look_back)] for _ in range(16)])
@@ -456,7 +458,7 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp, self.max_s]
-        fpath, self.lanechange = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5,
+        fpath, self.lanechange, off_the_road = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5,
                                                                          Vf_n=-1)
         wps_to_go = len(fpath.t) - 3  # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 1
@@ -627,8 +629,8 @@ class CarlaGymEnv(gym.Env):
         # r_acc = np.exp(-abs(meanAcc) ** 2 / (2 * self.maxAcc) * w_acc) - 1  # -1<= r_acc <= 0
         w_speed = 10
         e_speed = abs(self.targetSpeed - speed)
-        r_speed = 5 * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
-        r_laneChange = -abs(np.round(action[0])) * r_speed / 10  # -1<= r_laneChange <= 0
+        r_speed = self.w_r_speed * np.exp(-e_speed ** 2 / self.maxSpeed * w_speed)  # 0<= r_speed <= 1
+        r_laneChange = -abs(np.round(action[0])) * r_speed * self.w_lanechange  # -1<= r_laneChange <= 0
         positives = r_speed
         # negatives = (r_acc + r_laneChange) / 2
         negatives = r_laneChange

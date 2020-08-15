@@ -1,5 +1,0 @@
-Git commit id: e106fb8976dfbc2be4fdaa57f647aad4ac21bc6c
-
-Program arguments:
-
-Namespace(action_noise=0.5, agent_id=2, alg='ppo2', carla_host='127.0.0.1', carla_port=3000, carla_res='1280x720', env='CarlaGymEnv-v95', log_interval=100, log_path=None, network='mlp', num_timesteps=10000000, param_noise_stddev=0.0, play=False, save_path=None, test=False, test_model='ppo2_final_model')

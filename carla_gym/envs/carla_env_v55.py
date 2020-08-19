@@ -321,62 +321,62 @@ class CarlaGymEnv(gym.Env):
         if norm_s[2] not in (-1, -2):
             left_s = norm_s[2]
         else:
-            left_s = [-1] if norm_s[2] == -1 else [0.0]
+            left_s = [-1] if norm_s[2] == -1 else [-1]
 
         if norm_s[3] not in (-1, -2):
             leftUp_s = norm_s[3]
         else:
-            leftUp_s = [1] if norm_s[3] == -1 else [0.003]
+            leftUp_s = [1] if norm_s[3] == -1 else [+1]
 
         if norm_s[4] not in (-1, -2):
             leftDown_s = norm_s[4]
         else:
-            leftDown_s = [-1] if norm_s[4] == -1 else [-0.003]
+            leftDown_s = [-1] if norm_s[4] == -1 else [-1]
 
         if norm_s[5] not in (-1, -2):
             lleft_s = norm_s[5]
         else:
-            lleft_s = [-1] if norm_s[5] == -1 else [0.0]
+            lleft_s = [-1] if norm_s[5] == -1 else [-1]
 
         if norm_s[6] not in (-1, -2):
             lleftUp_s = norm_s[6]
         else:
-            lleftUp_s = [1] if norm_s[6] == -1 else [0.003]
+            lleftUp_s = [1] if norm_s[6] == -1 else [+1]
 
         if norm_s[7] not in (-1, -2):
             lleftDown_s = norm_s[7]
         else:
-            lleftDown_s = [-1] if norm_s[7] == -1 else [-0.003]
+            lleftDown_s = [-1] if norm_s[7] == -1 else [-1]
 
         if norm_s[8] not in (-1, -2):
             right_s = norm_s[8]
         else:
-            right_s = [-1] if norm_s[8] == -1 else [0.0]
+            right_s = [-1] if norm_s[8] == -1 else [-1]
 
         if norm_s[9] not in (-1, -2):
             rightUp_s = norm_s[9]
         else:
-            rightUp_s = [1] if norm_s[9] == -1 else [0.003]
+            rightUp_s = [1] if norm_s[9] == -1 else [+1]
 
         if norm_s[10] not in (-1, -2):
             rightDown_s = norm_s[10]
         else:
-            rightDown_s = [-1] if norm_s[10] == -1 else [-0.003]
+            rightDown_s = [-1] if norm_s[10] == -1 else [-1]
 
         if norm_s[11] not in (-1, -2):
             rright_s = norm_s[11]
         else:
-            rright_s = [-1] if norm_s[11] == -1 else [0.0]
+            rright_s = [-1] if norm_s[11] == -1 else [-1]
 
         if norm_s[12] not in (-1, -2):
             rrightUp_s = norm_s[12]
         else:
-            rrightUp_s = [1] if norm_s[12] == -1 else [0.003]
+            rrightUp_s = [1] if norm_s[12] == -1 else [+1]
 
         if norm_s[13] not in (-1, -2):
             rrightDown_s = norm_s[13]
         else:
-            rrightDown_s = [-1] if norm_s[13] == -1 else [-0.003]
+            rrightDown_s = [-1] if norm_s[13] == -1 else [-1]
 
         # print(self.actor_enumeration)
         # print(norm_s)

@@ -85,8 +85,8 @@ class CarlaGymEnv(gym.Env):
         self.is_first_path = True
 
         # RL
-        self.w_speed = int(cfg.RL.W_SPEED)
-        self.w_r_speed = int(cfg.RL.W_R_SPEED)
+        self.w_speed = float(cfg.RL.W_SPEED)
+        self.w_r_speed = float(cfg.RL.W_R_SPEED)
         self.w_lanechange = float(cfg.RL.W_LANECHANGE)
         self.min_change_percentage = float(cfg.RL.MIN_PENALTY_PERCT)
         self.off_the_road_penalty = int(cfg.RL.OFF_THE_ROAD)
@@ -672,15 +672,8 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         done = False
-        if off_the_road:
-            # print('Collision happened!')
-            reward = self.off_the_road_penalty
-            self.eps_rew += reward
-            # print('eps rew: ', self.n_step, self.eps_rew)
-            # print(reward, action)
-            return self.state, reward, done, {'reserved': 0}
 
-        elif collision:
+        if collision:
             # print('Collision happened!')
             reward = self.collision_penalty
             done = True
@@ -693,6 +686,14 @@ class CarlaGymEnv(gym.Env):
             # print('Finished the race')
             # reward = 10
             done = True
+            self.eps_rew += reward
+            # print('eps rew: ', self.n_step, self.eps_rew)
+            # print(reward, action)
+            return self.state, reward, done, {'reserved': 0}
+
+        elif off_the_road:
+            # print('Collision happened!')
+            reward = self.off_the_road_penalty
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             # print(reward, action)

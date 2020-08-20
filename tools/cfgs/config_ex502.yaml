@@ -24,7 +24,7 @@ GYM_ENV:
   DISTN_FRM_VHCL_AHD: 50                                                # Effective distance to keep from vehicle ahead
 
 RL:
-  W_SPEED: 10                                                    # Speed Error Resolution
+  W_SPEED: 0.2                                                    # Speed Error Resolution
   W_R_SPEED: 14                                                  # Speed Reward Magnitude (w*r_speed)
   W_LANECHANGE: .15                                             # Lane Change Penalty (w*speed_change)
   MIN_PENALTY_PERCT: 0.1                                         # Min Speed Gain for Lane Change Penalty

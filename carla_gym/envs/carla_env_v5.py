@@ -638,6 +638,10 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         max_s_to_travel = loop_counter * cfg.CARLA.DT * self.targetSpeed
+        if self.is_first_path:
+            self.is_first_path = False
+            max_s_to_travel = 30 # Override max_s_to_travel for initial path since acc.
+
         s_traveled = ego_s_list[-1] - ego_s_list[0]
         if s_traveled < -1:
             s_traveled += self.max_s
@@ -668,7 +672,7 @@ class CarlaGymEnv(gym.Env):
         # print(self.n_step, self.eps_rew)
         # print(5 *  '---')
         # print(elapsed_time(path_start_time), loop_counter * cfg.CARLA.DT)
-        # print(s_traveled, max_s_to_travel, r_s_traveled, r_laneChange)
+        print(s_traveled, max_s_to_travel, r_s_traveled, r_laneChange)
         """
                 **********************************************************************************************************************
                 ********************************************* Episode Termination ****************************************************

@@ -89,7 +89,7 @@ def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
     """
 
     activ = tf.nn.relu
-    norm_ego = scaled_sequence[:, :, :2]
+    norm_ego = scaled_sequence[:, :, :1]
     layer_1_ego = activ(conv1d(norm_ego, 'c1_ego', n_filters=16, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     # layer_2_ego = activ(conv1d(layer_1_ego, 'c2_ego', n_filters=32, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     # layer_3_ego = activ(conv1d(layer_2_ego, 'c3_ego', n_filters=32, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
@@ -97,7 +97,7 @@ def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
     # fc1_ego = activ(linear(layer_3_ego, 'fc1_ego', n_hidden=64, init_scale=np.sqrt(2)))
     fc2_ego = activ(linear(layer_3_ego, 'fc2_ego', n_hidden=32, init_scale=np.sqrt(2)))
 
-    relative_others = scaled_sequence[:, :, 2:]
+    relative_others = scaled_sequence[:, :, 1:]
     layer_1_others = activ(conv1d(relative_others, 'c1_others', n_filters=64, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     # layer_2_others = activ(conv1d(layer_1_others, 'c2_others', n_filters=128, filter_size=3, stride=1, init_scale=np.sqrt(2), **kwargs))
     # layer_3_others = activ(conv1d(layer_2_others, 'c3_others', n_filters=128, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))

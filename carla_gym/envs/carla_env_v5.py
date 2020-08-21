@@ -85,12 +85,13 @@ class CarlaGymEnv(gym.Env):
         self.is_first_path = True
 
         # RL
-        self.w_speed = float(cfg.RL.W_SPEED)
-        self.w_r_speed = float(cfg.RL.W_R_SPEED)
+        self.r_speed = float(cfg.RL.R_SPEED)
+        self.w_s = float(cfg.RL.W_S)
+        self.w_r_s = float(cfg.RL.W_R_S)
         self.w_lanechange = float(cfg.RL.W_LANECHANGE)
-        self.min_change_percentage = float(cfg.RL.MIN_PENALTY_PERCT)
-        self.off_the_road_penalty = int(cfg.RL.OFF_THE_ROAD)
-        self.collision_penalty = int(cfg.RL.COLLISION)
+        self.min_change_percentage = float(cfg.RL.MIN_REWARD_PERCT)
+        self.off_the_road_penalty = float(cfg.RL.OFF_THE_ROAD)
+        self.collision_penalty = float(cfg.RL.COLLISION)
         self.lane_change_penalty = float(cfg.RL.LANE_CHANGE_PENALTY)
 
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
@@ -638,41 +639,43 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         max_s_to_travel = loop_counter * cfg.CARLA.DT * self.targetSpeed
+        last_speed = get_speed(self.ego)
+        spd_change_percentage = (last_speed - init_speed) / init_speed if init_speed != 0 else -1
+        spd_change_reward = False
+        if self.min_change_percentage <= spd_change_percentage <= 1.5 and init_speed >= self.maxSpeed / 5:
+            spd_change_reward = True
+
+        first_w_s = 1
         if self.is_first_path:
             self.is_first_path = False
             max_s_to_travel = 30 # Override max_s_to_travel for initial path since acc.
+            first_w_s = 5
 
         s_traveled = ego_s_list[-1] - ego_s_list[0]
         if s_traveled < -1:
             s_traveled += self.max_s
         # s_traveled_norm = min(s_traveled / max_s_to_travel, 1)
-        r_s_traveled = self.w_r_speed * np.exp((s_traveled - max_s_to_travel) * self.w_speed)  # 0<= r_s_traveled <= self.w_r_speed
+        r_s_traveled = self.w_r_s * np.exp((s_traveled - max_s_to_travel) * self.w_s * first_w_s)  # 0<= r_s_traveled <= self.w_r_speed
         #  first two path speed change increases regardless so we penalize it differently
 
-        '''
-        last_speed = get_speed(self.ego)
-        spd_change_percentage = (last_speed - init_speed) / init_speed if init_speed != 0 else -1
-        if self.lanechange and spd_change_percentage >= 0:
+        r_speed = 0
+        if self.lanechange and spd_change_reward:
             # Speed Change Percentage: self.penalty_percentage < x < 1
-            spd_penalty_percentage = max(0, self.min_change_percentage - spd_change_percentage)
-            r_laneChange = self.w_lanechange * np.log(1 - spd_penalty_percentage)  # f(x) <= r_laneChange <= 0
+            r_speed = self.r_speed  # f(x) <= r_laneChange <= 0
             # print("speeds:{},{} - spd_change:{} penalty:{}".format(init_speed, last_speed, spd_change_percentage,
             #                                                       spd_penalty_percentage))
 
-        else:
-            r_laneChange = 0
-        '''
         r_laneChange = 0
         if self.lanechange:
             r_laneChange = -1 * r_s_traveled * self.lane_change_penalty
 
-        positives = r_s_traveled
+        positives = r_s_traveled + r_speed
         negatives = r_laneChange
         reward = positives + negatives  # -1<= reward <=1
         # print(self.n_step, self.eps_rew)
         # print(5 *  '---')
-        # print(elapsed_time(path_start_time), loop_counter * cfg.CARLA.DT)
-        print(s_traveled, max_s_to_travel, r_s_traveled, r_laneChange)
+        print(r_s_traveled, r_speed, r_laneChange)
+
         """
                 **********************************************************************************************************************
                 ********************************************* Episode Termination ****************************************************
@@ -686,7 +689,7 @@ class CarlaGymEnv(gym.Env):
             done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
-            # print(reward, action)
+            print(reward, action)
             return self.state, reward, done, {'reserved': 0}
 
         elif track_finished:
@@ -697,7 +700,7 @@ class CarlaGymEnv(gym.Env):
                 reward = self.off_the_road_penalty
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
-            # print(reward, action)
+            print(reward, action)
             return self.state, reward, done, {'reserved': 0}
 
         elif off_the_road:
@@ -705,12 +708,12 @@ class CarlaGymEnv(gym.Env):
             reward = self.off_the_road_penalty
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
-            # print(reward, action)
+            print(reward, action)
             return self.state, reward, done, {'reserved': 0}
 
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)
-        # print(reward, action)
+        print(reward, action)
         return self.state, reward, done, {'reserved': 0}
 
     def reset(self):

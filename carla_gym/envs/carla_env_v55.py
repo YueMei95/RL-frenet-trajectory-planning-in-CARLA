@@ -39,7 +39,7 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
     min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
     ego_location = [ego_state[0], ego_state[1]]
     closest_wp_index = 0  # default WP
-    w_size = min(w_size, len(fpath.x) - 2 - f_idx)
+    w_size = w_size if w_size <= len(fpath.t) - 2 - f_idx else len(fpath.t) - 2 - f_idx
     for i in range(w_size):
         temp_wp = [fpath.x[f_idx + i], fpath.y[f_idx + i]]
         temp_dist = euclidean_distance(ego_location, temp_wp)
@@ -85,13 +85,16 @@ class CarlaGymEnv(gym.Env):
         self.is_first_path = True
 
         # RL
-        self.w_speed = float(cfg.RL.W_SPEED)
-        self.w_r_speed = float(cfg.RL.W_R_SPEED)
-        self.w_lanechange = float(cfg.RL.W_LANECHANGE)
-        self.min_change_percentage = float(cfg.RL.MIN_PENALTY_PERCT)
+        self.w_speed = int(cfg.RL.W_SPEED)
+        self.w_r_speed = int(cfg.RL.W_R_SPEED)
+
+        self.min_speed_gain = float(cfg.RL.MIN_SPEED_GAIN)
+        self.min_speed_loss = float(cfg.RL.MIN_SPEED_LOSS)
+        self.lane_change_reward = float(cfg.RL.LANE_CHANGE_REWARD)
+        self.lane_change_penalty = float(cfg.RL.LANE_CHANGE_PENALTY)
+
         self.off_the_road_penalty = int(cfg.RL.OFF_THE_ROAD)
         self.collision_penalty = int(cfg.RL.COLLISION)
-        self.lane_change_penalty = float(cfg.RL.LANE_CHANGE_PENALTY)
 
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
             self.low_state = np.array([[-1 for _ in range(self.look_back)] for _ in range(16)])
@@ -322,62 +325,62 @@ class CarlaGymEnv(gym.Env):
         if norm_s[2] not in (-1, -2):
             left_s = norm_s[2]
         else:
-            left_s = [-0.003] if norm_s[2] == -1 else [0.003]
+            left_s = [-1] if norm_s[2] == -1 else [0.004]
 
         if norm_s[3] not in (-1, -2):
             leftUp_s = norm_s[3]
         else:
-            leftUp_s = [+1] if norm_s[3] == -1 else [0.003]
+            leftUp_s = [1] if norm_s[3] == -1 else [0.004]
 
         if norm_s[4] not in (-1, -2):
             leftDown_s = norm_s[4]
         else:
-            leftDown_s = [-1] if norm_s[4] == -1 else [0.003]
+            leftDown_s = [-1] if norm_s[4] == -1 else [0.004]
 
         if norm_s[5] not in (-1, -2):
             lleft_s = norm_s[5]
         else:
-            lleft_s = [-0.003] if norm_s[5] == -1 else [0.003]
+            lleft_s = [-1] if norm_s[5] == -1 else [0.004]
 
         if norm_s[6] not in (-1, -2):
             lleftUp_s = norm_s[6]
         else:
-            lleftUp_s = [+1] if norm_s[6] == -1 else [0.003]
+            lleftUp_s = [1] if norm_s[6] == -1 else [0.004]
 
         if norm_s[7] not in (-1, -2):
             lleftDown_s = norm_s[7]
         else:
-            lleftDown_s = [-1] if norm_s[7] == -1 else [0.003]
+            lleftDown_s = [-1] if norm_s[7] == -1 else [0.004]
 
         if norm_s[8] not in (-1, -2):
             right_s = norm_s[8]
         else:
-            right_s = [-0.003] if norm_s[8] == -1 else [0.003]
+            right_s = [-1] if norm_s[8] == -1 else [0.004]
 
         if norm_s[9] not in (-1, -2):
             rightUp_s = norm_s[9]
         else:
-            rightUp_s = [+1] if norm_s[9] == -1 else [0.003]
+            rightUp_s = [1] if norm_s[9] == -1 else [0.004]
 
         if norm_s[10] not in (-1, -2):
             rightDown_s = norm_s[10]
         else:
-            rightDown_s = [-1] if norm_s[10] == -1 else [0.003]
+            rightDown_s = [-1] if norm_s[10] == -1 else [0.004]
 
         if norm_s[11] not in (-1, -2):
             rright_s = norm_s[11]
         else:
-            rright_s = [-0.003] if norm_s[11] == -1 else [0.003]
+            rright_s = [-1] if norm_s[11] == -1 else [0.004]
 
         if norm_s[12] not in (-1, -2):
             rrightUp_s = norm_s[12]
         else:
-            rrightUp_s = [1] if norm_s[12] == -1 else [0.003]
+            rrightUp_s = [1] if norm_s[12] == -1 else [0.004]
 
         if norm_s[13] not in (-1, -2):
             rrightDown_s = norm_s[13]
         else:
-            rrightDown_s = [-1] if norm_s[13] == -1 else [0.003]
+            rrightDown_s = [-1] if norm_s[13] == -1 else [0.004]
 
         # print(self.actor_enumeration)
         # print(norm_s)
@@ -493,13 +496,14 @@ class CarlaGymEnv(gym.Env):
                 **********************************************************************************************************************
         """
         # initialize flags
-        collision = track_finished = False
+        off_the_road = collision = track_finished = False
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
         ego_init_d, ego_target_d = fpath.d[0], fpath.d[-1]
         # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
         loop_counter = 0
-        while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 3):
+        while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
+                                          loop_counter < self.loop_break or self.lanechange):
 
             loop_counter += 1
             # for _ in range(wps_to_go):
@@ -583,12 +587,12 @@ class CarlaGymEnv(gym.Env):
                 collision = True
                 break
 
-            if off_the_road:
-                # break
-                pass
+            if ego_d < -4 or ego_d > 7.5:
+                off_the_road = True
+                break
 
             distance_traveled = ego_s - self.init_s
-            if distance_traveled < -1:
+            if distance_traveled < -5:
                 distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
                 track_finished = True
@@ -643,7 +647,7 @@ class CarlaGymEnv(gym.Env):
         e_speed = abs(self.targetSpeed - last_speed)
         r_speed = self.w_r_speed * np.exp(-e_speed ** 2 / self.maxSpeed * self.w_speed)  # 0<= r_speed <= self.w_r_speed
         #  first two path speed change increases regardless so we penalize it differently
-        '''
+
         spd_change_percentage = (last_speed - init_speed) / init_speed if init_speed != 0 else -1
         if self.lanechange and self.is_first_path:
             # print('First Path Lane Change')
@@ -651,19 +655,13 @@ class CarlaGymEnv(gym.Env):
             r_laneChange = -1 * r_speed / 10.0  # r_laneChange <= 0
             # print("speeds:{},{}".format(init_speed, last_speed))
 
-        elif self.lanechange and spd_change_percentage >= 0:
-            # Speed Change Percentage: self.penalty_percentage < x < 1
-            spd_penalty_percentage = max(0, self.min_change_percentage - spd_change_percentage)
-            r_laneChange = self.w_lanechange * np.log(1 - spd_penalty_percentage)  # f(x) <= r_laneChange <= 0
-            # print("speeds:{},{} - spd_change:{} penalty:{}".format(init_speed, last_speed, spd_change_percentage,
-            #                                                       spd_penalty_percentage))
+        elif self.lanechange and init_speed > self.maxSpeed / 4 and spd_change_percentage >= self.min_speed_gain:
+            r_laneChange = self.lane_change_reward
 
+        elif self.lanechange and spd_change_percentage < -self.min_speed_loss:
+            r_laneChange = self.lane_change_penalty
         else:
             r_laneChange = 0
-        '''
-        r_laneChange = 0
-        if self.lanechange:
-            r_laneChange = -1 * r_speed * self.lane_change_penalty
 
         positives = r_speed
         negatives = r_laneChange
@@ -690,8 +688,6 @@ class CarlaGymEnv(gym.Env):
             # print('Finished the race')
             # reward = 10
             done = True
-            if off_the_road:
-                reward = self.off_the_road_penalty
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             print(reward, action)
@@ -700,10 +696,15 @@ class CarlaGymEnv(gym.Env):
         elif off_the_road:
             # print('Collision happened!')
             reward = self.off_the_road_penalty
+            done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             print(reward, action)
             return self.state, reward, done, {'reserved': 0}
+
+
+
+
 
         self.eps_rew += reward
         # print(self.n_step, self.eps_rew)

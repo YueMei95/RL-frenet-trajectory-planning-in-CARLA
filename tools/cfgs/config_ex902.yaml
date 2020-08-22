@@ -26,8 +26,10 @@ GYM_ENV:
 RL:
   W_SPEED: 10                                                    # Speed Error Resolution
   W_R_SPEED: 10                                                  # Speed Reward Magnitude (w*r_speed)
-  W_LANECHANGE: 15                                               # Lane Change Penalty (w*speed_change)
-  MIN_PENALTY_PERCT: 0.1                                         # Min Speed Gain for Lane Change Penalty
+  MIN_SPEED_GAIN: 0.05                                               # Off-the-road attempt penalty
+  MIN_SPEED_LOSS: -0.00                                                    # Speed Error Resolution
+  LANE_CHANGE_PENALTY: -1                                                  # Speed Reward Magnitude (w*r_speed)
+  LANE_CHANGE_REWARD: 10                                               # Off-the-road attempt penalty
   OFF_THE_ROAD: -2                                               # Off-the-road attempt penalty
   COLLISION: -8                                                 # Collison penalty
 

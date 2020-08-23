@@ -22,7 +22,7 @@ from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
 from stable_baselines import A2C
-from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass, sequence_1d_cnn_ego_bypass_ct, sequence_1d_cnn_ego_bypass_tc
+from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass, sequence_1d_cnn_ego_bypass_tc, sequence_1d_mlp
 
 from config import cfg, log_config_to_file, cfg_from_list, cfg_from_yaml_file
 
@@ -50,10 +50,6 @@ def parse_args_cfgs():
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg.TAG = Path(args.cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
-
-    # correct default test_model arg
-    if args.test_model == '':
-        args.test_model = '{}_final_model'.format(cfg.POLICY.NAME)
 
     # visualize all test scenarios
     if args.test:
@@ -149,6 +145,12 @@ if __name__ == '__main__':
             save_path = 'logs/agent_{}/models/'.format(args.agent_id)
         else:
             save_path = 'logs/'
+
+        if args.test_model == '':
+            best_s = [int(best[5:-4])for best in os.listdir(save_path) if "best" in best]
+            best_s.sort()
+            args.test_model = 'best_{}'.format(best_s[-1])
+
         model_dir = save_path + args.test_model  # model save/load directory
 
         if cfg.POLICY.NAME == 'DDPG':

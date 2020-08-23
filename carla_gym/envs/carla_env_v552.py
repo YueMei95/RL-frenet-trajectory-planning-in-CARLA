@@ -108,7 +108,7 @@ class CarlaGymEnv(gym.Env):
         # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
         #                                         dtype=np.float32)
 
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(2, 9),
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(1, 9),
                                                 dtype=np.float32)
         action_low = np.array([-1])
         action_high = np.array([1])
@@ -315,72 +315,72 @@ class CarlaGymEnv(gym.Env):
         if norm_s[0] not in (-1, -2):
             leading_s = norm_s[0]
         else:
-            leading_s = [1, 1] if norm_s[0] == -1 else [1, 1]
+            leading_s = [1] if norm_s[0] == -1 else [1]
 
         if norm_s[1] not in (-1, -2):
             following_s = norm_s[1]
         else:
-            following_s = [-1, -1] if norm_s[1] == -1 else [-1, -1]
+            following_s = [-1] if norm_s[1] == -1 else [-1]
 
         if norm_s[2] not in (-1, -2):
             left_s = norm_s[2]
         else:
-            left_s = [-1, -1] if norm_s[2] == -1 else [-0.003, 0.001]
+            left_s = [-1] if norm_s[2] == -1 else [0.004]
 
         if norm_s[3] not in (-1, -2):
             leftUp_s = norm_s[3]
         else:
-            leftUp_s = [1, 1] if norm_s[3] == -1 else [0.002, 0.004]
+            leftUp_s = [1] if norm_s[3] == -1 else [0.004]
 
         if norm_s[4] not in (-1, -2):
             leftDown_s = norm_s[4]
         else:
-            leftDown_s = [-1, -1] if norm_s[4] == -1 else [-0.005, -0.001]
+            leftDown_s = [-1] if norm_s[4] == -1 else [0.004]
 
         if norm_s[5] not in (-1, -2):
             lleft_s = norm_s[5]
         else:
-            lleft_s = [-1, -1] if norm_s[5] == -1 else [-0.003, 0.001]
+            lleft_s = [-1] if norm_s[5] == -1 else [0.004]
 
         if norm_s[6] not in (-1, -2):
             lleftUp_s = norm_s[6]
         else:
-            lleftUp_s = [1, 1] if norm_s[6] == -1 else [0.002, 0.004]
+            lleftUp_s = [1] if norm_s[6] == -1 else [0.004]
 
         if norm_s[7] not in (-1, -2):
             lleftDown_s = norm_s[7]
         else:
-            lleftDown_s = [-1, -1] if norm_s[7] == -1 else [-0.005, -0.001]
+            lleftDown_s = [-1] if norm_s[7] == -1 else [0.004]
 
         if norm_s[8] not in (-1, -2):
             right_s = norm_s[8]
         else:
-            right_s = [-1, -1] if norm_s[8] == -1 else [-0.003, 0.001]
+            right_s = [-1] if norm_s[8] == -1 else [0.004]
 
         if norm_s[9] not in (-1, -2):
             rightUp_s = norm_s[9]
         else:
-            rightUp_s = [1, 1] if norm_s[9] == -1 else [0.002, 0.004]
+            rightUp_s = [1] if norm_s[9] == -1 else [0.004]
 
         if norm_s[10] not in (-1, -2):
             rightDown_s = norm_s[10]
         else:
-            rightDown_s = [-1, -1] if norm_s[10] == -1 else [-0.005, -0.001]
+            rightDown_s = [-1] if norm_s[10] == -1 else [0.004]
 
         if norm_s[11] not in (-1, -2):
             rright_s = norm_s[11]
         else:
-            rright_s = [-1, -1] if norm_s[11] == -1 else [-0.003, 0.001]
+            rright_s = [-1] if norm_s[11] == -1 else [0.004]
 
         if norm_s[12] not in (-1, -2):
             rrightUp_s = norm_s[12]
         else:
-            rrightUp_s = [1, 1] if norm_s[12] == -1 else [0.002, 0.004]
+            rrightUp_s = [1] if norm_s[12] == -1 else [0.004]
 
         if norm_s[13] not in (-1, -2):
             rrightDown_s = norm_s[13]
         else:
-            rrightDown_s = [-1, -1] if norm_s[13] == -1 else [-0.005, -0.001]
+            rrightDown_s = [-1] if norm_s[13] == -1 else [0.004]
 
         # print(self.actor_enumeration)
         # print(norm_s)
@@ -395,7 +395,6 @@ class CarlaGymEnv(gym.Env):
                            lleft_s, lleftUp_s, lleftDown_s, right_s, rightUp_s, rightDown_s,
                            rright_s, rrightUp_s, rrightDown_s):
 
-        '''
         ego_norm_s.extend(ego_norm_s[-1] for _ in range(self.look_back - len(ego_norm_s)))
         ego_norm_d.extend(ego_norm_d[-1] for _ in range(self.look_back - len(ego_norm_d)))
         leading_s.extend(leading_s[-1] for _ in range(self.look_back - len(leading_s)))
@@ -426,10 +425,10 @@ class CarlaGymEnv(gym.Env):
         # rrightUp_d.extend(rrightUp_d[-1] for _ in range(self.look_back - len(rrightUp_d)))
         rrightDown_s.extend(rrightDown_s[-1] for _ in range(self.look_back - len(rrightDown_s)))
         # rrightDown_d.extend(rrightDown_d[-1] for _ in range(self.look_back - len(rrightDown_d)))
-        '''
+
         # dummy_s = []
         # dummy_s.extend(-1 for _ in range(self.look_back))
-        _range = [0, -1]
+        _range = [-1]
 
         lstm_obs = np.concatenate((np.array(ego_norm_d)[_range],
                                    np.array(leading_s)[_range],

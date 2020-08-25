@@ -29,7 +29,7 @@ RL:
   MIN_SPEED_GAIN: 0.05                                               # Off-the-road attempt penalty
   MIN_SPEED_LOSS: 0.0                                                    # Speed Error Resolution
   LANE_CHANGE_PENALTY: 0.1                                                  # Speed Reward Magnitude (w*r_speed)
-  LANE_CHANGE_REWARD: 15                                               # Off-the-road attempt penalty
+  LANE_CHANGE_REWARD: 5                                               # Off-the-road attempt penalty
   OFF_THE_ROAD: -8                                               # Off-the-road attempt penalty
   COLLISION: -8                                                 # Collison penalty
 

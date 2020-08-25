@@ -9,7 +9,7 @@ CARLA:
 POLICY:
   NAME: DDPG                                                    # DDPG/TRPO/PPO2/A2C
   NET: CNN                                                      # MLP/CNN/LSTM - DDPG does not have LSTM policy
-  CNN_EXTRACTOR: sequence_1d_mlp                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
+  CNN_EXTRACTOR: sequence_1d_cnn_ego_bypass_tc                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
   ACTION_NOISE: 0.5                                             # DDPG only
   PARAM_NOISE_STD: 0.0                                          # DDPG only
 
@@ -29,8 +29,8 @@ RL:
   MIN_SPEED_GAIN: 0.05                                               # Off-the-road attempt penalty
   MIN_SPEED_LOSS: 0.0                                                    # Speed Error Resolution
   LANE_CHANGE_PENALTY: 0.1                                                  # Speed Reward Magnitude (w*r_speed)
-  LANE_CHANGE_REWARD: 15                                               # Off-the-road attempt penalty
-  OFF_THE_ROAD: -8                                               # Off-the-road attempt penalty
+  LANE_CHANGE_REWARD: 5                                               # Off-the-road attempt penalty
+  OFF_THE_ROAD: -3                                               # Off-the-road attempt penalty
   COLLISION: -8                                                 # Collison penalty
 
 LOCAL_PLANNER:

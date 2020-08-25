@@ -325,62 +325,62 @@ class CarlaGymEnv(gym.Env):
         if norm_s[2] not in (-1, -2):
             left_s = norm_s[2]
         else:
-            left_s = [-0.03, -0.03] if norm_s[2] == -1 else [-0.003, 0.001]
+            left_s = [-0.03, -0.03] if norm_s[2] == -1 else [0.001, 0.001]
 
         if norm_s[3] not in (-1, -2):
             leftUp_s = norm_s[3]
         else:
-            leftUp_s = [0.03, 0.03] if norm_s[3] == -1 else [0.002, 0.004]
+            leftUp_s = [0.03, 0.03] if norm_s[3] == -1 else [0.004, 0.004]
 
         if norm_s[4] not in (-1, -2):
             leftDown_s = norm_s[4]
         else:
-            leftDown_s = [-0.03, -0.03] if norm_s[4] == -1 else [-0.005, -0.001]
+            leftDown_s = [-0.03, -0.03] if norm_s[4] == -1 else [-0.001, -0.001]
 
         if norm_s[5] not in (-1, -2):
             lleft_s = norm_s[5]
         else:
-            lleft_s = [-0.03, -0.03] if norm_s[5] == -1 else [-0.003, 0.001]
+            lleft_s = [-0.03, -0.03] if norm_s[5] == -1 else [0.001, 0.001]
 
         if norm_s[6] not in (-1, -2):
             lleftUp_s = norm_s[6]
         else:
-            lleftUp_s = [0.03, 0.03] if norm_s[6] == -1 else [0.002, 0.004]
+            lleftUp_s = [0.03, 0.03] if norm_s[6] == -1 else [0.004, 0.004]
 
         if norm_s[7] not in (-1, -2):
             lleftDown_s = norm_s[7]
         else:
-            lleftDown_s = [-0.03, -0.03] if norm_s[7] == -1 else [-0.005, -0.001]
+            lleftDown_s = [-0.03, -0.03] if norm_s[7] == -1 else [-0.001, -0.001]
 
         if norm_s[8] not in (-1, -2):
             right_s = norm_s[8]
         else:
-            right_s = [-0.03, -0.03] if norm_s[8] == -1 else [-0.003, 0.001]
+            right_s = [-0.03, -0.03] if norm_s[8] == -1 else [0.001, 0.001]
 
         if norm_s[9] not in (-1, -2):
             rightUp_s = norm_s[9]
         else:
-            rightUp_s = [0.03, 0.03] if norm_s[9] == -1 else [0.002, 0.004]
+            rightUp_s = [0.03, 0.03] if norm_s[9] == -1 else [0.004, 0.004]
 
         if norm_s[10] not in (-1, -2):
             rightDown_s = norm_s[10]
         else:
-            rightDown_s = [-0.03, -0.03] if norm_s[10] == -1 else [-0.005, -0.001]
+            rightDown_s = [-0.03, -0.03] if norm_s[10] == -1 else [-0.001, -0.001]
 
         if norm_s[11] not in (-1, -2):
             rright_s = norm_s[11]
         else:
-            rright_s = [-0.03, -0.03] if norm_s[11] == -1 else [-0.003, 0.001]
+            rright_s = [-0.03, -0.03] if norm_s[11] == -1 else [0.001, 0.001]
 
         if norm_s[12] not in (-1, -2):
             rrightUp_s = norm_s[12]
         else:
-            rrightUp_s = [0.03, 0.03] if norm_s[12] == -1 else [0.002, 0.004]
+            rrightUp_s = [0.03, 0.03] if norm_s[12] == -1 else [0.004, 0.004]
 
         if norm_s[13] not in (-1, -2):
             rrightDown_s = norm_s[13]
         else:
-            rrightDown_s = [-0.03, -0.03] if norm_s[13] == -1 else [-0.005, -0.001]
+            rrightDown_s = [-0.03, -0.03] if norm_s[13] == -1 else [-0.001, -0.001]
 
         # print(self.actor_enumeration)
         # print(norm_s)
@@ -590,7 +590,7 @@ class CarlaGymEnv(gym.Env):
                 break
 
             if off_the_road:
-                break
+                pass
 
             distance_traveled = ego_s - self.init_s
             if distance_traveled < -5:
@@ -651,19 +651,12 @@ class CarlaGymEnv(gym.Env):
 
         spd_change_percentage = (last_speed - init_speed) / init_speed if init_speed != 0 else -1
         r_laneChange = 0
-        if self.is_first_path:
-            self.is_first_path = False
-            if self.lanechange:
-                r_laneChange = -1 * r_speed * 0.1  # r_laneChange <= 0
 
-        elif self.lanechange and init_speed > self.targetSpeed / 2.5 and spd_change_percentage >= self.min_speed_gain:
-            r_laneChange = self.lane_change_reward
+        if self.lanechange and spd_change_percentage < self.min_speed_gain:
+            r_laneChange = -1 * r_speed * self.lane_change_penalty  # r_laneChange <= 0
 
-        elif (not self.lanechange) and last_speed < self.targetSpeed * 0.75:
-            r_laneChange = -(r_speed + 0)
-
-        elif self.lanechange and spd_change_percentage < -self.min_speed_gain:
-            r_laneChange = -(r_speed + 4)
+        elif self.lanechange:
+            r_speed *= self.lane_change_reward
 
 
         positives = r_speed
@@ -691,6 +684,8 @@ class CarlaGymEnv(gym.Env):
             # print('Finished the race')
             # reward = 10
             done = True
+            if off_the_road:
+                reward = self.off_the_road_penalty
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             print(reward, action)
@@ -699,7 +694,7 @@ class CarlaGymEnv(gym.Env):
         elif off_the_road:
             # print('Collision happened!')
             reward = self.off_the_road_penalty
-            done = True
+            # done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             print(reward, action)

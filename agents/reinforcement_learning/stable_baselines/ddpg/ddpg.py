@@ -198,9 +198,9 @@ class DDPG(OffPolicyRLModel):
         If None, the number of cpu of the current machine will be used.
     """
 
-    def __init__(self, policy, env, gamma=0.99, memory_policy=None, eval_env=None, nb_train_steps=12,
-                 nb_rollout_steps=24, nb_eval_steps=24, param_noise=None, action_noise=None,
-                 normalize_observations=False, tau=0.001, batch_size=32, param_noise_adaption_interval=12,
+    def __init__(self, policy, env, gamma=0.99, memory_policy=None, eval_env=None, nb_train_steps=24,
+                 nb_rollout_steps=48, nb_eval_steps=48, param_noise=None, action_noise=None,
+                 normalize_observations=False, tau=0.001, batch_size=128, param_noise_adaption_interval=12,
                  normalize_returns=False, enable_popart=False, observation_range=(-5., 5.), critic_l2_reg=0.,
                  return_range=(-np.inf, np.inf), actor_lr=1e-4, critic_lr=1e-3, clip_norm=None, reward_scale=1.,
                  render=False, render_eval=False, memory_limit=None, buffer_size=50000, random_exploration=0.0,

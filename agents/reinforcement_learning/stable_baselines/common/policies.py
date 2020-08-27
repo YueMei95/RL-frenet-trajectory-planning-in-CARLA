@@ -94,8 +94,8 @@ def sequence_1d_mlp(scaled_sequence, **kwargs):
     # layer_1_others = activ(
     #    conv1d(scaled_sequence, 'c1_others', n_filters=16, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
     # layer_3_others = conv_to_fc(layer_1_others)
-
-    return activ(linear(scaled_sequence, 'fc3', n_hidden=512, init_scale=np.sqrt(2)))
+    layer_1_others = activ(linear(scaled_sequence, 'fc1', n_hidden=256, init_scale=np.sqrt(2)))
+    return activ(linear(layer_1_others, 'fc2', n_hidden=256, init_scale=np.sqrt(2)))
 
 
 def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
@@ -117,10 +117,10 @@ def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
     layer_1_others = activ(
         conv1d(relative_others, 'c1_others', n_filters=32, filter_size=2, stride=1, init_scale=np.sqrt(2), **kwargs))
     layer_2_others = conv_to_fc(layer_1_others)
-    layer_3_others = activ(linear(layer_2_others, 'fc2', n_hidden=128, init_scale=np.sqrt(2)))
+    layer_3_others = activ(linear(layer_2_others, 'fc2', n_hidden=256, init_scale=np.sqrt(2)))
     # fc2_others = layer_3_others
     # concat_out = tf.concat([fc2_ego, fc2_others], axis=1, name='concat')
-    return activ(linear(layer_3_others, 'fc3', n_hidden=128, init_scale=np.sqrt(2)))
+    return activ(linear(layer_3_others, 'fc3', n_hidden=256, init_scale=np.sqrt(2)))
 
 
 def mlp_extractor(flat_observations, net_arch, act_fun):

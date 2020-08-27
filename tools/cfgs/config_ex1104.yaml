@@ -9,7 +9,7 @@ CARLA:
 POLICY:
   NAME: DDPG                                                    # DDPG/TRPO/PPO2/A2C
   NET: CNN                                                      # MLP/CNN/LSTM - DDPG does not have LSTM policy
-  CNN_EXTRACTOR: sequence_1d_cnn_ego_bypass_tc                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
+  CNN_EXTRACTOR: sequence_1d_mlp                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
   ACTION_NOISE: 0.5                                             # DDPG only
   PARAM_NOISE_STD: 0.0                                          # DDPG only
 
@@ -21,7 +21,7 @@ GYM_ENV:
   MAX_ACC: 6.878                                                # equivalent to 24.7608 km/h.s for Tesla model 3
   LOOK_BACK: 30                                                 # [int] Steps to look back at last path for observation sequence vector
   LOOP_BREAK: 50                                                # [int] steps to break path following while loop  - must be greater than LOOK_BACK
-  DISTN_FRM_VHCL_AHD: 50                                                # Effective distance to keep from vehicle ahead
+  DISTN_FRM_VHCL_AHD: 150                                                # Effective distance to keep from vehicle ahead
 
 RL:
   W_SPEED: 3                                                    # Speed Error Resolution

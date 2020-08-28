@@ -108,7 +108,7 @@ class CarlaGymEnv(gym.Env):
         # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
         #                                         dtype=np.float32)
 
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(1, 9),
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(2, 9),
                                                 dtype=np.float32)
         action_low = np.array([-1])
         action_high = np.array([1])
@@ -315,72 +315,72 @@ class CarlaGymEnv(gym.Env):
         if norm_s[0] not in (-1, -2):
             leading_s = norm_s[0]
         else:
-            leading_s = [0.03] if norm_s[0] == -1 else [0.03]
+            leading_s = [0.07, 0.07] if norm_s[0] == -1 else [0.07, 0.07]
 
         if norm_s[1] not in (-1, -2):
             following_s = norm_s[1]
         else:
-            following_s = [-0.03] if norm_s[1] == -1 else [-0.03]
+            following_s = [-0.07, -0.07] if norm_s[1] == -1 else [-0.07, -0.07]
 
         if norm_s[2] not in (-1, -2):
             left_s = norm_s[2]
         else:
-            left_s = [-0.03] if norm_s[2] == -1 else [0.004]
+            left_s = [-0.07, -0.07] if norm_s[2] == -1 else [0.001, 0.001]
 
         if norm_s[3] not in (-1, -2):
             leftUp_s = norm_s[3]
         else:
-            leftUp_s = [0.03] if norm_s[3] == -1 else [0.004]
+            leftUp_s = [0.07, 0.07] if norm_s[3] == -1 else [0.004, 0.004]
 
         if norm_s[4] not in (-1, -2):
             leftDown_s = norm_s[4]
         else:
-            leftDown_s = [-0.03] if norm_s[4] == -1 else [0.004]
+            leftDown_s = [-0.07, -0.07] if norm_s[4] == -1 else [-0.07, -0.07]
 
         if norm_s[5] not in (-1, -2):
             lleft_s = norm_s[5]
         else:
-            lleft_s = [-0.03] if norm_s[5] == -1 else [0.004]
+            lleft_s = [-0.07, -0.07] if norm_s[5] == -1 else [0.001, 0.001]
 
         if norm_s[6] not in (-1, -2):
             lleftUp_s = norm_s[6]
         else:
-            lleftUp_s = [0.03] if norm_s[6] == -1 else [0.004]
+            lleftUp_s = [0.07, 0.07] if norm_s[6] == -1 else [0.004, 0.004]
 
         if norm_s[7] not in (-1, -2):
             lleftDown_s = norm_s[7]
         else:
-            lleftDown_s = [-0.03] if norm_s[7] == -1 else [0.004]
+            lleftDown_s = [-0.07, -0.07] if norm_s[7] == -1 else [-0.07, -0.07]
 
         if norm_s[8] not in (-1, -2):
             right_s = norm_s[8]
         else:
-            right_s = [-0.03] if norm_s[8] == -1 else [0.004]
+            right_s = [-0.07, -0.07] if norm_s[8] == -1 else [0.001, 0.001]
 
         if norm_s[9] not in (-1, -2):
             rightUp_s = norm_s[9]
         else:
-            rightUp_s = [0.03] if norm_s[9] == -1 else [0.004]
+            rightUp_s = [0.07, 0.07] if norm_s[9] == -1 else [0.004, 0.004]
 
         if norm_s[10] not in (-1, -2):
             rightDown_s = norm_s[10]
         else:
-            rightDown_s = [-0.03] if norm_s[10] == -1 else [0.004]
+            rightDown_s = [-0.07, -0.07] if norm_s[10] == -1 else [-0.07, -0.07]
 
         if norm_s[11] not in (-1, -2):
             rright_s = norm_s[11]
         else:
-            rright_s = [-0.03] if norm_s[11] == -1 else [0.004]
+            rright_s = [-0.07, -0.07] if norm_s[11] == -1 else [0.001, 0.001]
 
         if norm_s[12] not in (-1, -2):
             rrightUp_s = norm_s[12]
         else:
-            rrightUp_s = [0.03] if norm_s[12] == -1 else [0.004]
+            rrightUp_s = [0.07, 0.07] if norm_s[12] == -1 else [0.004, 0.004]
 
         if norm_s[13] not in (-1, -2):
             rrightDown_s = norm_s[13]
         else:
-            rrightDown_s = [-0.03] if norm_s[13] == -1 else [0.004]
+            rrightDown_s = [-0.07, -0.07] if norm_s[13] == -1 else [-0.07, -0.07]
 
         # print(self.actor_enumeration)
         # print(norm_s)
@@ -391,10 +391,11 @@ class CarlaGymEnv(gym.Env):
 
         # print(self.actor_enumeration)
 
-    def fix_representation(self, ego_norm_s, ego_norm_d, leading_s, following_s, left_s, leftUp_s, leftDown_s,
+    def fix_representation(self, ego_norm_speed,ego_norm_s, ego_norm_d, leading_s, following_s, left_s, leftUp_s, leftDown_s,
                            lleft_s, lleftUp_s, lleftDown_s, right_s, rightUp_s, rightDown_s,
                            rright_s, rrightUp_s, rrightDown_s):
 
+        '''
         ego_norm_s.extend(ego_norm_s[-1] for _ in range(self.look_back - len(ego_norm_s)))
         ego_norm_d.extend(ego_norm_d[-1] for _ in range(self.look_back - len(ego_norm_d)))
         leading_s.extend(leading_s[-1] for _ in range(self.look_back - len(leading_s)))
@@ -425,12 +426,12 @@ class CarlaGymEnv(gym.Env):
         # rrightUp_d.extend(rrightUp_d[-1] for _ in range(self.look_back - len(rrightUp_d)))
         rrightDown_s.extend(rrightDown_s[-1] for _ in range(self.look_back - len(rrightDown_s)))
         # rrightDown_d.extend(rrightDown_d[-1] for _ in range(self.look_back - len(rrightDown_d)))
-
+        '''
         # dummy_s = []
         # dummy_s.extend(-1 for _ in range(self.look_back))
-        _range = [-1]
+        _range = [0, -1]
 
-        lstm_obs = np.concatenate((np.array(ego_norm_d)[_range],
+        lstm_obs = np.concatenate((np.array([ego_norm_speed, ego_norm_speed]),
                                    np.array(leading_s)[_range],
                                    np.array(following_s)[_range],
                                    np.array(left_s)[_range],
@@ -609,13 +610,13 @@ class CarlaGymEnv(gym.Env):
         # meanAcc = np.mean(accelerations)
         # speed_n = (meanSpeed - self.targetSpeed) / self.targetSpeed  # -1<= speed_n <=1
         # acc_n = meanAcc / (2 * self.maxAcc)  # -1<= acc_n <=1
-
+        last_speed = get_speed(self.ego)
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
 
             leading_s, following_s, left_s, leftUp_s, leftDown_s, lleft_s, lleftUp_s, lleftDown_s, right_s, \
             rightUp_s, rightDown_s, rright_s, rrightUp_s, rrightDown_s = self.enumerate_actors(ego_s_list, ego_d_list)
 
-            self.state = self.fix_representation(ego_norm_s, ego_norm_d, leading_s, following_s, left_s, leftUp_s,
+            self.state = self.fix_representation(last_speed/self.maxSpeed, ego_norm_s, ego_norm_d, leading_s, following_s, left_s, leftUp_s,
                                                  leftDown_s, lleft_s, lleftUp_s, lleftDown_s, right_s, rightUp_s,
                                                  rightDown_s, rright_s, rrightUp_s, rrightDown_s)
 
@@ -626,7 +627,7 @@ class CarlaGymEnv(gym.Env):
                   #      '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
                  '{:+8.6f}'.format(self.state[-1][0]))
             for idx in range(1, self.state.shape[1]):
-               print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+                print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
@@ -643,26 +644,19 @@ class CarlaGymEnv(gym.Env):
         """
         # w_acc = 1 / 2
         # r_acc = np.exp(-abs(meanAcc) ** 2 / (2 * self.maxAcc) * w_acc) - 1  # -1<= r_acc <= 0
-        last_speed = get_speed(self.ego)
         e_speed = abs(self.targetSpeed - last_speed)
         r_speed = self.w_r_speed * np.exp(-e_speed ** 2 / self.maxSpeed * self.w_speed)  # 0<= r_speed <= self.w_r_speed
         #  first two path speed change increases regardless so we penalize it differently
 
         spd_change_percentage = (last_speed - init_speed) / init_speed if init_speed != 0 else -1
         r_laneChange = 0
-        if self.is_first_path:
-            self.is_first_path = False
-            if self.lanechange:
-                r_laneChange = -1 * r_speed * 0.2  # r_laneChange <= 0
 
-        elif self.lanechange and init_speed > self.targetSpeed / 2.5 and spd_change_percentage >= self.min_speed_gain:
-            r_laneChange = self.lane_change_reward
+        if self.lanechange and spd_change_percentage < self.min_speed_gain:
+            r_laneChange = -1 * r_speed * self.lane_change_penalty  # r_laneChange <= 0
 
-        elif (not self.lanechange) and last_speed < self.targetSpeed * 0.75:
-            r_laneChange = -(r_speed + 0.5)
+        elif self.lanechange:
+            r_speed *= self.lane_change_reward
 
-        elif self.lanechange and spd_change_percentage < -self.min_speed_gain:
-            r_laneChange = -(r_speed + 1)
 
         positives = r_speed
         negatives = r_laneChange
@@ -689,6 +683,8 @@ class CarlaGymEnv(gym.Env):
             # print('Finished the race')
             # reward = 10
             done = True
+            if off_the_road:
+                reward = self.off_the_road_penalty
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             print(reward, action)
@@ -697,7 +693,7 @@ class CarlaGymEnv(gym.Env):
         elif off_the_road:
             # print('Collision happened!')
             reward = self.off_the_road_penalty
-            done = True
+            # done = True
             self.eps_rew += reward
             # print('eps rew: ', self.n_step, self.eps_rew)
             print(reward, action)
@@ -743,16 +739,16 @@ class CarlaGymEnv(gym.Env):
             leading_s, following_s, left_s, leftUp_s, leftDown_s, lleft_s, lleftUp_s, lleftDown_s, right_s, \
             rightUp_s, rightDown_s, rright_s, rrightUp_s, rrightDown_s = self.enumerate_actors(ego_s_list, ego_d_list)
 
-            self.state = self.fix_representation(ego_norm_s, ego_norm_d, leading_s, following_s, left_s, leftUp_s,
+            self.state = self.fix_representation(0, ego_norm_s, ego_norm_d, leading_s, following_s, left_s, leftUp_s,
                                                  leftDown_s, lleft_s, lleftUp_s, lleftDown_s, right_s, rightUp_s,
                                                  rightDown_s, rright_s, rrightUp_s, rrightDown_s)
 
-            # print(3 * '---RESET---')
-            # print(TENSOR_ROW_NAMES[0].ljust(15),
+            print(3 * '---RESET---')
+            print(TENSOR_ROW_NAMES[0].ljust(15),
                   #      '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
-            #       '{:+8.6f}'.format(self.state[-1][0]))
-            # for idx in range(1, self.state.shape[1]):
-            #     print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+                  '{:+8.6f}'.format(self.state[-1][0]))
+            for idx in range(1, self.state.shape[1]):
+                print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time

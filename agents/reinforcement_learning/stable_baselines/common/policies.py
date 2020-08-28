@@ -109,9 +109,9 @@ def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
     :return: (TensorFlow Tensor) The CNN output layer
     """
     activ = tf.nn.relu
-    # norm_ego = scaled_sequence[:, -1:, :1]
-    # norm_ego = tf.reshape(norm_ego,[-1, 1])
-    # fc2_ego = norm_ego
+    norm_ego = scaled_sequence[:, -1:, :1]
+    norm_ego = tf.reshape(norm_ego,[-1, 1])
+    fc2_ego = norm_ego
 
     relative_others = scaled_sequence[:, :, 1:]
     layer_1_others = activ(
@@ -119,8 +119,8 @@ def sequence_1d_cnn_ego_bypass_tc(scaled_sequence, **kwargs):
     layer_2_others = conv_to_fc(layer_1_others)
     layer_3_others = activ(linear(layer_2_others, 'fc2', n_hidden=256, init_scale=np.sqrt(2)))
     # fc2_others = layer_3_others
-    # concat_out = tf.concat([fc2_ego, fc2_others], axis=1, name='concat')
-    return activ(linear(layer_3_others, 'fc3', n_hidden=256, init_scale=np.sqrt(2)))
+    concat_out = tf.concat([fc2_ego, layer_3_others], axis=1, name='concat')
+    return activ(linear(concat_out, 'fc3', n_hidden=256, init_scale=np.sqrt(2)))
 
 
 def mlp_extractor(flat_observations, net_arch, act_fun):

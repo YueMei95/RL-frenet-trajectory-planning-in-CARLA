@@ -622,12 +622,12 @@ class CarlaGymEnv(gym.Env):
 
             # self.state = lstm_obs.reshape(self.observation_space.shape[0], -1)
 
-            # print(3 * '---EPS UPDATE---')
-            # print(TENSOR_ROW_NAMES[0].ljust(15),
+            print(3 * '---EPS UPDATE---')
+            print(TENSOR_ROW_NAMES[0].ljust(15),
                   #      '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
-            #      '{:+8.6f}'.format(self.state[-1][0]))
-            # for idx in range(1, self.state.shape[1]):
-            #     print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+                 '{:+8.6f}'.format(self.state[-1][0]))
+            for idx in range(1, self.state.shape[1]):
+                print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time
@@ -744,12 +744,12 @@ class CarlaGymEnv(gym.Env):
                                                  leftDown_s, lleft_s, lleftUp_s, lleftDown_s, right_s, rightUp_s,
                                                  rightDown_s, rright_s, rrightUp_s, rrightDown_s)
 
-            # print(3 * '---RESET---')
-            # print(TENSOR_ROW_NAMES[0].ljust(15),
+            print(3 * '---RESET---')
+            print(TENSOR_ROW_NAMES[0].ljust(15),
                   #      '{:+8.6f}  {:+8.6f}'.format(self.state[-1][1], self.state[-1][0]))
-            #       '{:+8.6f}'.format(self.state[-1][0]))
-            # for idx in range(1, self.state.shape[1]):
-            #     print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
+                  '{:+8.6f}'.format(self.state[-1][0]))
+            for idx in range(1, self.state.shape[1]):
+                print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
             # self.state = lstm_obs[:, -self.look_back:]
         else:
             # pad the feature lists to recover from the cases where the length of path is less than look_back time

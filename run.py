@@ -39,6 +39,7 @@ def parse_args_cfgs():
     parser.add_argument('--play_mode', type=int, help='Display mode: 0:off, 1:2D, 2:3D ', default=0)
     parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--test_model', help='test model file name', type=str, default='')
+    parser.add_argument('--test_last', help='test model best or last?', type=bool, default=False)
     parser.add_argument('--carla_host', metavar='H', default='127.0.0.1', help='IP of the host server (default: 127.0.0.1)')
     parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int, help='TCP port to listen to (default: 2000)')
     parser.add_argument('--tm_port', default=8000, type=int, help='Traffic Manager TCP port to listen to (default: 8000)')
@@ -147,9 +148,12 @@ if __name__ == '__main__':
             save_path = 'logs/'
 
         if args.test_model == '':
-            best_s = [int(best[5:-4])for best in os.listdir(save_path) if "best" in best]
+            best_last = 'best'
+            if args.test_last:
+                best_last = 'step'
+            best_s = [int(best[5:-4])for best in os.listdir(save_path) if best_last in best]
             best_s.sort()
-            args.test_model = 'best_{}'.format(best_s[-1])
+            args.test_model = best_last + '_{}'.format(best_s[-1])
 
         model_dir = save_path + args.test_model  # model save/load directory
 

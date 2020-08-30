@@ -24,6 +24,8 @@ from stable_baselines import TRPO
 from stable_baselines import A2C
 from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass, sequence_1d_cnn_ego_bypass_tc, sequence_1d_mlp
 
+
+
 from config import cfg, log_config_to_file, cfg_from_list, cfg_from_yaml_file
 
 
@@ -39,7 +41,7 @@ def parse_args_cfgs():
     parser.add_argument('--play_mode', type=int, help='Display mode: 0:off, 1:2D, 2:3D ', default=0)
     parser.add_argument('--test', default=False, action='store_true')
     parser.add_argument('--test_model', help='test model file name', type=str, default='')
-    parser.add_argument('--test_last', help='test model best or last?', type=bool, default=False)
+    parser.add_argument('--test_last', help='test model best or last?', action='store_true', default=False)
     parser.add_argument('--carla_host', metavar='H', default='127.0.0.1', help='IP of the host server (default: 127.0.0.1)')
     parser.add_argument('-p', '--carla_port', metavar='P', default=2000, type=int, help='TCP port to listen to (default: 2000)')
     parser.add_argument('--tm_port', default=8000, type=int, help='Traffic Manager TCP port to listen to (default: 8000)')
@@ -47,6 +49,11 @@ def parse_args_cfgs():
     args = parser.parse_args()
 
     args.num_timesteps = int(args.num_timesteps)
+
+    if args.test and args.cfg_file is None:
+        path = 'logs/agent_{}/'.format(args.agent_id)
+        conf_list = [cfg_file for cfg_file in os.listdir(path) if 'config' in cfg_file]
+        args.cfg_file = path + conf_list[0]
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg.TAG = Path(args.cfg_file).stem
@@ -156,7 +163,7 @@ if __name__ == '__main__':
             args.test_model = best_last + '_{}'.format(best_s[-1])
 
         model_dir = save_path + args.test_model  # model save/load directory
-
+        print('{} is Loading...'.format(args.test_model))
         if cfg.POLICY.NAME == 'DDPG':
             model = DDPG.load(model_dir)
             model.action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(n_actions),

@@ -9,13 +9,5 @@ register(
     entry_point='carla_gym.envs:CarlaGymEnv_v4')
 
 register(
-    id='CarlaGymEnv-v5',
-    entry_point='carla_gym.envs:CarlaGymEnv_v5')
-
-register(
-    id='CarlaGymEnv-v55',
-    entry_point='carla_gym.envs:CarlaGymEnv_v55')
-
-register(
     id='CarlaGymEnv-v552',
     entry_point='carla_gym.envs:CarlaGymEnv_v552')

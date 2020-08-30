@@ -17,8 +17,8 @@ MODULE_WORLD = 'WORLD'
 MODULE_HUD = 'HUD'
 MODULE_INPUT = 'INPUT'
 MODULE_TRAFFIC = 'TRAFFIC'
-TENSOR_ROW_NAMES = ['EGO', 'LEADING', 'FOLLOWING', 'LEFT', 'LEFT_UP', 'LEFT_DOWN', 'LLEFT', 'LLEFT_UP', \
-                    'LLEFT_DOWN', 'RIGHT', 'RIGHT_UP', 'RIGHT_DOWN', 'RRIGHT', 'RRIGHT_UP', 'RRIGHT_DOWN']
+TENSOR_ROW_NAMES = ['EGO', 'LEADING', 'FOLLOWING', 'LEFT', 'LEFT_UP', 'LEFT_DOWN',
+                    'RIGHT', 'RIGHT_UP', 'RIGHT_DOWN']
 
 
 def euclidean_distance(v1, v2):
@@ -252,40 +252,61 @@ class CarlaGymEnv(gym.Env):
 
         # --------------------------------------------- left lane -------------------------------------------------
         left_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -3) * ((np.array(others_d) - ego_d) > -4))[0]
-        if len(left_lane_d_idx) == 0:
+        if ego_d < -1.75:
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
+
+        elif len(left_lane_d_idx) == 0:
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
 
         else:
             append_actor(left_lane_d_idx)
 
         # ------------------------------------------- two left lane -----------------------------------------------
         lleft_lane_d_idx = np.where(((np.array(others_d) - ego_d) < -6.5) * ((np.array(others_d) - ego_d) > -7.5))[0]
-        if len(lleft_lane_d_idx) == 0:
+
+        if ego_d < 1.75:
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
+
+        elif len(lleft_lane_d_idx) == 0:
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
 
         else:
             append_actor(lleft_lane_d_idx)
 
             # ---------------------------------------------- rigth lane --------------------------------------------------
         right_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 3) * ((np.array(others_d) - ego_d) < 4))[0]
-        if len(right_lane_d_idx) == 0:
+        if ego_d > 5.25:
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
+
+        elif len(right_lane_d_idx) == 0:
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
 
         else:
             append_actor(right_lane_d_idx)
 
         # ------------------------------------------- two rigth lane --------------------------------------------------
         rright_lane_d_idx = np.where(((np.array(others_d) - ego_d) > 6.5) * ((np.array(others_d) - ego_d) < 7.5))[0]
-        if len(rright_lane_d_idx) == 0:
+        if ego_d > 1.75:
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
             self.actor_enumeration.append(-2)
+
+        elif len(rright_lane_d_idx) == 0:
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
+            self.actor_enumeration.append(-1)
 
         else:
             append_actor(rright_lane_d_idx)
@@ -466,6 +487,9 @@ class CarlaGymEnv(gym.Env):
                 *********************************************** Motion Planner *******************************************************
                 **********************************************************************************************************************
         """
+        if self.is_first_path:
+            action = 0
+
         temp = [self.ego.get_velocity(), self.ego.get_acceleration()]
         init_speed = speed = get_speed(self.ego)
         acc_vec = self.ego.get_acceleration()
@@ -504,6 +528,7 @@ class CarlaGymEnv(gym.Env):
         ego_init_d, ego_target_d = fpath.d[0], fpath.d[-1]
         # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
         loop_counter = 0
+
         while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
                                           loop_counter < self.loop_break or self.lanechange):
 
@@ -668,6 +693,9 @@ class CarlaGymEnv(gym.Env):
                 ********************************************* Episode Termination ****************************************************
                 **********************************************************************************************************************
         """
+        if self.is_first_path:
+            self.is_first_path = False
+
         done = False
 
         if collision:

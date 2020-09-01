@@ -4,7 +4,10 @@
 3. pip install -e .
 
 # command help:
-python run_carla_stable.py --env=CarlaGymEnv-v95 --num_timesteps=200e3 --action_noise=0.2
+python run.py --env=CarlaGymEnv-v95 --num_timesteps=200e3
+
+Runs last recorded agent_210 in specified environment 
+python run.py --env=CarlaGymEnv-v553 --agent_id=210  --play_mode=1 --verbosity=2 --test_last --test
 
 kubectl exec sim-carla-km2lm -c carla-client -- /bin/bash -c "cd carla-decison-making && python run_carla_stable.py --num_timesteps=1e6 --action_noise=0.0 --agent_id=1 |& tee /carla/models/1-output.txt"
 

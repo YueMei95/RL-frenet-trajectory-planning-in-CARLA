@@ -1772,10 +1772,7 @@ class TrafficManager:
         # re-spawn N_INIT_CARS of actors
         ego_lane = int(ego_d / self.LANE_WIDTH)
         ego_grid_n = ego_lane + 9  # in Grid world (see notes above), ego is in column 2 so its grid number will be based on its lane number
-        grid_choices = np.arange(20, 80) ### !!! Test Purposes back 60
-
-        #for i in range(0, 20):
-        #    grid_choices = np.delete(grid_choices, ego_grid_n + i)  # Don't spawn any car right in front of the ego
+        grid_choices = np.arange(16, 60)
 
         rnd_indices = np.random.choice(grid_choices, self.N_SPAWN_CARS, replace=False)
         for idx in rnd_indices:

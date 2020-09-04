@@ -20,6 +20,7 @@ GYM_ENV:
   MAX_SPEED: 25
   MAX_ACC: 6.878                                                # equivalent to 24.7608 km/h.s for Tesla model 3
   LOOK_BACK: 30                                                 # [int] Steps to look back at last path for observation sequence vector
+  TIME_STEP: 4                                                 # [int] Steps to look back at last path for observation sequence vector
   LOOP_BREAK: 50                                                # [int] steps to break path following while loop  - must be greater than LOOK_BACK
   DISTN_FRM_VHCL_AHD: 150                                                # Effective distance to keep from vehicle ahead
 

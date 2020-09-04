@@ -31,8 +31,10 @@ def plot_rewards(args=None):
         sum_ = 0
         
         for i in range(args.window_size-1):
-            sum_ += data[x]['l'][i] 
-        
+            temp.append(np.mean(data[x]['r'][:i]))
+            sum_ += data[x]['l'][i]
+            temp_step.append(sum_)
+
         for i in range(args.window_size-1,data[x]['r'].shape[0]):
             temp.append(np.mean(data[x]['r'][i-args.window_size-1:i]))
             sum_ += data[x]['l'][i]

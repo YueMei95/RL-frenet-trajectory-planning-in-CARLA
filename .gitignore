@@ -1,0 +1,41 @@
+# models
+models/*.zip
+logs/
+# Distribution / packaging
+.Python
+**/*.egg
+env/
+**/__pycache__
+
+# baselines gitignore:
+*.swp
+*.pyc
+*.pkl
+*.py~
+.pytest_cache
+.DS_Store
+.idea
+
+# Setuptools distribution and build folders.
+agents/baselines/dist/
+agents/baselines/build
+agents/baselines/keys/
+
+
+*.sublime-project
+*.sublime-workspace
+
+**/*.idea
+
+agents/baselines/logs/
+
+**/*.ipynb_checkpoints
+ghostdriver.log
+
+**htmlcov
+
+**junk
+**src
+
+*.egg-info
+.cache

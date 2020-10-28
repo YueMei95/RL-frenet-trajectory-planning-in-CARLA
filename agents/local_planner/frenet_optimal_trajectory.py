@@ -323,16 +323,6 @@ class FrenetPlanner:
         # f_state[2] = s_dd
         # f_state[5] = d_dd
 
-        # Update frenet state estimation when distance error gets large (option 2: re-initialize the planner)
-        """
-        e = euclidean_distance(ego_state[0:2], [self.path.x[idx], self.path.y[idx]])
-        if e > self.MAX_DIST_ERR:
-            s, s_d, s_dd, d, d_d, d_dd = update_frenet_coordinate(self.path, ego_state[0:2])
-            # f_state[0], f_state[3] = s, d
-            f_state = [s, s_d, s_dd, d, d_d, d_dd]
-        # f_state[1:3] = ego_state[2:]
-        # f_state[1] = ego_state[2]
-        """
         return f_state
 
     def generate_single_frenet_path(self, f_state, df=0, Tf=4, Vf=30 / 3.6):
@@ -594,6 +584,7 @@ class FrenetPlanner:
             df = 1
         else:
             df = 0
+
         d = self.path.d[idx]  # CHANGE THIS! when f_state estimation works fine. (self.path.d[idx])(d = f_state[3])
         _df = np.clip(df * self.LANE_WIDTH + d, -2 * self.LANE_WIDTH, 3 * self.LANE_WIDTH).item()
         df = closest([self.LANE_WIDTH * lane_n for lane_n in range(-1, 3)], _df)
@@ -601,6 +592,8 @@ class FrenetPlanner:
 
         # lanechange should be set true if there is a lane change
         lanechange = True if abs(df - d) >= 3 else False
+
+        # off-the-road attempt is recorded
         off_the_road = True if _df < -4 or _df > 7.5 else False
 
         Vf = self.speed_radius * Vf_n + self.speed_center

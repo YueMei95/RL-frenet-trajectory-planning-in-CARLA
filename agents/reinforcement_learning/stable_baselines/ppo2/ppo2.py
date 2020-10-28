@@ -404,7 +404,9 @@ class PPO2(ActorCriticRLModel):
                         logger.logkv(loss_name, loss_val)
                     logger.dumpkvs()
 
-                    self.save(self.model_dir + "/{}".format(self.num_timesteps))
+                # Save the model every 5000 time_step
+                if self.num_timesteps % 5000 == 0:
+                    self.save(self.model_dir + "/step_{}".format(self.num_timesteps))
 
             callback.on_training_end()
             return self

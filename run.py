@@ -22,7 +22,7 @@ from stable_baselines import DDPG
 from stable_baselines import PPO2
 from stable_baselines import TRPO
 from stable_baselines import A2C
-from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass, sequence_1d_cnn_ego_bypass_tc
+from stable_baselines.common.policies import BasePolicy, nature_cnn, register_policy, sequence_1d_cnn, sequence_1d_cnn_ego_bypass_tc
 
 
 
@@ -55,7 +55,7 @@ def parse_args_cfgs():
 
     if args.test and args.cfg_file is None:
         path = 'logs/agent_{}/'.format(args.agent_id)
-        conf_list = [cfg_file for cfg_file in os.listdir(path) if 'config' in cfg_file]
+        conf_list = [cfg_file for cfg_file in os.listdir(path) if '.yaml' in cfg_file]
         args.cfg_file = path + conf_list[0]
 
     cfg_from_yaml_file(args.cfg_file, cfg)

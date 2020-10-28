@@ -487,9 +487,15 @@ class TRPO(ActorCriticRLModel):
                         logger.record_tabular("EpLenMean", np.mean(len_buffer))
                         logger.record_tabular("EpRewMean", temp_rew_mean)
 
+                        # Save the best model so far
                         if temp_rew_mean >= max_reward_mean: 
-                            self.save(self.model_dir + '{}_Episode'.format(episodes_so_far + len(lens)), finished_training=False)
+                            self.save(self.model_dir + 'best_{}'.format(timesteps_so_far), finished_training=False)
                             max_reward_mean = temp_rew_mean
+
+                        # save the model every 5000 time step
+                        if timesteps_so_far % 5000 == 0:
+                            self.save(self.model_dir + 'step_{}'.format(timesteps_so_far), finished_training=False)
+
                     if self.using_gail:
                         logger.record_tabular("EpTrueRewMean", np.mean(true_reward_buffer))
                     logger.record_tabular("EpThisIter", len(lens))

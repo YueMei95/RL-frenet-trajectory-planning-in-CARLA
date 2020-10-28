@@ -17,8 +17,8 @@ MODULE_WORLD = 'WORLD'
 MODULE_HUD = 'HUD'
 MODULE_INPUT = 'INPUT'
 MODULE_TRAFFIC = 'TRAFFIC'
-TENSOR_ROW_NAMES = ['EGO', 'LEADING', 'FOLLOWING', 'LEFT', 'LEFT_UP', 'LEFT_DOWN',
-                    'RIGHT', 'RIGHT_UP', 'RIGHT_DOWN']
+TENSOR_ROW_NAMES = ['EGO', 'LEADING', 'FOLLOWING', 'LEFT', 'LEFT_UP', 'LEFT_DOWN','LLEFT', 'LLEFT_UP', 'LLEFT_DOWN',
+                    'RIGHT', 'RIGHT_UP', 'RIGHT_DOWN', 'RRIGHT', 'RRIGHT_UP', 'RRIGHT_DOWN']
 
 
 def euclidean_distance(v1, v2):
@@ -36,6 +36,10 @@ def inertial_to_body_frame(ego_location, xi, yi, psi):
 
 
 def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
+    """
+    given the ego_state and frenet_path this function returns the closest WP in front of the vehicle that is within the w_size
+    """
+
     min_dist = 300  # in meters (Max 100km/h /3.6) * 2 sn
     ego_location = [ego_state[0], ego_state[1]]
     closest_wp_index = 0  # default WP
@@ -48,7 +52,6 @@ def closest_wp_idx(ego_state, fpath, f_idx, w_size=10):
             closest_wp_index = i
             min_dist = temp_dist
 
-    # print('{}--{}--{}'.format(f_idx,closest_wp_index,inertial_to_body_frame(ego_location, fpath.x[closest_wp_index+ f_idx],fpath.x[closest_wp_index + f_idx],ego_state[2] )[0]))
     return f_idx + closest_wp_index
 
 
@@ -107,14 +110,11 @@ class CarlaGymEnv(gym.Env):
             self.high_state = np.array(
                 [[1 for _ in range(self.look_back)] for _ in range(int(self.N_SPAWN_CARS + 1) * 2 + 1)])
 
-        # self.observation_space = gym.spaces.Box(low=-self.low_state, high=self.high_state,
-        #                                         dtype=np.float32)
-
-        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.time_step + 1, 9),
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(self.time_step + 1, 15),
                                                 dtype=np.float32)
-        action_low = np.array([-1])
-        action_high = np.array([1])
-        self.action_space = gym.spaces.Box(low=action_low, high=action_high, dtype=np.float32)
+        action_low = np.array([-1, -1])
+        action_high = np.array([1, 1])
+        self.action_space = gym.spaces.Box(low=action_low, high=action_high, shape=(2,), dtype=np.float32)
         # [cn, ..., c1, c0, normalized yaw angle, normalized speed error] => ci: coefficients
         self.state = np.zeros_like(self.observation_space.sample())
 
@@ -131,10 +131,10 @@ class CarlaGymEnv(gym.Env):
         self.acceleration_ = 0
         self.eps_rew = 0
 
-        '''
-        [0:'LEADING', 1:'FOLLOWING', 2:'LEFT', 3:'LEFT_UP', 4:'LEFT_DOWN', 5:'LLEFT', 6:'LLEFT_UP', 
-        7:'LLEFT_DOWN', 8:'RIGHT', 9:'RIGHT_UP', 10:'RIGHT_DOWN', 11:'RRIGHT', 12:'RRIGHT_UP', 13:'RRIGHT_DOWN']
-        '''
+        """
+        ['EGO', 'LEADING', 'FOLLOWING', 'LEFT', 'LEFT_UP', 'LEFT_DOWN', 'LLEFT', 'LLEFT_UP',
+        'LLEFT_DOWN', 'RIGHT', 'RIGHT_UP', 'RIGHT_DOWN', 'RRIGHT', 'RRIGHT_UP', 'RRIGHT_DOWN']
+        """
         self.actor_enumerated_dict = {}
         self.actor_enumeration = []
         self.side_window = 5  # times 2 to make adjacent window
@@ -151,6 +151,8 @@ class CarlaGymEnv(gym.Env):
         pass
 
     def get_vehicle_ahead(self, ego_s, ego_d, ego_init_d, ego_target_d):
+
+
         distance = self.effective_distance_from_vehicle_ahead
         others_s = [0 for _ in range(self.N_SPAWN_CARS)]
         others_d = [0 for _ in range(self.N_SPAWN_CARS)]
@@ -201,6 +203,13 @@ class CarlaGymEnv(gym.Env):
             return self.traffic_module.actors_batch[vehicle_ahead_idx]['Actor']
 
     def enumerate_actors(self):
+        """
+        Given the traffic actors and ego_state this fucntion enumerate actors, calculates their relative positions with
+        to ego and assign them to actor_enumerated_dict.
+        Keys to be updated: ['LEADING', 'FOLLOWING', 'LEFT', 'LEFT_UP', 'LEFT_DOWN', 'LLEFT', 'LLEFT_UP',
+        'LLEFT_DOWN', 'RIGHT', 'RIGHT_UP', 'RIGHT_DOWN', 'RRIGHT', 'RRIGHT_UP', 'RRIGHT_DOWN']
+        """
+
         self.actor_enumeration = []
         ego_s = self.actor_enumerated_dict['EGO']['S'][-1]
         ego_d = self.actor_enumerated_dict['EGO']['D'][-1]
@@ -333,11 +342,12 @@ class CarlaGymEnv(gym.Env):
             else:
                 norm_s.append(actor_id)
 
-            # print(actor_id, norm_s[i])
-        emp_ln_max = 0.09
-        emp_ln_min = -0.09
-        no_ln_max = 1
-        no_ln_min = -1
+        # How to fill actor_s when there is no lane or lane is empty. relative_norm_s to ego vehicle
+        emp_ln_max = 0.03
+        emp_ln_min = -0.03
+        no_ln_down = -0.03
+        no_ln_up = 0.004
+        no_ln = 0.001
 
         if norm_s[0] not in (-1, -2):
             self.actor_enumerated_dict['LEADING'] = {'S': norm_s[0]}
@@ -352,111 +362,102 @@ class CarlaGymEnv(gym.Env):
         if norm_s[2] not in (-1, -2):
             self.actor_enumerated_dict['LEFT'] = {'S': norm_s[2]}
         else:
-            self.actor_enumerated_dict['LEFT'] = {'S': [emp_ln_min] if norm_s[2] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['LEFT'] = {'S': [emp_ln_min] if norm_s[2] == -1 else [no_ln]}
 
         if norm_s[3] not in (-1, -2):
             self.actor_enumerated_dict['LEFT_UP'] = {'S': norm_s[3]}
         else:
-            self.actor_enumerated_dict['LEFT_UP'] = {'S': [emp_ln_max] if norm_s[3] == -1 else [no_ln_max]}
+            self.actor_enumerated_dict['LEFT_UP'] = {'S': [emp_ln_max] if norm_s[3] == -1 else [no_ln_up]}
 
         if norm_s[4] not in (-1, -2):
             self.actor_enumerated_dict['LEFT_DOWN'] = {'S': norm_s[4]}
         else:
-            self.actor_enumerated_dict['LEFT_DOWN'] = {'S': [emp_ln_min] if norm_s[4] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['LEFT_DOWN'] = {'S': [emp_ln_min] if norm_s[4] == -1 else [no_ln_down]}
 
         if norm_s[5] not in (-1, -2):
             self.actor_enumerated_dict['LLEFT'] = {'S': norm_s[5]}
         else:
-            self.actor_enumerated_dict['LLEFT'] = {'S': [emp_ln_min] if norm_s[5] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['LLEFT'] = {'S': [emp_ln_min] if norm_s[5] == -1 else [no_ln]}
 
         if norm_s[6] not in (-1, -2):
             self.actor_enumerated_dict['LLEFT_UP'] = {'S': norm_s[6]}
         else:
-            self.actor_enumerated_dict['LLEFT_UP'] = {'S': [emp_ln_max] if norm_s[6] == -1 else [no_ln_max]}
+            self.actor_enumerated_dict['LLEFT_UP'] = {'S': [emp_ln_max] if norm_s[6] == -1 else [no_ln_up]}
 
         if norm_s[7] not in (-1, -2):
             self.actor_enumerated_dict['LLEFT_DOWN'] = {'S': norm_s[7]}
         else:
-            self.actor_enumerated_dict['LLEFT_DOWN'] = {'S': [emp_ln_min] if norm_s[7] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['LLEFT_DOWN'] = {'S': [emp_ln_min] if norm_s[7] == -1 else [no_ln_down]}
 
         if norm_s[8] not in (-1, -2):
             self.actor_enumerated_dict['RIGHT'] = {'S': norm_s[8]}
         else:
-            self.actor_enumerated_dict['RIGHT'] = {'S': [emp_ln_min] if norm_s[8] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['RIGHT'] = {'S': [emp_ln_min] if norm_s[8] == -1 else [no_ln]}
 
         if norm_s[9] not in (-1, -2):
             self.actor_enumerated_dict['RIGHT_UP'] = {'S': norm_s[9]}
         else:
-            self.actor_enumerated_dict['RIGHT_UP'] = {'S': [emp_ln_max] if norm_s[9] == -1 else [no_ln_max]}
+            self.actor_enumerated_dict['RIGHT_UP'] = {'S': [emp_ln_max] if norm_s[9] == -1 else [no_ln_up]}
 
         if norm_s[10] not in (-1, -2):
             self.actor_enumerated_dict['RIGHT_DOWN'] = {'S': norm_s[10]}
         else:
-            self.actor_enumerated_dict['RIGHT_DOWN'] = {'S': [emp_ln_min] if norm_s[10] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['RIGHT_DOWN'] = {'S': [emp_ln_min] if norm_s[10] == -1 else [no_ln_down]}
 
         if norm_s[11] not in (-1, -2):
             self.actor_enumerated_dict['RRIGHT'] = {'S': norm_s[11]}
         else:
-            self.actor_enumerated_dict['RRIGHT'] = {'S': [emp_ln_min] if norm_s[11] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['RRIGHT'] = {'S': [emp_ln_min] if norm_s[11] == -1 else [no_ln]}
 
         if norm_s[12] not in (-1, -2):
             self.actor_enumerated_dict['RRIGHT_UP'] = {'S': norm_s[12]}
         else:
-            self.actor_enumerated_dict['RRIGHT_UP'] = {'S': [emp_ln_max] if norm_s[12] == -1 else [no_ln_max]}
+            self.actor_enumerated_dict['RRIGHT_UP'] = {'S': [emp_ln_max] if norm_s[12] == -1 else [no_ln_up]}
 
         if norm_s[13] not in (-1, -2):
             self.actor_enumerated_dict['RRIGHT_DOWN'] = {'S': norm_s[13]}
         else:
-            self.actor_enumerated_dict['RRIGHT_DOWN'] = {'S': [emp_ln_min] if norm_s[13] == -1 else [no_ln_min]}
+            self.actor_enumerated_dict['RRIGHT_DOWN'] = {'S': [emp_ln_min] if norm_s[13] == -1 else [no_ln_down]}
 
     def fix_representation(self):
+        """
+        Given the traffic actors fill the desired tensor with appropriate values and time_steps
+        """
         self.enumerate_actors()
 
-        self.actor_enumerated_dict['EGO']['NORM_D'].extend(self.actor_enumerated_dict['EGO']['NORM_D'][-1]
+        self.actor_enumerated_dict['EGO']['SPEED'].extend(self.actor_enumerated_dict['EGO']['SPEED'][-1]
                                                      for _ in range(self.look_back - len(self.actor_enumerated_dict['EGO']['NORM_D'])))
 
         for act_values in self.actor_enumerated_dict.values():
             act_values['S'].extend(act_values['S'][-1] for _ in range(self.look_back - len(act_values['S'])))
 
-        _range = np.arange(-self.look_back, -1, int(self.look_back / self.time_step), dtype=int) # add last observation
+        _range = np.arange(-self.look_back, -1, int(np.ceil(self.look_back / self.time_step)), dtype=int) # add last observation
         _range = np.append(_range, -1)
 
-        lstm_obs = np.concatenate((np.array(self.actor_enumerated_dict['EGO']['NORM_D'])[_range],
+        lstm_obs = np.concatenate((np.array(self.actor_enumerated_dict['EGO']['SPEED'])[_range],
                                    np.array(self.actor_enumerated_dict['LEADING']['S'])[_range],
                                    np.array(self.actor_enumerated_dict['FOLLOWING']['S'])[_range],
                                    np.array(self.actor_enumerated_dict['LEFT']['S'])[_range],
                                    np.array(self.actor_enumerated_dict['LEFT_UP']['S'])[_range],
                                    np.array(self.actor_enumerated_dict['LEFT_DOWN']['S'])[_range],
+                                   np.array(self.actor_enumerated_dict['LLEFT']['S'])[_range],
+                                   np.array(self.actor_enumerated_dict['LLEFT_UP']['S'])[_range],
+                                   np.array(self.actor_enumerated_dict['LLEFT_DOWN']['S'])[_range],
                                    np.array(self.actor_enumerated_dict['RIGHT']['S'])[_range],
                                    np.array(self.actor_enumerated_dict['RIGHT_UP']['S'])[_range],
-                                   np.array(self.actor_enumerated_dict['RIGHT_DOWN']['S'])[_range]),
+                                   np.array(self.actor_enumerated_dict['RIGHT_DOWN']['S'])[_range],
+                                   np.array(self.actor_enumerated_dict['RRIGHT']['S'])[_range],
+                                   np.array(self.actor_enumerated_dict['RRIGHT_UP']['S'])[_range],
+                                   np.array(self.actor_enumerated_dict['RRIGHT_DOWN']['S'])[_range]),
                                   axis=0)
 
         return lstm_obs.reshape(self.observation_space.shape[1], -1).transpose()  # state
 
-    def non_fix_representation(self, speeds, ego_norm_s, ego_norm_d, actors_norm_s_d):
-        speeds.extend(0 for _ in range(self.look_back - len(speeds)))
-        ego_norm_s.extend(0 for _ in range(self.look_back - len(ego_norm_s)))
-        ego_norm_d.extend(0 for _ in range(self.look_back - len(ego_norm_d)))
-        actors_norm_s_d.extend([0 for _ in range(self.N_SPAWN_CARS)]
-                               for _ in range(self.look_back * 2 - len(actors_norm_s_d)))
-
-        # LSTM input
-        speeds_vec = (np.array(speeds) - self.maxSpeed) / self.maxSpeed
-        actors_norm_s_d_flattened = np.concatenate(np.array(actors_norm_s_d), axis=0)
-        lstm_obs = np.concatenate(
-            (np.array(speeds_vec), np.array(ego_norm_s), np.array(ego_norm_d), actors_norm_s_d_flattened), axis=0)
-        lstm_obs = lstm_obs.reshape((self.N_SPAWN_CARS + 1) * 2 + 1, -1)
-        return lstm_obs[:, -self.look_back:]  # state
-
     def step(self, action=None):
         self.n_step += 1
 
-        # actors_norm_s = []    # relative frenet s value wrt ego
-        # actors_norm_d = []    # relative frenet d value wrt ego
-        actors_norm_s_d = []  # relative frenet consecutive s and d values wrt ego
-        self.actor_enumerated_dict['EGO'] = {'NORM_S': [], 'NORM_D': [], 'S': [], 'D': []}
-        if self.verbosity: print('ACTION'.ljust(15), '{:+8.6f}'.format(float(action)))
+        self.actor_enumerated_dict['EGO'] = {'NORM_S': [], 'NORM_D': [], 'S': [], 'D': [], 'SPEED': []}
+        if self.verbosity: print('ACTION'.ljust(15), '{:+8.6f}, {:+8.6f}'.format(float(action[0]), float(action[1])))
         """
                 **********************************************************************************************************************
                 *********************************************** Motion Planner *******************************************************
@@ -469,8 +470,8 @@ class CarlaGymEnv(gym.Env):
         acc = math.sqrt(acc_vec.x ** 2 + acc_vec.y ** 2 + acc_vec.z ** 2)
         psi = math.radians(self.ego.get_transform().rotation.yaw)
         ego_state = [self.ego.get_location().x, self.ego.get_location().y, speed, acc, psi, temp, self.max_s]
-        fpath, self.lanechange, off_the_road = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action, Tf=5,
-                                                                         Vf_n=-1)
+        fpath, self.lanechange, off_the_road = self.motionPlanner.run_step_single_path(ego_state, self.f_idx, df_n=action[0], Tf=5,
+                                                                         Vf_n=action[1])
         wps_to_go = len(fpath.t) - 3  # -2 bc len gives # of items not the idx of last item + 2wp controller is used
         self.f_idx = 1
 
@@ -484,7 +485,7 @@ class CarlaGymEnv(gym.Env):
         elapsed_time = lambda previous_time: time.time() - previous_time
         path_start_time = time.time()
         ego_init_d, ego_target_d = fpath.d[0], fpath.d[-1]
-        # follows path until end of WPs for max 1.8seconds or loop counter breaks unless there is a langechange
+        # follows path until end of WPs for max 1.5 * path_time or loop counter breaks unless there is a langechange
         loop_counter = 0
 
         while self.f_idx < wps_to_go and (elapsed_time(path_start_time) < self.motionPlanner.D_T * 1.5 or
@@ -538,23 +539,18 @@ class CarlaGymEnv(gym.Env):
             self.actor_enumerated_dict['EGO']['D'].append(ego_d)
             self.actor_enumerated_dict['EGO']['NORM_S'].append((ego_s - self.init_s) / self.track_length)
             self.actor_enumerated_dict['EGO']['NORM_D'].append(round((ego_d + self.LANE_WIDTH) / (3 * self.LANE_WIDTH), 2))
-
+            last_speed = get_speed(self.ego)
+            self.actor_enumerated_dict['EGO']['SPEED'].append(last_speed / self.maxSpeed)
             # if ego off-the road or collided
             if any(collision_hist):
                 collision = True
                 break
-
-            # if off_the_road:
-            #     pass
 
             distance_traveled = ego_s - self.init_s
             if distance_traveled < -5:
                 distance_traveled = self.max_s + distance_traveled
             if distance_traveled >= self.track_length:
                 track_finished = True
-
-            # if loop_counter >= self.loop_break:
-            #    break
 
         """
                 *********************************************************************************************************************
@@ -572,20 +568,14 @@ class CarlaGymEnv(gym.Env):
                 for idx in range(1, self.state.shape[1]):
                     print(TENSOR_ROW_NAMES[idx].ljust(15), '{:+8.6f}'.format(self.state[-1][idx]))
 
-        else:
-            pass
-            # pad the feature lists to recover from the cases where the length of path is less than look_back time
-            # self.state = self.non_fix_representation(speeds, ego_norm_s, ego_norm_d, actors_norm_s_d)
-            # self.state = lstm_obs[:, -self.look_back:]
 
-        # print(self.state)
-        # print(100 * '--')
+        if self.verbosity == 3: print(self.state)
         """
                 **********************************************************************************************************************
                 ********************************************* RL Reward Function *****************************************************
                 **********************************************************************************************************************
         """
-        last_speed = get_speed(self.ego)
+
         e_speed = abs(self.targetSpeed - last_speed)
         r_speed = self.w_r_speed * np.exp(-e_speed ** 2 / self.maxSpeed * self.w_speed)  # 0<= r_speed <= self.w_r_speed
         #  first two path speed change increases regardless so we penalize it differently
@@ -594,14 +584,14 @@ class CarlaGymEnv(gym.Env):
         r_laneChange = 0
 
         if self.lanechange and spd_change_percentage < self.min_speed_gain:
-            r_laneChange = -1 * r_speed * self.lane_change_penalty  # r_laneChange <= 0
+            r_laneChange = -1 * r_speed * self.lane_change_penalty  # <= 0
 
         elif self.lanechange:
             r_speed *= self.lane_change_reward
 
         positives = r_speed
         negatives = r_laneChange
-        reward = positives + negatives  # -1<= reward <=1
+        reward = positives + negatives  # r_speed * (1 - lane_change_penalty) <= reward <= r_speed * lane_change_reward
         # print(self.n_step, self.eps_rew)
 
         """
@@ -609,11 +599,8 @@ class CarlaGymEnv(gym.Env):
                 ********************************************* Episode Termination ****************************************************
                 **********************************************************************************************************************
         """
-        if self.is_first_path:
-            self.is_first_path = False
 
         done = False
-
         if collision:
             # print('Collision happened!')
             reward = self.collision_penalty
@@ -665,7 +652,8 @@ class CarlaGymEnv(gym.Env):
         ego_s_list = [self.init_s for _ in range(self.look_back)]
         ego_d_list = [init_d for _ in range(self.look_back)]
 
-        self.actor_enumerated_dict['EGO'] = {'NORM_S': [0], 'NORM_D': [init_norm_d], 'S': ego_s_list, 'D': ego_d_list}
+        self.actor_enumerated_dict['EGO'] = {'NORM_S': [0], 'NORM_D': [init_norm_d],
+                                             'S': ego_s_list, 'D': ego_d_list, 'SPEED': [0]}
 
         if cfg.GYM_ENV.FIXED_REPRESENTATION:
             self.state = self.fix_representation()

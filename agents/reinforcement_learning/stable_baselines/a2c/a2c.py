@@ -277,7 +277,10 @@ class A2C(ActorCriticRLModel):
                         logger.logkv('ep_len_mean', safe_mean([ep_info['l'] for ep_info in self.ep_info_buf]))
                     logger.dump_tabular()
 
-                    self.save(self.model_dir + "/{}".format(self.num_timesteps))
+                # Save time model every 5000 step
+                if self.num_timesteps % 5000 == 0:
+                    self.save(self.model_dir + "/step_{}".format(self.num_timesteps))
+
 
         callback.on_training_end()
         return self

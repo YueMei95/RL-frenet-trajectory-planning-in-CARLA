@@ -1,7 +1,6 @@
 # RL-frenet-trajectory-planning-in-CARLA
-This repo is a framework that creates a OpenAI Gym environment for self-driving car simulator CARLA in order to utilize cutting edge deep reinforcement algorithms and frenet trajectory planning.
+This repository is a framework that creates a OpenAI Gym environment for self-driving car simulator CARLA in order to utilize cutting edge deep reinforcement algorithms and frenet trajectory planning.
 =======
-
 
 # Installation
 1. Clone the project
@@ -27,15 +26,17 @@ Now you may import carla in your python script.
 
 # Example Training:
 
-./CarlaUE4.sh -carla-server -fps=20 -world-port=2000 -windowed -ResX=1280 -ResY=720 -carla-no-hud -quality-level=Low [CARLA documentation](https://carla.readthedocs.io/en/latest/)
-python3 run.py --cfg_file=tools/cfgs/config.yaml --agent_id=1 --env=CarlaGymEnv-v5522 
+- ./CarlaUE4.sh -carla-server -fps=20 -world-port=2000 -windowed -ResX=1280 -ResY=720 -carla-no-hud -quality-level=Low [CARLA documentation](https://carla.readthedocs.io/en/latest/)
+- python3 run.py --cfg_file=tools/cfgs/config.yaml --agent_id=1 --env=CarlaGymEnv-v5522 
  
 # Example Test:
 
 Initilize the best recorded agent and associated config file given the agent_id. Test runs as --play_mode=1 (2D) as default. 
 
-./CarlaUE4.sh -carla-server -fps=20 -world-port=2000 -windowed -ResX=1280 -ResY=720 -carla-no-hud -quality-level=Low
-python3 run.py --agent_id=1 --env=CarlaGymEnv-v5522 --test 
+- ./CarlaUE4.sh -carla-server -fps=20 -world-port=2000 -windowed -ResX=1280 -ResY=720 -carla-no-hud -quality-level=Low
+- python3 run.py --agent_id=1 --env=CarlaGymEnv-v5522 --test 
+
+# Pre-trained agents DDPG(ID:1), TRPO(ID:2), A2C(ID:3), PPO2(ID:4)
 
 Besides the config.yaml file you can also use following parameters:
 
@@ -51,12 +52,7 @@ Besides the config.yaml file you can also use following parameters:
 DISPLAY= ./CarlaUE4.sh -carla-server -fps=20 -world-port=2000 -windowed -ResX=1280 -ResY=720 -carla-no-hud -quality-level=Low
 
 # Important Directories
-RL Policy Networks : agents/reinforcement_learning/stable_baselines/common/policies.py
-Env and RL Config File: tools/cfgs/config.yaml
-Gym Environment: carla_gym/envs/ # Gym environment interface for CARLA, To manipulate observation, action, reward etc.
-Modules: tools/modules.py # Pretty much wraps everything
-
-
-
-
->>>>>>> master-holder
+- RL Policy Networks : agents/reinforcement_learning/stable_baselines/common/policies.py
+- Env and RL Config File: tools/cfgs/config.yaml
+- Gym Environment: carla_gym/envs/ # Gym environment interface for CARLA, To manipulate observation, action, reward etc.
+- Modules: tools/modules.py # Pretty much wraps everything

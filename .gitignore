@@ -1,6 +1,6 @@
 # models
 models/*.zip
-logs/
+# logs/
 # Distribution / packaging
 .Python
 **/*.egg

@@ -458,6 +458,9 @@ class CarlaGymEnv(gym.Env):
 
         self.actor_enumerated_dict['EGO'] = {'NORM_S': [], 'NORM_D': [], 'S': [], 'D': [], 'SPEED': []}
         if self.verbosity: print('ACTION'.ljust(15), '{:+8.6f}, {:+8.6f}'.format(float(action[0]), float(action[1])))
+        if self.is_first_path:  # Episode start is bypassed
+            action = [0,-1]
+            self.is_first_path = False
         """
                 **********************************************************************************************************************
                 *********************************************** Motion Planner *******************************************************

@@ -40,12 +40,12 @@ Initilize the best recorded agent and associated config file given the agent_id.
 
 - Besides the config.yaml file you can also use following parameters:
 
-```--num_timesteps```; number of the time steps to train agent, default=1e7 
-```--play_mode```: Display mode: 0:off, 1:2D, 2:3D, default=0
-```--verbosity```: 0:Off, 1:Action,Reward, 2: Actors + 1, 3: Observation Tensor + 2, default=0
-```--test```: default=False
-```--test_model```: if want to run a specific model type:str without file extension example (best_120238)
-```--test_last```: if True will run the latest recorded model not the best
+- ```--num_timesteps```; number of the time steps to train agent, default=1e7 
+- ```--play_mode```: Display mode: 0:off, 1:2D, 2:3D, default=0
+- ```--verbosity```: 0:Off, 1:Action,Reward, 2: Actors + 1, 3: Observation Tensor + 2, default=0
+- ```--test```: default=False
+- ```--test_model```: if want to run a specific model type:str without file extension example (best_120238)
+- ```--test_last```: if True will run the latest recorded model not the best
 
 - Carla requires a powerful GPU to produce high fps. In order to increase performance you can run following as an alternative:
 

@@ -53,7 +53,7 @@ Initilize the best recorded agent and associated config file given the agent_id.
 
 # Printing the Results
 
-python3 monitor_plot.py --agent_ids 1 2 --window_size 100 --colors red blue --lr DDPG TRPO --alpha 0.1 --n_steps 1e5
+```python3 monitor_plot.py --agent_ids 1 2 --window_size 100 --colors red blue --lr DDPG TRPO --alpha 0.1 --n_steps 1e5```
 
 # Important Directories
 - RL Policy Networks : agents/reinforcement_learning/stable_baselines/common/policies.py

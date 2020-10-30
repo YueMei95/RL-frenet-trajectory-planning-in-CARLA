@@ -51,6 +51,10 @@ Initilize the best recorded agent and associated config file given the agent_id.
 
 ```DISPLAY= ./CarlaUE4.sh -carla-server -fps=20 -world-port=2000 -windowed -ResX=1280 -ResY=720 -carla-no-hud -quality-level=Low```
 
+# Printing the Results
+
+python3 monitor_plot.py --agent_ids 1 2 --window_size 100 --colors red blue --lr DDPG TRPO --alpha 0.1 --n_steps 1e5
+
 # Important Directories
 - RL Policy Networks : agents/reinforcement_learning/stable_baselines/common/policies.py
 - Env and RL Config File: tools/cfgs/config.yaml

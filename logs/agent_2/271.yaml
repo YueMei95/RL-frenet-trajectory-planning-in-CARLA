@@ -7,8 +7,8 @@ CARLA:
   MAX_S: 3000                                                   # [int] max frenet s value available in global route
 
 POLICY:
-  NAME: DDPG                                                    # DDPG/TRPO/PPO2/A2C
-  NET: CNN                                                      # MLP/CNN/LSTM - DDPG does not have LSTM policy
+  NAME: TRPO                                                    # DDPG/TRPO/PPO2/A2C
+  NET: MLP                                                      # MLP/CNN/LSTM - DDPG does not have LSTM policy
   CNN_EXTRACTOR: sequence_1d_cnn_ego_bypass_tc                                # nature_cnn/sequence_1d_cnn/sequence_1d_cnn_ego_bypass
   ACTION_NOISE: 0.5                                             # DDPG only
   PARAM_NOISE_STD: 0.0                                          # DDPG only
